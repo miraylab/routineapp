@@ -20,6 +20,9 @@ import { Route as SemanaRouteImport } from './routes/semana'
 import { Route as MaisIndexRouteImport } from './routes/mais.index'
 import { Route as ProjetosIndexRouteImport } from './routes/projetos.index'
 import { Route as ProjetosProjectIdRouteImport } from './routes/projetos.$projectId'
+import { Route as ApiHealthDebugRouteImport } from './routes/api.health.debug'
+import { Route as ApiHealthRecentRouteImport } from './routes/api.health.recent'
+import { Route as ApiHealthTodayRouteImport } from './routes/api.health.today'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -76,6 +79,21 @@ const ProjetosProjectIdRoute = ProjetosProjectIdRouteImport.update({
   path: '/projetos/$projectId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHealthDebugRoute = ApiHealthDebugRouteImport.update({
+  id: '/api/health/debug',
+  path: '/api/health/debug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthRecentRoute = ApiHealthRecentRouteImport.update({
+  id: '/api/health/recent',
+  path: '/api/health/recent',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthTodayRoute = ApiHealthTodayRouteImport.update({
+  id: '/api/health/today',
+  path: '/api/health/today',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -89,6 +107,9 @@ export interface FileRoutesByFullPath {
   '/projetos/$projectId': typeof ProjetosProjectIdRoute
   '/mais/': typeof MaisIndexRoute
   '/projetos/': typeof ProjetosIndexRoute
+  '/api/health/debug': typeof ApiHealthDebugRoute
+  '/api/health/recent': typeof ApiHealthRecentRoute
+  '/api/health/today': typeof ApiHealthTodayRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -102,6 +123,9 @@ export interface FileRoutesByTo {
   '/projetos/$projectId': typeof ProjetosProjectIdRoute
   '/mais': typeof MaisIndexRoute
   '/projetos': typeof ProjetosIndexRoute
+  '/api/health/debug': typeof ApiHealthDebugRoute
+  '/api/health/recent': typeof ApiHealthRecentRoute
+  '/api/health/today': typeof ApiHealthTodayRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -116,6 +140,9 @@ export interface FileRoutesById {
   '/projetos/$projectId': typeof ProjetosProjectIdRoute
   '/mais/': typeof MaisIndexRoute
   '/projetos/': typeof ProjetosIndexRoute
+  '/api/health/debug': typeof ApiHealthDebugRoute
+  '/api/health/recent': typeof ApiHealthRecentRoute
+  '/api/health/today': typeof ApiHealthTodayRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -131,6 +158,9 @@ export interface FileRouteTypes {
     | '/projetos/$projectId'
     | '/mais/'
     | '/projetos/'
+    | '/api/health/debug'
+    | '/api/health/recent'
+    | '/api/health/today'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -144,6 +174,9 @@ export interface FileRouteTypes {
     | '/projetos/$projectId'
     | '/mais'
     | '/projetos'
+    | '/api/health/debug'
+    | '/api/health/recent'
+    | '/api/health/today'
   id:
     | '__root__'
     | '/'
@@ -157,6 +190,9 @@ export interface FileRouteTypes {
     | '/projetos/$projectId'
     | '/mais/'
     | '/projetos/'
+    | '/api/health/debug'
+    | '/api/health/recent'
+    | '/api/health/today'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -171,6 +207,9 @@ export interface RootRouteChildren {
   ProjetosProjectIdRoute: typeof ProjetosProjectIdRoute
   MaisIndexRoute: typeof MaisIndexRoute
   ProjetosIndexRoute: typeof ProjetosIndexRoute
+  ApiHealthDebugRoute: typeof ApiHealthDebugRoute
+  ApiHealthRecentRoute: typeof ApiHealthRecentRoute
+  ApiHealthTodayRoute: typeof ApiHealthTodayRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -252,6 +291,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjetosProjectIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/health/debug': {
+      id: '/api/health/debug'
+      path: '/api/health/debug'
+      fullPath: '/api/health/debug'
+      preLoaderRoute: typeof ApiHealthDebugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health/recent': {
+      id: '/api/health/recent'
+      path: '/api/health/recent'
+      fullPath: '/api/health/recent'
+      preLoaderRoute: typeof ApiHealthRecentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health/today': {
+      id: '/api/health/today'
+      path: '/api/health/today'
+      fullPath: '/api/health/today'
+      preLoaderRoute: typeof ApiHealthTodayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -267,6 +327,9 @@ const rootRouteChildren: RootRouteChildren = {
   ProjetosProjectIdRoute: ProjetosProjectIdRoute,
   MaisIndexRoute: MaisIndexRoute,
   ProjetosIndexRoute: ProjetosIndexRoute,
+  ApiHealthDebugRoute: ApiHealthDebugRoute,
+  ApiHealthRecentRoute: ApiHealthRecentRoute,
+  ApiHealthTodayRoute: ApiHealthTodayRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

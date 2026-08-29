@@ -1,33 +1,20 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  ChevronRight,
-  Compass,
-  HeartPulse,
-  Wallet,
-  CalendarRange,
-  Settings,
-} from "lucide-react";
+import { BriefcaseBusiness, ChevronRight, Compass, CalendarRange, Settings } from "lucide-react";
 
 import { PageHeader } from "@/components/yuri/PageHeader";
 
 const links = [
   {
+    to: "/projetos" as const,
+    label: "Projetos",
+    desc: "Frentes em andamento",
+    icon: BriefcaseBusiness,
+  },
+  {
     to: "/objetivos" as const,
     label: "Objetivos",
     desc: "Longo prazo e trimestre",
     icon: Compass,
-  },
-  {
-    to: "/habitos" as const,
-    label: "Hábitos / Saúde",
-    desc: "Semana atual",
-    icon: HeartPulse,
-  },
-  {
-    to: "/financeiro" as const,
-    label: "Financeiro",
-    desc: "Visão gerencial do mês",
-    icon: Wallet,
   },
   {
     to: "/mes" as const,
@@ -49,13 +36,12 @@ export const Route = createFileRoute("/mais/")({
       { title: "Mais · YURI OS" },
       {
         name: "description",
-        content:
-          "Acesse objetivos, hábitos e saúde, financeiro, visão mensal e configurações do YURI OS.",
+        content: "Acesse projetos, objetivos, visão mensal e configurações do YURI OS.",
       },
       { property: "og:title", content: "Mais · YURI OS" },
       {
         property: "og:description",
-        content: "Objetivos, hábitos, financeiro, visão mensal e configurações.",
+        content: "Projetos, objetivos, visão mensal e configurações.",
       },
     ],
   }),
@@ -77,12 +63,8 @@ function MaisPage() {
               <Icon className="size-5" strokeWidth={1.8} />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[15px] font-medium">
-                {label}
-              </span>
-              <span className="block truncate text-xs text-muted-foreground">
-                {desc}
-              </span>
+              <span className="block truncate text-[15px] font-medium">{label}</span>
+              <span className="block truncate text-xs text-muted-foreground">{desc}</span>
             </span>
             <ChevronRight className="size-5 shrink-0 text-muted-foreground" />
           </Link>

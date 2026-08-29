@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Clock, LayoutGrid, Target, Menu } from "lucide-react";
+import { Clock, HeartPulse, Menu, Target, Wallet } from "lucide-react";
 
 const items = [
   { to: "/", label: "Hoje", icon: Clock, match: (p: string) => p === "/" },
@@ -10,19 +10,23 @@ const items = [
     match: (p: string) => p.startsWith("/semana"),
   },
   {
-    to: "/projetos",
-    label: "Projetos",
-    icon: LayoutGrid,
-    match: (p: string) => p.startsWith("/projetos"),
+    to: "/financeiro",
+    label: "Financeiro",
+    icon: Wallet,
+    match: (p: string) => p.startsWith("/financeiro"),
+  },
+  {
+    to: "/habitos",
+    label: "Saúde",
+    icon: HeartPulse,
+    match: (p: string) => p.startsWith("/habitos"),
   },
   {
     to: "/mais",
     label: "Mais",
     icon: Menu,
     match: (p: string) =>
-      ["/mais", "/objetivos", "/habitos", "/financeiro", "/mes", "/configuracoes"].some(
-        (x) => p.startsWith(x),
-      ),
+      ["/mais", "/objetivos", "/mes", "/configuracoes", "/projetos"].some((x) => p.startsWith(x)),
   },
 ];
 
@@ -42,9 +46,7 @@ export function BottomNavigation() {
             >
               <Icon
                 className={
-                  active
-                    ? "size-[22px] text-primary"
-                    : "size-[22px] text-muted-foreground"
+                  active ? "size-[22px] text-primary" : "size-[22px] text-muted-foreground"
                 }
                 strokeWidth={active ? 2.2 : 1.7}
               />
