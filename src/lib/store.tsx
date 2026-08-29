@@ -26,11 +26,14 @@ import {
 import { getCurrentActivity, toMinutes } from "@/lib/schedule";
 
 const STORAGE_KEY = "yuri-os.state.v1";
+const DEV_SIMULATION = import.meta.env.DEV ? { enabled: true, dayOfWeek: 6, time: "15:50" } : null;
 
 interface PersistedState {
   doneTasks: string[];
   extraTasks: Task[];
   doneBlocks: string[];
+  doneActivityChecklistItems: string[];
+  extraActivityChecklistItems: Record<string, { id: string; title: string; priority?: boolean }[]>;
   projectActions: Record<string, string[]>; // projectId -> action ids toggled
   extraActions: Record<string, { id: string; title: string }[]>;
   doneKeyResults: string[];
@@ -41,13 +44,15 @@ const initialState: PersistedState = {
   doneTasks: tasksSeed.filter((t) => t.status === "done").map((t) => t.id),
   extraTasks: [],
   doneBlocks: [],
+  doneActivityChecklistItems: [],
+  extraActivityChecklistItems: {},
   projectActions: {},
   extraActions: {},
   doneKeyResults: weekFocus.keyResults.filter((k) => k.done).map((k) => k.id),
   simulation: { enabled: false, dayOfWeek: 1, time: "19:42" },
 };
 
-interface StoreValue extends ReturnType<typeof useStoreValue> {}
+type StoreValue = ReturnType<typeof useStoreValue>;
 
 function useStoreValue() {
   const [state, setState] = useState<PersistedState>(initialState);
@@ -82,7 +87,7 @@ function useStoreValue() {
 
   const realNow = useMemo(() => new Date(), [tick, hydrated]);
 
-  const sim = state.simulation;
+  const sim = DEV_SIMULATION ?? state.simulation;
   const dayOfWeek = sim.enabled ? sim.dayOfWeek : realNow.getDay();
   const nowMinutes = sim.enabled
     ? toMinutes(sim.time)
@@ -144,14 +149,38 @@ function useStoreValue() {
     list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
 
   const toggleTask = useCallback(
-    (id: string) =>
-      setState((s) => ({ ...s, doneTasks: toggleId(s.doneTasks, id) })),
+    (id: string) => setState((s) => ({ ...s, doneTasks: toggleId(s.doneTasks, id) })),
     [],
   );
 
   const toggleBlock = useCallback(
+    (id: string) => setState((s) => ({ ...s, doneBlocks: toggleId(s.doneBlocks, id) })),
+    [],
+  );
+
+  const toggleActivityChecklistItem = useCallback(
     (id: string) =>
-      setState((s) => ({ ...s, doneBlocks: toggleId(s.doneBlocks, id) })),
+      setState((s) => ({
+        ...s,
+        doneActivityChecklistItems: toggleId(s.doneActivityChecklistItems ?? [], id),
+      })),
+    [],
+  );
+
+  const addActivityChecklistItem = useCallback(
+    (activityId: string, title: string, priority = false) => {
+      const id = `${activityId}:extra:${Date.now()}`;
+      setState((s) => ({
+        ...s,
+        extraActivityChecklistItems: {
+          ...s.extraActivityChecklistItems,
+          [activityId]: [
+            ...(s.extraActivityChecklistItems?.[activityId] ?? []),
+            { id, title, priority },
+          ],
+        },
+      }));
+    },
     [],
   );
 
@@ -212,9 +241,11 @@ function useStoreValue() {
 
   const resetState = useCallback(() => setState(initialState), []);
 
-  const blockDone = useCallback(
-    (id: string) => state.doneBlocks.includes(id),
-    [state.doneBlocks],
+  const blockDone = useCallback((id: string) => state.doneBlocks.includes(id), [state.doneBlocks]);
+
+  const activityChecklistItemDone = useCallback(
+    (id: string) => (state.doneActivityChecklistItems ?? []).includes(id),
+    [state.doneActivityChecklistItems],
   );
 
   return {
@@ -236,8 +267,12 @@ function useStoreValue() {
     weekFocus,
     simulation: state.simulation,
     blockDone,
+    activityChecklistItemDone,
+    extraActivityChecklistItems: state.extraActivityChecklistItems ?? {},
     toggleTask,
     toggleBlock,
+    toggleActivityChecklistItem,
+    addActivityChecklistItem,
     toggleKeyResult,
     toggleProjectAction,
     addProjectAction,
@@ -251,9 +286,7 @@ const StoreContext = createContext<StoreValue | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const value = useStoreValue();
-  return (
-    <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
-  );
+  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 
 export function useStore() {

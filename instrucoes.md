@@ -80,6 +80,24 @@ Ela deve responder imediatamente:
 
 Quando nao houver atividade planejada, o app deve respeitar o tempo livre. Ele nao deve tentar otimizar cada minuto do usuario.
 
+No card principal de atividade atual, existe uma separacao conceitual entre contexto/bloco maior e atividade:
+
+- O contexto/bloco maior aparece como categoria, por exemplo Michelin, Miray, Saude, Alimentacao ou Estudos.
+- O titulo deve representar a atividade concreta dentro daquele contexto.
+- A barra de progresso representa a atividade atual, nao necessariamente o bloco maior.
+- O card nao deve exibir, por enquanto, o horario final do contexto/bloco maior; essa informacao ficou excessiva visualmente.
+- A atividade atual pode ter `activityChecklist`, uma lista de itens concretos a executar naquela atividade.
+- A barra de progresso de tempo da atividade deve aparecer acima do checklist, deixando claro primeiro o intervalo/tempo restante e depois a lista operacional do que executar.
+- O card principal da tela Hoje deve permitir navegacao por gesto horizontal no mobile: arrastar para a direita mostra a atividade anterior do dia; arrastar da direita para a esquerda mostra a proxima atividade. O checklist, itens adicionados e estado de conclusao devem sempre se aplicar a atividade que estiver em foco no card.
+- Quando `activityChecklist` nao existir, `nextAction` pode funcionar como fallback de item unico.
+- O checklist deve exibir contador de itens concluidos no canto superior direito, alinhado com a palavra CHECKLIST. O texto de cada item deve poder quebrar linha para permitir leitura completa, sem truncamento.
+- A area visual do checklist deve ter altura fixa para mostrar aproximadamente 3 itens por vez e usar rolagem interna. Itens concluidos ficam acima; itens pendentes ficam abaixo. Ao abrir a atividade, a rolagem deve iniciar no primeiro item pendente, permitindo rolar para cima para ver o que ja foi executado e para baixo para ver o que falta executar.
+- Deve existir um controle para adicionar itens manualmente ao checklist da atividade atual.
+- O card de atividade atual nao deve ter botao separado de concluir; o checklist deve concentrar a execucao da atividade.
+- Itens do checklist podem ter flag `priority`. Enquanto estiverem pendentes, itens prioritarios aparecem no topo, preservando a ordem de entrada entre eles, e devem receber destaque por uma bolinha verde discreta no canto superior direito do item, sem contorno e sem pilula textual ocupando espaco. Itens sem prioridade aparecem depois, tambem preservando a ordem de entrada. Depois de concluidos, os itens nao precisam mais manter hierarquia de prioridade. O controle manual de prioridade deve usar icone de bandeira, sem texto.
+- Os itens marcados e itens adicionados manualmente ao checklist da atividade devem persistir localmente no `localStorage`.
+- Barras de rolagem internas, como a do checklist da atividade, devem usar visual discreto com trilho transparente e barra/setas no cinza escuro do background do app.
+
 ## Stack Atual
 
 Estado investigado em 2026-08-29:

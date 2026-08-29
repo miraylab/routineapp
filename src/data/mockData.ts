@@ -5,27 +5,26 @@
  */
 
 export type Category =
-  | "Trabalho"
-  | "Miray"
-  | "Saúde"
-  | "Estudos"
-  | "Rotina"
-  | "Pessoal";
+  "Michelin" | "Trabalho" | "Miray" | "Saúde" | "Alimentação" | "Estudos" | "Rotina" | "Pessoal";
 
 export interface ScheduleBlock {
   id: string;
   dayOfWeek: number; // 0 = domingo ... 6 = sábado
   startTime: string; // "HH:MM"
   endTime: string; // "HH:MM"
+  blockEndTime?: string; // fim do contexto/bloco maior da rotina
   category: Category;
   title: string;
   subtitle?: string;
   description?: string;
   nextAction?: string;
+  activityChecklist?: ActivityChecklistItemSeed[];
   expectedResult?: string;
   projectId?: string;
   taskId?: string;
 }
+
+export type ActivityChecklistItemSeed = string | { title: string; priority?: boolean };
 
 export interface Task {
   id: string;
@@ -108,20 +107,32 @@ const b = (
 });
 
 const workMorning = (d: number) =>
-  b(d, "08:30", "12:00", "Trabalho", "Trabalho", {
-    subtitle: "Bloco analítico",
+  b(d, "08:30", "12:00", "Michelin", "Revisar dashboard RQE", {
+    blockEndTime: "17:00",
     description: "Análises e entregas do time de dados.",
     nextAction: "Fechar a análise de retenção do trimestre.",
+    activityChecklist: [
+      { title: "Mandar email X", priority: true },
+      "Validar dados carregados no dashboard",
+      "Revisar filtros principais",
+      "Registrar pendências para o time",
+    ],
   });
 
 const workAfternoon = (d: number) =>
-  b(d, "12:40", "17:00", "Trabalho", "Trabalho", {
-    subtitle: "Bloco de execução",
+  b(d, "12:40", "17:00", "Michelin", "Executar entregas do time", {
+    blockEndTime: "17:00",
     description: "Reuniões, revisões e entregas.",
     nextAction: "Revisar o documento de discovery com o time.",
+    activityChecklist: [
+      { title: "Enviar status rápido para o time", priority: true },
+      "Responder mensagens prioritárias",
+      "Atualizar entregas em andamento",
+      "Separar próximos bloqueios",
+    ],
   });
 
-const lunch = (d: number) => b(d, "12:00", "12:40", "Rotina", "Almoço");
+const lunch = (d: number) => b(d, "12:00", "12:40", "Alimentação", "Almoço");
 const sleep = (d: number) => b(d, "21:30", "23:30", "Rotina", "Sono");
 
 export const schedule: ScheduleBlock[] = [
@@ -228,8 +239,15 @@ export const schedule: ScheduleBlock[] = [
     description: "Aula e conversação.",
   }),
   b(6, "14:00", "17:00", "Miray", "Bloco Miray", {
+    blockEndTime: "17:00",
     subtitle: "Robô Instagram",
     nextAction: "Produzir o primeiro carrossel.",
+    activityChecklist: [
+      { title: "Separar referência visual principal", priority: true },
+      "Escolher o tema do carrossel",
+      "Escrever a primeira versão",
+      "Separar pontos para revisão",
+    ],
     projectId: "robo-instagram",
   }),
 
@@ -249,7 +267,6 @@ export const tasks: Task[] = [
   {
     id: "t1",
     title: "Finalizar análise de retenção",
-    
     category: "Trabalho",
     status: "done",
     priority: 1,
@@ -304,8 +321,7 @@ export const projects: Project[] = [
     id: "curso-produto",
     title: "Curso de Produto",
     category: "Estudos",
-    objective:
-      "Construir repertório sólido em descoberta, métricas e estratégia de produto.",
+    objective: "Construir repertório sólido em descoberta, métricas e estratégia de produto.",
     progress: 42,
     status: "Em andamento",
     health: "No prazo",
@@ -325,8 +341,7 @@ export const projects: Project[] = [
     id: "miray-estrutura",
     title: "Estruturação Miray",
     category: "Miray",
-    objective:
-      "Transformar a Miray em uma operação orientada a produtos escaláveis.",
+    objective: "Transformar a Miray em uma operação orientada a produtos escaláveis.",
     progress: 28,
     status: "Em andamento",
     health: "Atenção",
@@ -391,11 +406,7 @@ export const goals: Goal[] = [
     title: "Construir repertório em produto, liderança e negócios.",
     horizon: "Longo prazo",
     progress: 53,
-    quarter: [
-      "Concluir o curso de produto",
-      "Ler 3 livros de negócio",
-      "Retomar o inglês semanal",
-    ],
+    quarter: ["Concluir o curso de produto", "Ler 3 livros de negócio", "Retomar o inglês semanal"],
     relatedProjects: ["curso-produto"],
   },
   {
@@ -404,11 +415,7 @@ export const goals: Goal[] = [
     title: "Aumentar patrimônio e segurança financeira.",
     horizon: "Longo prazo",
     progress: 66,
-    quarter: [
-      "Taxa de poupança acima de 25%",
-      "Reserva de 8 meses",
-      "Primeira receita da Miray",
-    ],
+    quarter: ["Taxa de poupança acima de 25%", "Reserva de 8 meses", "Primeira receita da Miray"],
     relatedProjects: [],
   },
 ];
@@ -510,10 +517,6 @@ export const monthView = {
     { title: "Estudos", progress: 69 },
     { title: "Financeiro", progress: 87 },
   ],
-  achievements: [
-    "14 treinos realizados",
-    "8 sessões de estudo",
-    "Análise de retenção entregue",
-  ],
+  achievements: ["14 treinos realizados", "8 sessões de estudo", "Análise de retenção entregue"],
   attention: ["Estruturação Miray está 5 dias sem avanço."],
 };

@@ -153,3 +153,29 @@
 @utility live-dot {
   animation: pulse-dot 2.4s ease-in-out infinite;
 }
+
+@utility app-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--background) transparent;
+
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    min-height: 32px;
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background-color: var(--background);
+    background-clip: content-box;
+  }
+
+  &::-webkit-scrollbar-button {
+    height: 8px;
+    background-color: var(--background);
+  }
+}

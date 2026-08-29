@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 
@@ -14,7 +14,9 @@ import {
   formatMinutes,
   greetingFor,
   toMinutes,
+  type CurrentActivity,
 } from "@/lib/schedule";
+import type { ScheduleBlock } from "@/data/mockData";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -28,8 +30,7 @@ export const Route = createFileRoute("/")({
       { property: "og:title", content: "Hoje · YURI OS" },
       {
         property: "og:description",
-        content:
-          "Painel operacional pessoal: agora, prioridades e rotina do dia.",
+        content: "Painel operacional pessoal: agora, prioridades e rotina do dia.",
       },
     ],
   }),
@@ -46,20 +47,44 @@ function HojePage() {
     tasks,
     todayGoal,
     blockDone,
+    activityChecklistItemDone,
+    extraActivityChecklistItems,
     toggleTask,
     toggleBlock,
+    toggleActivityChecklistItem,
+    addActivityChecklistItem,
     addTask,
   } = useStore();
   const [draft, setDraft] = useState("");
 
   const { current, dayBlocks, past, upcoming } = context;
-  const project = current?.projectId
-    ? projects.find((p) => p.id === current.projectId)
+  const currentIndex = current ? dayBlocks.findIndex((block) => block.id === current.id) : -1;
+  const [focusedBlockId, setFocusedBlockId] = useState<string | null>(current?.id ?? null);
+  const focusedIndex = focusedBlockId
+    ? dayBlocks.findIndex((block) => block.id === focusedBlockId)
+    : currentIndex;
+  const activeFocusedIndex = focusedIndex >= 0 ? focusedIndex : currentIndex;
+  const focusedBlock = activeFocusedIndex >= 0 ? dayBlocks[activeFocusedIndex] : null;
+  const focusedContext = useMemo(
+    () => (focusedBlock ? buildFocusedActivityContext(context, focusedBlock, nowMinutes) : context),
+    [context, focusedBlock, nowMinutes],
+  );
+  const focusedCurrent = focusedContext.current;
+  const focusedProject = focusedCurrent?.projectId
+    ? projects.find((p) => p.id === focusedCurrent.projectId)
     : undefined;
+  const focusedMode =
+    focusedBlock && current?.id === focusedBlock.id
+      ? "current"
+      : focusedBlock && toMinutes(focusedBlock.endTime) <= nowMinutes
+        ? "past"
+        : "future";
 
-  const doneBlocks = dayBlocks.filter(
-    (b) => blockDone(b.id) || past.includes(b),
-  ).length;
+  useEffect(() => {
+    setFocusedBlockId(current?.id ?? null);
+  }, [current?.id]);
+
+  const doneBlocks = dayBlocks.filter((b) => blockDone(b.id) || past.includes(b)).length;
   const prioritiesDone = tasks.filter((t) => t.status === "done").length;
 
   const weekdayLabel = WEEKDAYS[dayOfWeek];
@@ -76,9 +101,7 @@ function HojePage() {
             <p className="mt-3 text-sm leading-snug text-primary-foreground/80">
               Sua meta de hoje:
               <br />
-              <span className="font-medium text-primary-foreground">
-                {todayGoal}
-              </span>
+              <span className="font-medium text-primary-foreground">{todayGoal}</span>
             </p>
           </div>
           <div className="shrink-0 text-right">
@@ -95,10 +118,28 @@ function HojePage() {
       </header>
 
       <CurrentActivityCard
-        context={context}
-        project={project}
-        done={current ? blockDone(current.id) : false}
-        onToggleDone={() => current && toggleBlock(current.id)}
+        context={focusedContext}
+        project={focusedProject}
+        done={focusedCurrent ? blockDone(focusedCurrent.id) : false}
+        checklistItemDone={activityChecklistItemDone}
+        extraChecklistItems={
+          focusedCurrent ? (extraActivityChecklistItems[focusedCurrent.id] ?? []) : []
+        }
+        onToggleChecklistItem={toggleActivityChecklistItem}
+        onAddChecklistItem={(title, priority) =>
+          focusedCurrent && addActivityChecklistItem(focusedCurrent.id, title, priority)
+        }
+        viewMode={focusedMode}
+        canNavigatePrevious={activeFocusedIndex > 0}
+        canNavigateNext={activeFocusedIndex >= 0 && activeFocusedIndex < dayBlocks.length - 1}
+        onNavigatePrevious={() =>
+          setFocusedBlockId(dayBlocks[Math.max(0, activeFocusedIndex - 1)]?.id ?? null)
+        }
+        onNavigateNext={() =>
+          setFocusedBlockId(
+            dayBlocks[Math.min(dayBlocks.length - 1, activeFocusedIndex + 1)]?.id ?? null,
+          )
+        }
       />
 
       <NextActivityCard blocks={upcoming.slice(0, 3)} />
@@ -122,12 +163,7 @@ function HojePage() {
 
         <div className="mt-4 space-y-2">
           {tasks.map((t, i) => (
-            <PriorityItem
-              key={t.id}
-              task={t}
-              index={i}
-              onToggle={() => toggleTask(t.id)}
-            />
+            <PriorityItem key={t.id} task={t} index={i} onToggle={() => toggleTask(t.id)} />
           ))}
         </div>
 
@@ -179,12 +215,30 @@ function HojePage() {
             );
           })}
           {dayBlocks.length === 0 ? (
-            <p className="pl-8 text-sm text-muted-foreground">
-              Nenhum bloco planejado para hoje.
-            </p>
+            <p className="pl-8 text-sm text-muted-foreground">Nenhum bloco planejado para hoje.</p>
           ) : null}
         </ul>
       </section>
     </div>
   );
+}
+
+function buildFocusedActivityContext(
+  context: CurrentActivity,
+  block: ScheduleBlock,
+  nowMinutes: number,
+): CurrentActivity {
+  const start = toMinutes(block.startTime);
+  const end = toMinutes(block.endTime);
+  const progress =
+    end > start ? Math.min(100, Math.max(0, ((nowMinutes - start) / (end - start)) * 100)) : 0;
+
+  return {
+    ...context,
+    current: block,
+    start,
+    end,
+    progress,
+    remaining: Math.max(0, end - nowMinutes),
+  };
 }
