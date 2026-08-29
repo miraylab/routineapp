@@ -59,15 +59,16 @@ function HojePage() {
 
   const { current, dayBlocks, past, upcoming } = context;
   const currentIndex = current ? dayBlocks.findIndex((block) => block.id === current.id) : -1;
-  const freeTimeIndex = current
-    ? currentIndex
-    : dayBlocks.findIndex((block) => toMinutes(block.startTime) > nowMinutes);
+  const nextBlockIndex = dayBlocks.findIndex((block) => toMinutes(block.startTime) > nowMinutes);
+  const freeTimeIndex = current ? -1 : nextBlockIndex >= 0 ? nextBlockIndex : dayBlocks.length;
   const activeTimeIndex =
     freeTimeIndex >= 0 ? freeTimeIndex : dayBlocks.length > 0 ? dayBlocks.length : -1;
   const [focusedBlockId, setFocusedBlockId] = useState<string | null>(current?.id ?? null);
   const focusedIndex = focusedBlockId
     ? dayBlocks.findIndex((block) => block.id === focusedBlockId)
-    : currentIndex;
+    : current
+      ? currentIndex
+      : -1;
   const activeFocusedIndex = focusedIndex >= 0 ? focusedIndex : activeTimeIndex;
   const focusedBlock = focusedIndex >= 0 ? (dayBlocks[focusedIndex] ?? null) : null;
   const focusedContext = useMemo(
@@ -84,18 +85,22 @@ function HojePage() {
       : focusedBlock && toMinutes(focusedBlock.endTime) <= nowMinutes
         ? "past"
         : "future";
-  const previousFocusedBlock =
-    focusedBlock && activeFocusedIndex > 0
-      ? (dayBlocks[activeFocusedIndex - 1] ?? null)
-      : !focusedBlock && activeTimeIndex > 0
-        ? (dayBlocks[activeTimeIndex - 1] ?? null)
-        : null;
-  const nextFocusedBlock =
-    focusedBlock && activeFocusedIndex >= 0 && activeFocusedIndex < dayBlocks.length - 1
-      ? (dayBlocks[activeFocusedIndex + 1] ?? null)
-      : !focusedBlock && activeTimeIndex >= 0 && activeTimeIndex < dayBlocks.length
-        ? (dayBlocks[activeTimeIndex] ?? null)
-        : null;
+  const previousFocusedSlide =
+    focusedBlock && freeTimeIndex >= 0 && activeFocusedIndex === freeTimeIndex
+      ? "free"
+      : focusedBlock && activeFocusedIndex > 0
+        ? (dayBlocks[activeFocusedIndex - 1] ?? null)
+        : !focusedBlock && activeTimeIndex > 0
+          ? (dayBlocks[activeTimeIndex - 1] ?? null)
+          : null;
+  const nextFocusedSlide =
+    focusedBlock && freeTimeIndex >= 0 && activeFocusedIndex === freeTimeIndex - 1
+      ? "free"
+      : focusedBlock && activeFocusedIndex >= 0 && activeFocusedIndex < dayBlocks.length - 1
+        ? (dayBlocks[activeFocusedIndex + 1] ?? null)
+        : !focusedBlock && activeTimeIndex >= 0 && activeTimeIndex < dayBlocks.length
+          ? (dayBlocks[activeTimeIndex] ?? null)
+          : null;
 
   useEffect(() => {
     setFocusedBlockId(current?.id ?? null);
@@ -147,22 +152,30 @@ function HojePage() {
           focusedCurrent && addActivityChecklistItem(focusedCurrent.id, title, priority)
         }
         viewMode={focusedMode}
-        previousBlock={previousFocusedBlock}
-        nextBlock={nextFocusedBlock}
-        canNavigatePrevious={Boolean(previousFocusedBlock)}
-        canNavigateNext={Boolean(nextFocusedBlock)}
+        previousSlide={previousFocusedSlide}
+        nextSlide={nextFocusedSlide}
+        canNavigatePrevious={Boolean(previousFocusedSlide)}
+        canNavigateNext={Boolean(nextFocusedSlide)}
         onNavigatePrevious={() =>
           setFocusedBlockId(
-            focusedBlock
-              ? (dayBlocks[Math.max(0, activeFocusedIndex - 1)]?.id ?? null)
-              : (previousFocusedBlock?.id ?? null),
+            focusedBlock && previousFocusedSlide === "free"
+              ? null
+              : focusedBlock
+                ? (dayBlocks[Math.max(0, activeFocusedIndex - 1)]?.id ?? null)
+                : previousFocusedSlide && previousFocusedSlide !== "free"
+                  ? previousFocusedSlide.id
+                  : null,
           )
         }
         onNavigateNext={() =>
           setFocusedBlockId(
-            focusedBlock
-              ? (dayBlocks[Math.min(dayBlocks.length - 1, activeFocusedIndex + 1)]?.id ?? null)
-              : (nextFocusedBlock?.id ?? null),
+            focusedBlock && nextFocusedSlide === "free"
+              ? null
+              : focusedBlock
+                ? (dayBlocks[Math.min(dayBlocks.length - 1, activeFocusedIndex + 1)]?.id ?? null)
+                : nextFocusedSlide && nextFocusedSlide !== "free"
+                  ? nextFocusedSlide.id
+                  : null,
           )
         }
       />

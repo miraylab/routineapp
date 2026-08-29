@@ -16,6 +16,8 @@ import { formatDuration } from "@/lib/schedule";
 import type { Project, ScheduleBlock } from "@/data/mockData";
 import { cn } from "@/lib/utils";
 
+type ActivitySlide = ScheduleBlock | "free";
+
 interface Props {
   context: CurrentActivity;
   project?: Project | undefined;
@@ -25,8 +27,8 @@ interface Props {
   onToggleChecklistItem: (id: string) => void;
   onAddChecklistItem: (title: string, priority: boolean) => void;
   viewMode?: "current" | "past" | "future";
-  previousBlock?: ScheduleBlock | null;
-  nextBlock?: ScheduleBlock | null;
+  previousSlide?: ActivitySlide | null;
+  nextSlide?: ActivitySlide | null;
   canNavigatePrevious?: boolean;
   canNavigateNext?: boolean;
   onNavigatePrevious?: () => void;
@@ -42,8 +44,8 @@ export function CurrentActivityCard({
   onToggleChecklistItem,
   onAddChecklistItem,
   viewMode = "current",
-  previousBlock = null,
-  nextBlock = null,
+  previousSlide = null,
+  nextSlide = null,
   canNavigatePrevious = false,
   canNavigateNext = false,
   onNavigatePrevious,
@@ -184,9 +186,9 @@ export function CurrentActivityCard({
         onPointerUp={handlePointerEnd}
         onPointerCancel={handlePointerEnd}
       >
-        {previousBlock ? (
+        {previousSlide ? (
           <SlidePreview
-            block={previousBlock}
+            slide={previousSlide}
             label="ANTERIOR"
             className={cn(
               "-translate-x-full",
@@ -195,9 +197,9 @@ export function CurrentActivityCard({
             )}
           />
         ) : null}
-        {nextBlock ? (
+        {nextSlide ? (
           <SlidePreview
-            block={nextBlock}
+            slide={nextSlide}
             label="PRÓXIMA"
             className={cn(
               "translate-x-full",
@@ -263,9 +265,9 @@ export function CurrentActivityCard({
       onPointerUp={handlePointerEnd}
       onPointerCancel={handlePointerEnd}
     >
-      {previousBlock ? (
+      {previousSlide ? (
         <SlidePreview
-          block={previousBlock}
+          slide={previousSlide}
           label="ANTERIOR"
           className={cn(
             "-translate-x-full",
@@ -274,9 +276,9 @@ export function CurrentActivityCard({
           )}
         />
       ) : null}
-      {nextBlock ? (
+      {nextSlide ? (
         <SlidePreview
-          block={nextBlock}
+          slide={nextSlide}
           label="PRÓXIMA"
           className={cn(
             "translate-x-full",
@@ -472,17 +474,45 @@ function isInteractiveElement(target: EventTarget | null) {
 }
 
 function SlidePreview({
-  block,
+  slide,
   label,
   className,
 }: {
-  block: ScheduleBlock;
+  slide: ActivitySlide;
   label: string;
   className: string;
 }) {
-  const title = block.subtitle ?? block.title;
+  const title = slide === "free" ? "Nenhuma atividade planejada" : (slide.subtitle ?? slide.title);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const titleFontSize = useFitText(titleRef, title, 28, 18);
+
+  if (slide === "free") {
+    return (
+      <article
+        className={cn(
+          "pointer-events-none absolute inset-0 h-full overflow-hidden rounded-3xl border border-border/60 bg-card p-6",
+          className,
+        )}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <p className="shrink-0 whitespace-nowrap text-[11px] font-medium tracking-[0.18em] text-muted-foreground">
+            TEMPO LIVRE
+          </p>
+          <StatusBadge tone="active">Arraste</StatusBadge>
+        </div>
+        <h2
+          ref={titleRef}
+          className="mt-3 overflow-hidden whitespace-nowrap font-semibold leading-tight tracking-tight"
+          style={{ fontSize: titleFontSize }}
+        >
+          {title}
+        </h2>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          Solte para voltar ao tempo livre.
+        </p>
+      </article>
+    );
+  }
 
   return (
     <article
@@ -498,7 +528,7 @@ function SlidePreview({
         <StatusBadge tone="active">Arraste</StatusBadge>
       </div>
       <p className="mt-4 truncate whitespace-nowrap text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-        {block.category}
+        {slide.category}
       </p>
       <h2
         ref={titleRef}
@@ -508,7 +538,7 @@ function SlidePreview({
         {title}
       </h2>
       <p className="tabular mt-5 whitespace-nowrap text-sm text-muted-foreground">
-        {block.startTime} — {block.endTime}
+        {slide.startTime} — {slide.endTime}
       </p>
       <div className="mt-5 rounded-2xl bg-elevated/60 p-4">
         <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">CHECKLIST</p>

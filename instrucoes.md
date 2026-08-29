@@ -89,7 +89,7 @@ No card principal de atividade atual, existe uma separacao conceitual entre cont
 - A atividade atual pode ter `activityChecklist`, uma lista de itens concretos a executar naquela atividade.
 - A barra de progresso de tempo da atividade deve aparecer acima do checklist, deixando claro primeiro o intervalo/tempo restante e depois a lista operacional do que executar.
 - O card principal da tela Hoje deve permitir navegacao por gesto horizontal no mobile, com efeito de slideshow: durante o arraste, o card atual deve acompanhar o dedo e o card anterior/proximo deve aparecer vindo da lateral. Arrastar para a direita mostra a atividade anterior do dia; arrastar da direita para a esquerda mostra a proxima atividade. O checklist, itens adicionados e estado de conclusao devem sempre se aplicar a atividade que estiver em foco no card.
-- Periodos sem atividade tambem devem aparecer como cartao de tempo livre dentro do mesmo slideshow, permitindo navegar para a atividade anterior e para a proxima.
+- Periodos sem atividade tambem devem aparecer como cartao de tempo livre dentro do mesmo slideshow, permitindo navegar para a atividade anterior e para a proxima. Ao sair do tempo livre para uma atividade vizinha, o gesto inverso deve voltar para o cartao de tempo livre antes de seguir para outros blocos.
 - No slideshow, cada atividade deve se comportar como um cartao completo: fundo, borda, raio e conteudo se movem juntos. O container externo funciona apenas como palco/clipe visual, sem parecer uma moldura fixa por onde o conteudo passa.
 - Deve existir uma pequena distancia visual entre os cartoes do slideshow para evitar bordas grudadas durante o arraste.
 - O card fechado deve ter altura suficiente para exibir o botao "Ver detalhes". Ao abrir detalhes, o proprio card pode expandir verticalmente; ao iniciar um gesto horizontal, detalhes abertos devem se contrair para preservar a fluidez do slide.
@@ -191,7 +191,7 @@ A logica temporal atual esta em `src/lib/schedule.ts` e `src/lib/store.tsx`.
 
 - leitura do horario real com `new Date()`;
 - atualizacao periodica a cada 20 segundos;
-- modo demonstracao com dia e horario simulados;
+- modo demonstracao configuravel com dia e horario simulados;
 - chamada para `getCurrentActivity`.
 
 ## Estado e Persistencia

@@ -26,7 +26,6 @@ import {
 import { getCurrentActivity, toMinutes } from "@/lib/schedule";
 
 const STORAGE_KEY = "yuri-os.state.v1";
-const DEV_SIMULATION = import.meta.env.DEV ? { enabled: true, dayOfWeek: 6, time: "15:50" } : null;
 
 interface PersistedState {
   doneTasks: string[];
@@ -87,7 +86,7 @@ function useStoreValue() {
 
   const realNow = useMemo(() => new Date(), [tick, hydrated]);
 
-  const sim = DEV_SIMULATION ?? state.simulation;
+  const sim = state.simulation;
   const dayOfWeek = sim.enabled ? sim.dayOfWeek : realNow.getDay();
   const nowMinutes = sim.enabled
     ? toMinutes(sim.time)
