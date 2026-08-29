@@ -2,6 +2,9 @@ const INTERVALS_BASE_URL = "https://intervals.icu/api/v1";
 const SAO_PAULO_TIME_ZONE = "America/Sao_Paulo";
 
 type WellnessRecord = Record<string, unknown>;
+type RuntimeEnv = Record<string, unknown>;
+
+let runtimeEnv: RuntimeEnv | null = null;
 
 export interface NormalizedSleep {
   seconds: number | null;
@@ -67,13 +70,17 @@ export function getSaoPauloDateRange(days: number, date = new Date()) {
   return { oldest, newest };
 }
 
+export function setIntervalsRuntimeEnv(env: unknown) {
+  runtimeEnv = env && typeof env === "object" ? (env as RuntimeEnv) : null;
+}
+
 export async function fetchIntervalsWellness(date: string) {
   return fetchIntervalsWellnessRange(date, date);
 }
 
 export async function fetchIntervalsWellnessRange(oldest: string, newest: string) {
-  const athleteId = process.env.INTERVALS_ATHLETE_ID;
-  const apiKey = process.env.INTERVALS_API_KEY;
+  const athleteId = readServerEnv("INTERVALS_ATHLETE_ID");
+  const apiKey = readServerEnv("INTERVALS_API_KEY");
 
   if (!athleteId || !apiKey) {
     throw new IntervalsApiError(
@@ -87,7 +94,7 @@ export async function fetchIntervalsWellnessRange(oldest: string, newest: string
   url.searchParams.set("oldest", oldest);
   url.searchParams.set("newest", newest);
 
-  const auth = Buffer.from(`API_KEY:${apiKey}`).toString("base64");
+  const auth = encodeBase64(`API_KEY:${apiKey}`);
   const response = await fetch(url, {
     headers: {
       authorization: `Basic ${auth}`,
@@ -106,6 +113,23 @@ export async function fetchIntervalsWellnessRange(oldest: string, newest: string
   const payload = (await response.json()) as unknown;
   const records = Array.isArray(payload) ? payload : payload ? [payload] : [];
   return records.filter(isWellnessRecord);
+}
+
+function readServerEnv(key: string) {
+  const runtimeValue = runtimeEnv?.[key];
+  if (runtimeValue !== null && runtimeValue !== undefined && String(runtimeValue).trim() !== "") {
+    return String(runtimeValue);
+  }
+
+  const processValue = process.env[key];
+  if (processValue && processValue.trim() !== "") return processValue;
+
+  return undefined;
+}
+
+function encodeBase64(value: string) {
+  if (typeof btoa === "function") return btoa(value);
+  return Buffer.from(value).toString("base64");
 }
 
 export function normalizeWellnessRange(oldest: string, newest: string, records: WellnessRecord[]) {
