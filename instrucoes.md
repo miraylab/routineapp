@@ -58,7 +58,7 @@ Desktop e apenas uma adaptacao, nao o foco principal.
 ## Decisoes de Design
 
 - Blocos, cards e containers principais devem usar raio visual fixo de 15px. Esta decisao substitui os cantos muito arredondados da versao inicial e deve ser preservada nas novas telas.
-- O header da tela Hoje deve aparecer em um box verde do design system, com a coluna direita na ordem hora, data por extenso com virgula e dia da semana. Na coluna esquerda, o rotulo deve ser "Sua meta de hoje:" e a meta deve vir na linha seguinte com peso medio, vinda da fonte de dados. A coluna esquerda deve ser estreita, usando 170px como referencia, mantendo respiro visivel entre ela e a coluna direita.
+- O header da tela Hoje deve aparecer em um box verde do design system, com a coluna direita na ordem hora, data por extenso com virgula e dia da semana. A saudacao e a data/hora ficam na linha superior. O rotulo "Sua meta de hoje:" deve ficar separado da meta em si, com respiro adequado abaixo da data/hora. A meta deve ocupar a largura total do header como elemento clicavel em formato de box/pilula, semelhante a tasks e habitos, com destaque verde/brilho sutil, check de concluir/desconcluir e persistencia local.
 - A largura maxima da experiencia deve mirar o viewport real do S25 Ultra, usando o container `max-w-s25` de 380px para o conteudo principal e a bottom navigation. O aparelho tem largura fisica de 1440px, mas a interface do Chrome/Android trabalha em pixels CSS apos escala do dispositivo; por isso a referencia visual do app deve ser calibrada por viewport CSS, nao por pixels fisicos.
 - O topo do app deve sempre ter respiro padrao antes do primeiro elemento, definido por `--app-top-space`. A distancia entre blocos/cards principais deve ser consistente e compacta, usando 12px como referencia visual.
 - A fonte oficial do app deve ser Geist, usando suas variacoes de peso pelo carregamento `100..900`.
@@ -73,9 +73,8 @@ Ela deve responder imediatamente:
 - o que Yuri deveria estar fazendo;
 - ate que horas;
 - qual e a acao concreta dentro do bloco;
-- qual e a proxima atividade;
-- como esta o progresso do dia.
-- quais sao os resultados prioritarios;
+- navegar entre atividade anterior, tempo livre e proxima atividade pelo card principal;
+- quais habitos estao sendo construidos;
 - qual e a rotina completa do dia.
 
 Quando nao houver atividade planejada, o app deve respeitar o tempo livre. Ele nao deve tentar otimizar cada minuto do usuario.
@@ -90,22 +89,29 @@ No card principal de atividade atual, existe uma separacao conceitual entre cont
 - A barra de progresso de tempo da atividade deve aparecer acima do checklist, deixando claro primeiro o intervalo/tempo restante e depois a lista operacional do que executar.
 - O card principal da tela Hoje deve permitir navegacao por gesto horizontal no mobile, com efeito de slideshow: durante o arraste, o card atual deve acompanhar o dedo e o card anterior/proximo deve aparecer vindo da lateral. Arrastar para a direita mostra a atividade anterior do dia; arrastar da direita para a esquerda mostra a proxima atividade. O checklist, itens adicionados e estado de conclusao devem sempre se aplicar a atividade que estiver em foco no card.
 - Durante o gesto de slideshow, o card deve seguir diretamente a velocidade do dedo/mouse. Ao soltar, a animacao de assentamento deve ser um pouco mais lenta e suave, completando a troca ou retornando ao centro sem salto brusco.
-- Periodos sem atividade tambem devem aparecer como cartao de tempo livre dentro do mesmo slideshow, permitindo navegar para a atividade anterior e para a proxima. Ao sair do tempo livre para uma atividade vizinha, o gesto inverso deve voltar para o cartao de tempo livre antes de seguir para outros blocos.
+- Periodos sem atividade tambem devem aparecer como cartao de tempo livre dentro do mesmo slideshow, permitindo navegar para a atividade anterior e para a proxima. O tempo livre deve usar exatamente a mesma estrutura visual dos outros cartoes, incluindo categoria, titulo, horario, barra de progresso, checklist fixo e formulario de adicao. O texto do cartao livre deve ser categoria "TEMPO LIVRE" e titulo "Aproveite seu tempo"; nesse cartao, o bloco de checklist deve se chamar "NOTAS DE ALÍVIO". A barra de progresso deve medir o intervalo livre atual ate a proxima atividade do dia; se nao houver proxima atividade, deve ir ate 21:30, horario de dormir. Ao sair do tempo livre para uma atividade vizinha, o gesto inverso deve voltar para o cartao de tempo livre antes de seguir para outros blocos.
 - No slideshow, cada atividade deve se comportar como um cartao completo: fundo, borda, raio e conteudo se movem juntos. O container externo funciona apenas como palco/clipe visual, sem parecer uma moldura fixa por onde o conteudo passa.
 - Deve existir uma pequena distancia visual entre os cartoes do slideshow para evitar bordas grudadas durante o arraste.
-- O card fechado deve ter altura suficiente para exibir o botao "Ver detalhes". Ao abrir detalhes, o proprio card pode expandir verticalmente; ao iniciar um gesto horizontal, detalhes abertos devem se contrair para preservar a fluidez do slide.
+- O card principal pode ser mais alto que os demais blocos da tela para comportar checklist, detalhes e indicador de bolinhas sem cortar conteudo. O indicador de bolinhas deve permanecer visivel no rodape tanto no estado fechado quanto no estado expandido.
+- O card fechado deve ter altura suficiente para exibir o box "VER DETALHES" quando houver detalhes. Ao abrir detalhes, o proprio box deve expandir dentro do card, empurrando o indicador de bolinhas para baixo; ao iniciar um gesto horizontal, detalhes abertos devem se contrair para preservar a fluidez do slide.
+- A area "VER DETALHES" deve ficar dentro de um box visual igual ao box do checklist, objetiva, compacta e sem caixas internas adicionais. Renderizar apenas secoes com informacao real: mostrar o titulo "ENTREGA" somente quando houver data de entrega, com o contador de dias em uma pill discreta; mostrar o titulo "OBJETIVO" somente quando houver objetivo/descricao. O texto de objetivo/descricao deve ter limite visual menor e rolagem interna quando estourar, no mesmo padrao das tasks. Se nenhuma secao tiver conteudo, o box/botao "VER DETALHES" nao deve aparecer.
 - Controles internos como botoes e inputs nao devem iniciar o gesto de slideshow, para preservar cliques como "Ver detalhes", adicionar item e marcar checklist.
 - Os cards do slideshow da tela Hoje devem ter altura fixa e consistente entre atividade atual, anterior e proxima. O checklist tambem deve manter altura fixa mesmo quando nao houver itens, para evitar saltos visuais durante a navegacao.
 - Textos estruturais do card, como categoria, titulo da atividade, horarios e status, devem permanecer em uma unica linha. Quando houver risco de quebra, a fonte do titulo deve diminuir ate caber. A excecao sao os textos das tasks do checklist, que podem quebrar linha dentro da area fixa do checklist.
 - Quando o usuario tentar navegar por gesto para antes da primeira atividade ou depois da ultima atividade do dia, o card deve mostrar um feedback animado discreto indicando "Nada antes" ou "Nada depois".
 - Quando `activityChecklist` nao existir, `nextAction` pode funcionar como fallback de item unico.
 - O checklist deve exibir contador de itens concluidos no canto superior direito, alinhado com a palavra CHECKLIST. O texto de cada item deve poder quebrar linha para permitir leitura completa, sem truncamento.
-- A area visual do checklist deve ter altura fixa para mostrar aproximadamente 3 itens por vez e usar rolagem interna. Itens concluidos ficam acima; itens pendentes ficam abaixo. Ao abrir a atividade, a rolagem deve iniciar no primeiro item pendente, permitindo rolar para cima para ver o que ja foi executado e para baixo para ver o que falta executar.
+- A area visual do checklist deve ter altura fixa e usar rolagem interna. Com o card principal mais alto, o checklist deve ocupar bem o espaco disponivel: maior tanto em cards com detalhes quanto em cards sem detalhes, e ainda maior quando nao houver box "VER DETALHES". Itens concluidos ficam acima; itens pendentes ficam abaixo. Ao abrir a atividade, a rolagem deve iniciar no primeiro item pendente, permitindo rolar para cima para ver o que ja foi executado e para baixo para ver o que falta executar.
 - Deve existir um controle para adicionar itens manualmente ao checklist da atividade atual.
 - O card de atividade atual nao deve ter botao separado de concluir; o checklist deve concentrar a execucao da atividade.
 - Itens do checklist podem ter flag `priority`. Enquanto estiverem pendentes, itens prioritarios aparecem no topo, preservando a ordem de entrada entre eles, e devem receber destaque por uma bolinha verde discreta no canto superior direito do item, sem contorno e sem pilula textual ocupando espaco. Itens sem prioridade aparecem depois, tambem preservando a ordem de entrada. Depois de concluidos, os itens nao precisam mais manter hierarquia de prioridade. O controle manual de prioridade deve usar icone de bandeira, sem texto.
 - Os itens marcados e itens adicionados manualmente ao checklist da atividade devem persistir localmente no `localStorage`.
 - Barras de rolagem internas, como a do checklist da atividade, devem usar visual discreto com trilho transparente e barra/setas no cinza escuro do background do app.
+- A tela Hoje nao deve mais exibir blocos separados de "PROXIMO", o bloco de progresso "HOJE" nem o bloco "ROTINA"; essas informacoes foram absorvidas pelo card principal/slideshow.
+- Na parte inferior do card principal deve existir um indicador compacto de posicao em formato de bolinhas pequenas, com pouco espaco ate a borda inferior do card e respiro consistente no estado fechado e expandido. A quantidade de bolinhas cinzas representa a quantidade de atividades/compromissos do dia. Verde sempre indica apenas o card selecionado/visivel; portanto so pode haver um indicador verde por vez. Pela posicao do indicador verde, deve ficar claro quantas atividades ja passaram e quantas ainda vem depois.
+- O formato comprido indica o que esta em andamento no horario atual, como se a bolinha tivesse sido esticada para os lados sem perder as bordas arredondadas. Se a atividade em andamento nao for o card selecionado, ela deve ficar comprida em cinza; se tambem for o card selecionado, deve ficar comprida em verde.
+- Preenchido indica compromisso/atividade; vazado indica tempo livre. Quando o estado atual em foco for "Tempo livre", ele nao deve aparecer como compromisso cinza. Deve entrar na posicao temporal correta como uma bolinha/pilula extra vazada, usando contorno verde quando selecionado e contorno cinza quando nao selecionado.
+- O antigo bloco "RESULTADOS DE HOJE" passa a ser "CONSTRUÇÃO DE HÁBITOS". No MVP ele pode manter o formato de checklist e reaproveitar os dados locais atuais, mas conceitualmente sera evoluido para um mapeador de habitos.
 
 ## Stack Atual
 
@@ -213,7 +219,7 @@ Nao existe backend, banco, login, autenticacao ou sincronizacao remota neste mom
 
 ## Rotas Atuais
 
-- `/`: Hoje, com contexto de agora, progresso, resultados prioritarios e timeline do dia
+- `/`: Hoje, com contexto atual em slideshow, indicador compacto de posicao do dia e construcao de habitos
 - `/hoje`: rota legada da timeline do dia, mantida temporariamente ate decidirmos remover ou redirecionar
 - `/semana`: foco semanal, resultados-chave e visao dos dias
 - `/projetos`: lista de projetos
@@ -240,10 +246,8 @@ A entrada Mais deve funcionar como acesso secundario para Projetos, Objetivos, M
 ## Componentes Principais
 
 - `CurrentActivityCard`: card central de contexto atual dentro da tela Hoje.
-- `NextActivityCard`: proximas atividades.
-- `DailyProgress`: progresso do dia.
-- `TimelineItem`: item da rotina em Hoje.
-- `PriorityItem`: tarefa prioritaria.
+- `TimelineItem`: item da rota legada de rotina em `/hoje`.
+- `PriorityItem`: item em formato de checklist reutilizado no bloco de construcao de habitos.
 - `ProjectCard`: resumo de projeto.
 - `GoalCard`: objetivo maior.
 - `HabitTracker`: acompanhamento simples de habitos.

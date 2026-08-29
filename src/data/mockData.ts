@@ -5,7 +5,15 @@
  */
 
 export type Category =
-  "Michelin" | "Trabalho" | "Miray" | "Saúde" | "Alimentação" | "Estudos" | "Rotina" | "Pessoal";
+  | "Michelin"
+  | "Trabalho"
+  | "Miray"
+  | "Saúde"
+  | "Alimentação"
+  | "Estudos"
+  | "Rotina"
+  | "Pessoal"
+  | "Tempo livre";
 
 export interface ScheduleBlock {
   id: string;

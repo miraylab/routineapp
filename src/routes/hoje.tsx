@@ -28,17 +28,7 @@ export const Route = createFileRoute("/hoje")({
 });
 
 function HojePage() {
-  const {
-    context,
-    nowMinutes,
-    dayOfWeek,
-    realNow,
-    tasks,
-    toggleTask,
-    addTask,
-    blockDone,
-    toggleBlock,
-  } = useStore();
+  const { context, nowMinutes, dayOfWeek, realNow, tasks, toggleTask, addTask } = useStore();
   const [draft, setDraft] = useState("");
 
   const done = tasks.filter((t) => t.status === "done").length;
@@ -62,12 +52,7 @@ function HojePage() {
 
         <div className="mt-4 space-y-2">
           {tasks.map((t, i) => (
-            <PriorityItem
-              key={t.id}
-              task={t}
-              index={i}
-              onToggle={() => toggleTask(t.id)}
-            />
+            <PriorityItem key={t.id} task={t} index={i} onToggle={() => toggleTask(t.id)} />
           ))}
         </div>
 
@@ -96,9 +81,7 @@ function HojePage() {
         </form>
       </section>
 
-      <p className="mb-4 text-[11px] font-medium tracking-[0.18em] text-muted-foreground">
-        ROTINA
-      </p>
+      <p className="mb-4 text-[11px] font-medium tracking-[0.18em] text-muted-foreground">ROTINA</p>
       <ul className="relative space-y-2 before:absolute before:bottom-4 before:left-[7px] before:top-4 before:w-px before:bg-border/70">
         {context.dayBlocks.map((b) => {
           const state =
@@ -107,20 +90,10 @@ function HojePage() {
               : toMinutes(b.endTime) <= nowMinutes
                 ? "past"
                 : "future";
-          return (
-            <TimelineItem
-              key={b.id}
-              block={b}
-              state={state}
-              done={blockDone(b.id)}
-              onToggle={() => toggleBlock(b.id)}
-            />
-          );
+          return <TimelineItem key={b.id} block={b} state={state} />;
         })}
         {context.dayBlocks.length === 0 ? (
-          <p className="pl-8 text-sm text-muted-foreground">
-            Nenhum bloco planejado para hoje.
-          </p>
+          <p className="pl-8 text-sm text-muted-foreground">Nenhum bloco planejado para hoje.</p>
         ) : null}
       </ul>
     </div>

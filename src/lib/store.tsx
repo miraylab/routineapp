@@ -29,6 +29,7 @@ const STORAGE_KEY = "yuri-os.state.v1";
 
 interface PersistedState {
   doneTasks: string[];
+  todayGoalDone: boolean;
   extraTasks: Task[];
   doneBlocks: string[];
   doneActivityChecklistItems: string[];
@@ -41,6 +42,7 @@ interface PersistedState {
 
 const initialState: PersistedState = {
   doneTasks: tasksSeed.filter((t) => t.status === "done").map((t) => t.id),
+  todayGoalDone: false,
   extraTasks: [],
   doneBlocks: [],
   doneActivityChecklistItems: [],
@@ -149,6 +151,11 @@ function useStoreValue() {
 
   const toggleTask = useCallback(
     (id: string) => setState((s) => ({ ...s, doneTasks: toggleId(s.doneTasks, id) })),
+    [],
+  );
+
+  const toggleTodayGoal = useCallback(
+    () => setState((s) => ({ ...s, todayGoalDone: !s.todayGoalDone })),
     [],
   );
 
@@ -261,6 +268,7 @@ function useStoreValue() {
     finance,
     financeHistory,
     todayGoal,
+    todayGoalDone: state.todayGoalDone,
     monthView,
     weekAreas,
     weekFocus,
@@ -269,6 +277,7 @@ function useStoreValue() {
     activityChecklistItemDone,
     extraActivityChecklistItems: state.extraActivityChecklistItems ?? {},
     toggleTask,
+    toggleTodayGoal,
     toggleBlock,
     toggleActivityChecklistItem,
     addActivityChecklistItem,

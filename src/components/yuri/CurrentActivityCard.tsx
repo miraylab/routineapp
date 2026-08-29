@@ -16,13 +16,14 @@ import { formatDuration } from "@/lib/schedule";
 import type { Project, ScheduleBlock } from "@/data/mockData";
 import { cn } from "@/lib/utils";
 
-type ActivitySlide = ScheduleBlock | "free";
+type ActivitySlide = ScheduleBlock;
 const SLIDE_TRANSITION_MS = 420;
 
 interface Props {
   context: CurrentActivity;
   project?: Project | undefined;
   done: boolean;
+  activityIndicators?: ActivityIndicator[];
   checklistItemDone: (id: string) => boolean;
   extraChecklistItems: ActivityChecklistItem[];
   onToggleChecklistItem: (id: string) => void;
@@ -40,6 +41,7 @@ export function CurrentActivityCard({
   context,
   project,
   done,
+  activityIndicators = [],
   checklistItemDone,
   extraChecklistItems,
   onToggleChecklistItem,
@@ -67,6 +69,7 @@ export function CurrentActivityCard({
   const titleRef = useRef<HTMLHeadingElement>(null);
   const { current, next, progress, remaining } = context;
   const activityTitle = current ? (current.subtitle ?? current.title) : "";
+  const checklistTitle = current?.category === "Tempo livre" ? "NOTAS DE ALÍVIO" : "CHECKLIST";
   const titleFontSize = useFitText(titleRef, activityTitle, 28, 18);
   const checklist = current
     ? orderChecklistItems(
@@ -122,6 +125,14 @@ export function CurrentActivityCard({
       : viewMode === "future"
         ? `Duração ${formatDuration(duration)}`
         : "Finalizada";
+  const detailObjective =
+    current &&
+    [project?.objective, current.expectedResult, current.description].find(
+      (value) => typeof value === "string" && value.trim().length > 0,
+    );
+  const hasDeliveryDetail = Boolean(project?.deadline);
+  const hasObjectiveDetail = Boolean(detailObjective);
+  const hasDetails = hasDeliveryDetail || hasObjectiveDetail;
 
   const handlePointerDown = (event: PointerEvent<HTMLElement>) => {
     if (isInteractiveElement(event.target)) return;
@@ -209,7 +220,7 @@ export function CurrentActivityCard({
   if (!current) {
     return (
       <section
-        className="rise relative h-[545px] touch-pan-y cursor-grab overflow-hidden active:cursor-grabbing"
+        className="rise relative h-[600px] touch-pan-y cursor-grab overflow-hidden active:cursor-grabbing"
         style={slideStyle}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -261,7 +272,7 @@ export function CurrentActivityCard({
             TEMPO LIVRE
           </p>
           <h2 className="mt-3 overflow-hidden whitespace-nowrap text-2xl font-semibold tracking-tight">
-            Nenhuma atividade planejada
+            Aproveite seu tempo
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             {next
@@ -287,7 +298,7 @@ export function CurrentActivityCard({
     <section
       className={cn(
         "rise relative touch-pan-y cursor-grab overflow-hidden transition-[height] duration-300 ease-out active:cursor-grabbing",
-        open ? "h-[660px]" : "h-[545px]",
+        open ? "h-[790px]" : "h-[600px]",
       )}
       style={slideStyle}
       onPointerDown={handlePointerDown}
@@ -331,7 +342,7 @@ export function CurrentActivityCard({
 
       <div
         className={cn(
-          "relative z-10 h-full overflow-hidden rounded-3xl border border-primary/25 bg-card p-6",
+          "relative z-10 flex h-full flex-col overflow-hidden rounded-3xl border border-primary/25 bg-card p-6",
           isDragging ? "transition-none" : "transition-transform duration-[420ms] ease-out",
         )}
         style={{ transform: "translateX(var(--drag-x))" }}
@@ -375,7 +386,7 @@ export function CurrentActivityCard({
         <div className="mt-5 rounded-2xl bg-elevated/60 p-4">
           <div className="flex items-center justify-between gap-3">
             <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
-              CHECKLIST
+              {checklistTitle}
             </p>
             <span className="tabular text-xs font-medium text-muted-foreground">
               {checklist.filter((item) => checklistItemDone(item.id)).length}/{checklist.length}
@@ -383,7 +394,10 @@ export function CurrentActivityCard({
           </div>
           <div
             ref={checklistScrollRef}
-            className="app-scrollbar relative mt-3 h-[156px] space-y-2 overflow-y-auto pr-1"
+            className={cn(
+              "app-scrollbar relative mt-3 space-y-2 overflow-y-auto pr-1",
+              hasDetails ? "h-[190px]" : "h-[235px]",
+            )}
           >
             {checklist.length > 0 ? (
               checklist.map((item) => {
@@ -465,32 +479,64 @@ export function CurrentActivityCard({
           </form>
         </div>
 
-        {project || current.description || current.expectedResult ? (
-          <button
-            type="button"
-            onClick={() => setOpen((o) => !o)}
-            className="press mt-3 flex w-full items-center justify-center gap-1.5 py-2 text-sm text-muted-foreground"
-          >
-            {open ? "Ocultar detalhes" : "Ver detalhes"}
-            <ChevronDown
-              className={cn("size-4 transition-transform duration-300", open && "rotate-180")}
-            />
-          </button>
-        ) : null}
+        {hasDetails ? (
+          <div className="mt-3 rounded-2xl bg-elevated/60 p-4">
+            <button
+              type="button"
+              onClick={() => setOpen((o) => !o)}
+              className="press flex w-full items-center justify-between gap-3 text-left"
+            >
+              <span className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
+                VER DETALHES
+              </span>
+              <ChevronDown
+                className={cn(
+                  "size-4 shrink-0 text-muted-foreground transition-transform duration-300",
+                  open && "rotate-180",
+                )}
+              />
+            </button>
 
-        {open ? (
-          <div className="-mx-6 mt-2 space-y-4 border-t border-border/60 bg-elevated/30 px-6 py-5 text-sm">
-            {current.description ? <Detail label="Atividade" value={current.description} /> : null}
-            {project ? (
-              <>
-                <Detail label="Projeto" value={`${project.title} · ${project.progress}%`} />
-                <Detail label="Objetivo relacionado" value={project.objective} />
-              </>
-            ) : null}
-            {current.expectedResult ? (
-              <Detail label="Resultado esperado" value={current.expectedResult} />
+            {open ? (
+              <div className="rise mt-4 text-sm">
+                {hasDeliveryDetail ? (
+                  <>
+                    <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
+                      ENTREGA
+                    </p>
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                      <span className="tabular whitespace-nowrap text-sm font-medium text-foreground">
+                        {project.deadline}
+                      </span>
+                      <StatusBadge tone="active" className="shrink-0">
+                        {formatDeadlineDistance(project.deadline)}
+                      </StatusBadge>
+                    </div>
+                  </>
+                ) : null}
+
+                {hasObjectiveDetail ? (
+                  <div
+                    className={cn(
+                      "app-scrollbar h-[96px] overflow-y-auto pr-1",
+                      hasDeliveryDetail ? "mt-4" : "mt-0",
+                    )}
+                  >
+                    <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
+                      OBJETIVO
+                    </p>
+                    <p className="mt-2 text-sm leading-relaxed text-foreground/90">
+                      {detailObjective}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
             ) : null}
           </div>
+        ) : null}
+
+        {activityIndicators.length > 0 ? (
+          <ActivityPositionDots indicators={activityIndicators} />
         ) : null}
       </div>
     </section>
@@ -512,37 +558,9 @@ function SlidePreview({
   label: string;
   className: string;
 }) {
-  const title = slide === "free" ? "Nenhuma atividade planejada" : (slide.subtitle ?? slide.title);
+  const title = slide.subtitle ?? slide.title;
   const titleRef = useRef<HTMLHeadingElement>(null);
   const titleFontSize = useFitText(titleRef, title, 28, 18);
-
-  if (slide === "free") {
-    return (
-      <article
-        className={cn(
-          "pointer-events-none absolute inset-0 h-full overflow-hidden rounded-3xl border border-border/60 bg-card p-6",
-          className,
-        )}
-      >
-        <div className="flex items-center justify-between gap-3">
-          <p className="shrink-0 whitespace-nowrap text-[11px] font-medium tracking-[0.18em] text-muted-foreground">
-            TEMPO LIVRE
-          </p>
-          <StatusBadge tone="active">Arraste</StatusBadge>
-        </div>
-        <h2
-          ref={titleRef}
-          className="mt-3 overflow-hidden whitespace-nowrap font-semibold leading-tight tracking-tight"
-          style={{ fontSize: titleFontSize }}
-        >
-          {title}
-        </h2>
-        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          Solte para voltar ao tempo livre.
-        </p>
-      </article>
-    );
-  }
 
   return (
     <article
@@ -571,7 +589,9 @@ function SlidePreview({
         {slide.startTime} — {slide.endTime}
       </p>
       <div className="mt-5 rounded-2xl bg-elevated/60 p-4">
-        <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">CHECKLIST</p>
+        <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
+          {slide.category === "Tempo livre" ? "NOTAS DE ALÍVIO" : "CHECKLIST"}
+        </p>
         <p className="mt-3 text-sm leading-snug text-muted-foreground">
           Solte para editar esta atividade.
         </p>
@@ -620,6 +640,37 @@ interface ActivityChecklistItem {
   priority?: boolean;
 }
 
+interface ActivityIndicator {
+  id: string;
+  kind: "activity" | "free";
+  selected: boolean;
+  inProgress: boolean;
+}
+
+function ActivityPositionDots({ indicators }: { indicators: ActivityIndicator[] }) {
+  return (
+    <div className="mt-auto flex items-center justify-center gap-1.5 pt-3">
+      {indicators.map((indicator) => (
+        <span
+          key={indicator.id}
+          className={cn(
+            "h-2 rounded-full transition-all duration-300",
+            indicator.inProgress ? "w-5" : "w-2",
+            indicator.kind === "free"
+              ? indicator.selected
+                ? "border border-primary bg-transparent"
+                : "border border-muted-foreground/35 bg-transparent"
+              : indicator.selected
+                ? "bg-primary"
+                : "bg-muted-foreground/25",
+          )}
+          aria-hidden="true"
+        />
+      ))}
+    </div>
+  );
+}
+
 function getActivityChecklist(current: NonNullable<CurrentActivity["current"]>) {
   const seeds =
     current.activityChecklist && current.activityChecklist.length > 0
@@ -658,3 +709,50 @@ function Detail({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+function formatDeadlineDistance(deadline: string) {
+  const parsed = parseShortPortugueseDate(deadline);
+  if (!parsed) return "A definir";
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diffInDays = Math.ceil((parsed.getTime() - today.getTime()) / 86_400_000);
+
+  if (diffInDays < 0) return `Atrasada há ${Math.abs(diffInDays)} dias`;
+  if (diffInDays === 0) return "Entrega hoje";
+  if (diffInDays === 1) return "Falta 1 dia";
+  return `Faltam ${diffInDays} dias`;
+}
+
+function parseShortPortugueseDate(value: string) {
+  const match = value
+    .trim()
+    .toLowerCase()
+    .match(/^(\d{1,2})\s+([a-zç.]+)$/);
+  if (!match) return null;
+
+  const day = Number(match[1]);
+  const month = SHORT_MONTHS[match[2].replace(".", "")];
+  if (!day || month === undefined) return null;
+
+  const today = new Date();
+  const parsed = new Date(today.getFullYear(), month, day);
+  parsed.setHours(0, 0, 0, 0);
+
+  return parsed;
+}
+
+const SHORT_MONTHS: Record<string, number> = {
+  jan: 0,
+  fev: 1,
+  mar: 2,
+  abr: 3,
+  mai: 4,
+  jun: 5,
+  jul: 6,
+  ago: 7,
+  set: 8,
+  out: 9,
+  nov: 10,
+  dez: 11,
+};
