@@ -17,6 +17,7 @@ import type { Project, ScheduleBlock } from "@/data/mockData";
 import { cn } from "@/lib/utils";
 
 type ActivitySlide = ScheduleBlock | "free";
+const SLIDE_TRANSITION_MS = 420;
 
 interface Props {
   context: CurrentActivity;
@@ -55,12 +56,14 @@ export function CurrentActivityCard({
   const [draft, setDraft] = useState("");
   const [draftPriority, setDraftPriority] = useState(false);
   const [dragX, setDragX] = useState(0);
+  const [isSettling, setIsSettling] = useState(false);
   const [edgeFeedback, setEdgeFeedback] = useState<"previous" | "next" | null>(null);
   const checklistScrollRef = useRef<HTMLDivElement>(null);
   const firstPendingRef = useRef<HTMLButtonElement>(null);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
   const isHorizontalDragRef = useRef(false);
   const edgeFeedbackTimeoutRef = useRef<number | null>(null);
+  const slideTransitionTimeoutRef = useRef<number | null>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const { current, next, progress, remaining } = context;
   const activityTitle = current ? (current.subtitle ?? current.title) : "";
@@ -97,6 +100,9 @@ export function CurrentActivityCard({
       if (edgeFeedbackTimeoutRef.current) {
         window.clearTimeout(edgeFeedbackTimeoutRef.current);
       }
+      if (slideTransitionTimeoutRef.current) {
+        window.clearTimeout(slideTransitionTimeoutRef.current);
+      }
     },
     [],
   );
@@ -119,6 +125,7 @@ export function CurrentActivityCard({
 
   const handlePointerDown = (event: PointerEvent<HTMLElement>) => {
     if (isInteractiveElement(event.target)) return;
+    if (isSettling) return;
 
     dragStartRef.current = { x: event.clientX, y: event.clientY };
     isHorizontalDragRef.current = false;
@@ -149,18 +156,41 @@ export function CurrentActivityCard({
 
     const deltaX = event.clientX - start.x;
     const shouldNavigate = Math.abs(deltaX) > 42 && isHorizontalDragRef.current;
+    const shouldGoPrevious = shouldNavigate && deltaX > 0 && canNavigatePrevious;
+    const shouldGoNext = shouldNavigate && deltaX < 0 && canNavigateNext;
+    const shouldHitPreviousEdge = shouldNavigate && deltaX > 0 && !canNavigatePrevious;
+    const shouldHitNextEdge = shouldNavigate && deltaX < 0 && !canNavigateNext;
 
-    if (shouldNavigate && deltaX > 0 && canNavigatePrevious) onNavigatePrevious?.();
-    if (shouldNavigate && deltaX < 0 && canNavigateNext) onNavigateNext?.();
-    if (shouldNavigate && deltaX > 0 && !canNavigatePrevious) showEdgeFeedback("previous");
-    if (shouldNavigate && deltaX < 0 && !canNavigateNext) showEdgeFeedback("next");
+    if (shouldHitPreviousEdge) showEdgeFeedback("previous");
+    if (shouldHitNextEdge) showEdgeFeedback("next");
 
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
     dragStartRef.current = null;
     isHorizontalDragRef.current = false;
+
+    if (shouldGoPrevious || shouldGoNext) {
+      const slideDistance = event.currentTarget.clientWidth + 12;
+      setIsSettling(true);
+      setDragX(shouldGoPrevious ? slideDistance : -slideDistance);
+
+      slideTransitionTimeoutRef.current = window.setTimeout(() => {
+        if (shouldGoPrevious) onNavigatePrevious?.();
+        if (shouldGoNext) onNavigateNext?.();
+        setDragX(0);
+        setIsSettling(false);
+        slideTransitionTimeoutRef.current = null;
+      }, SLIDE_TRANSITION_MS);
+      return;
+    }
+
+    setIsSettling(true);
     setDragX(0);
+    slideTransitionTimeoutRef.current = window.setTimeout(() => {
+      setIsSettling(false);
+      slideTransitionTimeoutRef.current = null;
+    }, SLIDE_TRANSITION_MS);
   };
 
   const showEdgeFeedback = (edge: "previous" | "next") => {
@@ -174,7 +204,7 @@ export function CurrentActivityCard({
     }, 900);
   };
   const slideStyle = { "--drag-x": `${dragX}px`, "--slide-gap": "12px" } as CSSProperties;
-  const isDragging = dragX !== 0;
+  const isDragging = dragX !== 0 && !isSettling;
 
   if (!current) {
     return (
@@ -193,7 +223,7 @@ export function CurrentActivityCard({
             className={cn(
               "-translate-x-full",
               "translate-x-[calc(-100%-var(--slide-gap)+var(--drag-x))]",
-              !isDragging && "transition-transform duration-200 ease-out",
+              !isDragging && "transition-transform duration-[420ms] ease-out",
             )}
           />
         ) : null}
@@ -204,7 +234,7 @@ export function CurrentActivityCard({
             className={cn(
               "translate-x-full",
               "translate-x-[calc(100%+var(--slide-gap)+var(--drag-x))]",
-              !isDragging && "transition-transform duration-200 ease-out",
+              !isDragging && "transition-transform duration-[420ms] ease-out",
             )}
           />
         ) : null}
@@ -223,7 +253,7 @@ export function CurrentActivityCard({
         <article
           className={cn(
             "relative z-10 h-full overflow-hidden rounded-3xl border border-border/60 bg-card p-6",
-            isDragging ? "transition-none" : "transition-transform duration-200 ease-out",
+            isDragging ? "transition-none" : "transition-transform duration-[420ms] ease-out",
           )}
           style={{ transform: "translateX(var(--drag-x))" }}
         >
@@ -272,7 +302,7 @@ export function CurrentActivityCard({
           className={cn(
             "-translate-x-full",
             "translate-x-[calc(-100%-var(--slide-gap)+var(--drag-x))]",
-            !isDragging && "transition-transform duration-200 ease-out",
+            !isDragging && "transition-transform duration-[420ms] ease-out",
           )}
         />
       ) : null}
@@ -283,7 +313,7 @@ export function CurrentActivityCard({
           className={cn(
             "translate-x-full",
             "translate-x-[calc(100%+var(--slide-gap)+var(--drag-x))]",
-            !isDragging && "transition-transform duration-200 ease-out",
+            !isDragging && "transition-transform duration-[420ms] ease-out",
           )}
         />
       ) : null}
@@ -302,7 +332,7 @@ export function CurrentActivityCard({
       <div
         className={cn(
           "relative z-10 h-full overflow-hidden rounded-3xl border border-primary/25 bg-card p-6",
-          isDragging ? "transition-none" : "transition-transform duration-200 ease-out",
+          isDragging ? "transition-none" : "transition-transform duration-[420ms] ease-out",
         )}
         style={{ transform: "translateX(var(--drag-x))" }}
       >
