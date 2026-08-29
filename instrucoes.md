@@ -55,6 +55,11 @@ O app deve ser usado principalmente no celular, com uma experiencia simples, rap
 
 Desktop e apenas uma adaptacao, nao o foco principal.
 
+## Decisoes de Design
+
+- Blocos, cards e containers principais devem usar raio visual fixo de 15px. Esta decisao substitui os cantos muito arredondados da versao inicial e deve ser preservada nas novas telas.
+- O header da tela Agora deve aparecer em um box verde do design system, com a data acima da hora e a meta do dia vinda da fonte de dados.
+
 ## Tela Principal - Agora
 
 A tela "Agora" e a tela mais importante do sistema.
@@ -112,6 +117,7 @@ Principais estruturas:
 
 - `schedule`: blocos de rotina por dia da semana.
 - `tasks`: prioridades e tarefas.
+- `todayGoal`: meta principal exibida no header da tela Agora.
 - `projects`: projetos, progresso e acoes.
 - `goals`: objetivos maiores.
 - `habits`: habitos semanais.

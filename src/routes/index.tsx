@@ -34,6 +34,7 @@ function AgoraPage() {
     realNow,
     projects,
     tasks,
+    todayGoal,
     blockDone,
     toggleBlock,
   } = useStore();
@@ -52,17 +53,25 @@ function AgoraPage() {
 
   return (
     <div className="space-y-4">
-      <header className="rise mb-2">
-        <div className="flex items-end justify-between gap-4">
+      <header className="rise mb-2 rounded-2xl bg-primary p-5 text-primary-foreground shadow-[0_18px_40px_rgba(0,0,0,0.18)]">
+        <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <h1 className="truncate text-2xl font-semibold tracking-tight">
               {greetingFor(nowMinutes)}, Yuri
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">{dateLabel}</p>
+            <p className="mt-3 text-sm leading-snug text-primary-foreground/80">
+              Sua meta de hoje é:{" "}
+              <span className="text-primary-foreground">{todayGoal}</span>
+            </p>
           </div>
-          <p className="tabular shrink-0 text-2xl font-medium tracking-tight text-muted-foreground">
-            {formatMinutes(nowMinutes)}
-          </p>
+          <div className="shrink-0 text-right">
+            <p className="max-w-28 text-xs leading-tight text-primary-foreground/70">
+              {dateLabel}
+            </p>
+            <p className="tabular mt-1 text-2xl font-semibold tracking-tight">
+              {formatMinutes(nowMinutes)}
+            </p>
+          </div>
         </div>
       </header>
 
