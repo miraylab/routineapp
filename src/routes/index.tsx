@@ -59,12 +59,17 @@ function HojePage() {
 
   const { current, dayBlocks, past, upcoming } = context;
   const currentIndex = current ? dayBlocks.findIndex((block) => block.id === current.id) : -1;
+  const freeTimeIndex = current
+    ? currentIndex
+    : dayBlocks.findIndex((block) => toMinutes(block.startTime) > nowMinutes);
+  const activeTimeIndex =
+    freeTimeIndex >= 0 ? freeTimeIndex : dayBlocks.length > 0 ? dayBlocks.length : -1;
   const [focusedBlockId, setFocusedBlockId] = useState<string | null>(current?.id ?? null);
   const focusedIndex = focusedBlockId
     ? dayBlocks.findIndex((block) => block.id === focusedBlockId)
     : currentIndex;
-  const activeFocusedIndex = focusedIndex >= 0 ? focusedIndex : currentIndex;
-  const focusedBlock = activeFocusedIndex >= 0 ? dayBlocks[activeFocusedIndex] : null;
+  const activeFocusedIndex = focusedIndex >= 0 ? focusedIndex : activeTimeIndex;
+  const focusedBlock = focusedIndex >= 0 ? (dayBlocks[focusedIndex] ?? null) : null;
   const focusedContext = useMemo(
     () => (focusedBlock ? buildFocusedActivityContext(context, focusedBlock, nowMinutes) : context),
     [context, focusedBlock, nowMinutes],
@@ -80,11 +85,17 @@ function HojePage() {
         ? "past"
         : "future";
   const previousFocusedBlock =
-    activeFocusedIndex > 0 ? (dayBlocks[activeFocusedIndex - 1] ?? null) : null;
+    focusedBlock && activeFocusedIndex > 0
+      ? (dayBlocks[activeFocusedIndex - 1] ?? null)
+      : !focusedBlock && activeTimeIndex > 0
+        ? (dayBlocks[activeTimeIndex - 1] ?? null)
+        : null;
   const nextFocusedBlock =
-    activeFocusedIndex >= 0 && activeFocusedIndex < dayBlocks.length - 1
+    focusedBlock && activeFocusedIndex >= 0 && activeFocusedIndex < dayBlocks.length - 1
       ? (dayBlocks[activeFocusedIndex + 1] ?? null)
-      : null;
+      : !focusedBlock && activeTimeIndex >= 0 && activeTimeIndex < dayBlocks.length
+        ? (dayBlocks[activeTimeIndex] ?? null)
+        : null;
 
   useEffect(() => {
     setFocusedBlockId(current?.id ?? null);
@@ -138,14 +149,20 @@ function HojePage() {
         viewMode={focusedMode}
         previousBlock={previousFocusedBlock}
         nextBlock={nextFocusedBlock}
-        canNavigatePrevious={activeFocusedIndex > 0}
-        canNavigateNext={activeFocusedIndex >= 0 && activeFocusedIndex < dayBlocks.length - 1}
+        canNavigatePrevious={Boolean(previousFocusedBlock)}
+        canNavigateNext={Boolean(nextFocusedBlock)}
         onNavigatePrevious={() =>
-          setFocusedBlockId(dayBlocks[Math.max(0, activeFocusedIndex - 1)]?.id ?? null)
+          setFocusedBlockId(
+            focusedBlock
+              ? (dayBlocks[Math.max(0, activeFocusedIndex - 1)]?.id ?? null)
+              : (previousFocusedBlock?.id ?? null),
+          )
         }
         onNavigateNext={() =>
           setFocusedBlockId(
-            dayBlocks[Math.min(dayBlocks.length - 1, activeFocusedIndex + 1)]?.id ?? null,
+            focusedBlock
+              ? (dayBlocks[Math.min(dayBlocks.length - 1, activeFocusedIndex + 1)]?.id ?? null)
+              : (nextFocusedBlock?.id ?? null),
           )
         }
       />

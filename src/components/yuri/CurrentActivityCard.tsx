@@ -99,28 +99,6 @@ export function CurrentActivityCard({
     [],
   );
 
-  if (!current) {
-    return (
-      <section className="rise rounded-3xl border border-border/60 bg-card p-6">
-        <p className="text-[11px] font-medium tracking-[0.18em] text-muted-foreground">
-          TEMPO LIVRE
-        </p>
-        <h2 className="mt-3 text-2xl font-semibold tracking-tight">Nenhuma atividade planejada</h2>
-        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          {next
-            ? `Nenhum compromisso até ${next.startTime}. Aproveite sem precisar otimizar este período.`
-            : "Nada mais planejado para hoje."}
-        </p>
-        {next ? (
-          <div className="mt-5 flex items-center gap-3 rounded-2xl bg-elevated/60 px-4 py-3">
-            <span className="tabular text-sm font-medium text-primary">{next.startTime}</span>
-            <span className="text-sm text-muted-foreground">{next.title}</span>
-          </div>
-        ) : null}
-      </section>
-    );
-  }
-
   const viewLabel = viewMode === "past" ? "ANTERIOR" : viewMode === "future" ? "PRÓXIMA" : "AGORA";
   const statusLabel = done
     ? "Concluído"
@@ -195,6 +173,83 @@ export function CurrentActivityCard({
   };
   const slideStyle = { "--drag-x": `${dragX}px`, "--slide-gap": "12px" } as CSSProperties;
   const isDragging = dragX !== 0;
+
+  if (!current) {
+    return (
+      <section
+        className="rise relative h-[545px] touch-pan-y cursor-grab overflow-hidden active:cursor-grabbing"
+        style={slideStyle}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerEnd}
+        onPointerCancel={handlePointerEnd}
+      >
+        {previousBlock ? (
+          <SlidePreview
+            block={previousBlock}
+            label="ANTERIOR"
+            className={cn(
+              "-translate-x-full",
+              "translate-x-[calc(-100%-var(--slide-gap)+var(--drag-x))]",
+              !isDragging && "transition-transform duration-200 ease-out",
+            )}
+          />
+        ) : null}
+        {nextBlock ? (
+          <SlidePreview
+            block={nextBlock}
+            label="PRÓXIMA"
+            className={cn(
+              "translate-x-full",
+              "translate-x-[calc(100%+var(--slide-gap)+var(--drag-x))]",
+              !isDragging && "transition-transform duration-200 ease-out",
+            )}
+          />
+        ) : null}
+
+        {edgeFeedback ? (
+          <div
+            className={cn(
+              "edge-feedback pointer-events-none absolute top-1/2 z-10 rounded-full bg-background/95 px-3 py-1.5 text-[11px] font-medium text-muted-foreground shadow-lg shadow-black/20",
+              edgeFeedback === "previous" ? "left-4" : "right-4",
+            )}
+          >
+            {edgeFeedback === "previous" ? "Nada antes" : "Nada depois"}
+          </div>
+        ) : null}
+
+        <article
+          className={cn(
+            "relative z-10 h-full overflow-hidden rounded-3xl border border-border/60 bg-card p-6",
+            isDragging ? "transition-none" : "transition-transform duration-200 ease-out",
+          )}
+          style={{ transform: "translateX(var(--drag-x))" }}
+        >
+          <p className="shrink-0 whitespace-nowrap text-[11px] font-medium tracking-[0.18em] text-muted-foreground">
+            TEMPO LIVRE
+          </p>
+          <h2 className="mt-3 overflow-hidden whitespace-nowrap text-2xl font-semibold tracking-tight">
+            Nenhuma atividade planejada
+          </h2>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            {next
+              ? `Nenhum compromisso até ${next.startTime}. Aproveite sem precisar otimizar este período.`
+              : "Nada mais planejado para hoje."}
+          </p>
+          {next ? (
+            <div className="mt-5 flex items-center gap-3 rounded-2xl bg-elevated/60 px-4 py-3">
+              <span className="tabular shrink-0 whitespace-nowrap text-sm font-medium text-primary">
+                {next.startTime}
+              </span>
+              <span className="min-w-0 truncate whitespace-nowrap text-sm text-muted-foreground">
+                {next.title}
+              </span>
+            </div>
+          ) : null}
+        </article>
+      </section>
+    );
+  }
 
   return (
     <section
