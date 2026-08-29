@@ -134,6 +134,8 @@ Principais estruturas:
 
 No futuro, os mocks poderao ser substituidos por uma API, Google Sheets, Google Calendar ou outra fonte. Isso deve acontecer sem reconstruir todo o frontend.
 
+Dados mockados especificos para desenvolvimento local podem ficar em `src/data/mock/`. Esses mocks existem para facilitar trabalho visual e funcional no Codex quando uma API externa estiver indisponivel localmente. Em producao, a aplicacao deve priorizar dados reais vindos das rotas server-side, APIs e futuramente planilhas; mocks locais nao devem mascarar falhas de integracao no deploy.
+
 ## Integracoes Externas
 
 - Intervals.icu foi iniciado como integracao server-side para leitura de dados de saude vindos do fluxo Huawei Watch -> Huawei Health -> Health Sync -> Intervals.icu -> Yuri OS.
@@ -144,6 +146,7 @@ No futuro, os mocks poderao ser substituidos por uma API, Google Sheets, Google 
 - Endpoints internos criados para validacao: `/api/health/today` para JSON normalizado, `/api/health/recent` para os ultimos 10 dias e `/api/health/debug` para inspecionar campos reais retornados sem credenciais.
 - O endpoint `/api/health/debug` retorna dados brutos de saude e deve ficar restrito ao desenvolvimento; em producao, so habilitar temporariamente com `HEALTH_DEBUG_ENABLED=true`.
 - A aba Habitos / Saude consome `/api/health/recent` sem polling para exibir apenas data, passos e horas de sono. O numero principal dos cards deve ser sempre do dia atual, enquanto o grafico mostra a evolucao dos ultimos 10 dias, incluindo hoje. As metas de MVP estao mockadas no frontend: 6.000 passos por dia e 8h de sono por dia. Cada card deve mostrar uma barra de progresso abaixo do numero principal indicando o andamento ate a meta do dia. Os graficos de saude devem ficar compactos na parte superior direita do card, usando 10 colunas finas com cantos arredondados, barras proximas entre si e sem labels visiveis no eixo X. Colunas de dias que atingiram a meta devem usar o verde principal; colunas de dias abaixo da meta devem usar um tom vermelho/rosa compativel com o design. Por enquanto, a interface deve ignorar os demais campos do Intervals.icu.
+- Durante desenvolvimento local, se `/api/health/recent` falhar, a tela de Saude pode carregar `src/data/mock/health.ts` como fallback visual. Esse fallback deve ser condicionado a `import.meta.env.DEV` e nao deve substituir dados reais em producao.
 
 ## Logica Temporal
 

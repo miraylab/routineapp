@@ -32,8 +32,10 @@ export const Route = createFileRoute("/habitos")({
 
 function HabitosPage() {
   const { habits } = useStore();
-  const [health, setHealth] = useState<HealthTodayResponse | null>(null);
-  const [healthStatus, setHealthStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [health, setHealth] = useState<HealthRecentResponse | null>(null);
+  const [healthStatus, setHealthStatus] = useState<"loading" | "ready" | "mock" | "error">(
+    "loading",
+  );
 
   useEffect(() => {
     let active = true;
@@ -53,7 +55,11 @@ function HabitosPage() {
       })
       .catch(() => {
         if (!active) return;
-        setHealthStatus("error");
+        loadMockHealth().then((mockHealth) => {
+          if (!active) return;
+          setHealth(mockHealth);
+          setHealthStatus(mockHealth ? "mock" : "error");
+        });
       });
 
     return () => {
@@ -87,7 +93,7 @@ interface HealthTodayResponse {
 interface HealthRecentResponse {
   oldest?: string;
   newest?: string;
-  source?: "intervals.icu";
+  source?: "intervals.icu" | "mock";
   message?: string;
   days?: HealthTodayResponse[];
 }
@@ -97,7 +103,7 @@ function HealthMetricCards({
   status,
 }: {
   health: HealthRecentResponse | null;
-  status: "loading" | "ready" | "error";
+  status: "loading" | "ready" | "mock" | "error";
 }) {
   const days = health?.days ?? [];
   const today = days.find((day) => day.date === health?.newest);
@@ -140,6 +146,12 @@ function HealthMetricCards({
       />
     </section>
   );
+}
+
+async function loadMockHealth() {
+  if (!import.meta.env.DEV) return null;
+  const { mockHealthRecent } = await import("@/data/mock/health");
+  return mockHealthRecent satisfies HealthRecentResponse;
 }
 
 function HealthMetricCard({
