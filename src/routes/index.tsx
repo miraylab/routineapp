@@ -79,6 +79,12 @@ function HojePage() {
       : focusedBlock && toMinutes(focusedBlock.endTime) <= nowMinutes
         ? "past"
         : "future";
+  const previousFocusedBlock =
+    activeFocusedIndex > 0 ? (dayBlocks[activeFocusedIndex - 1] ?? null) : null;
+  const nextFocusedBlock =
+    activeFocusedIndex >= 0 && activeFocusedIndex < dayBlocks.length - 1
+      ? (dayBlocks[activeFocusedIndex + 1] ?? null)
+      : null;
 
   useEffect(() => {
     setFocusedBlockId(current?.id ?? null);
@@ -130,6 +136,8 @@ function HojePage() {
           focusedCurrent && addActivityChecklistItem(focusedCurrent.id, title, priority)
         }
         viewMode={focusedMode}
+        previousBlock={previousFocusedBlock}
+        nextBlock={nextFocusedBlock}
         canNavigatePrevious={activeFocusedIndex > 0}
         canNavigateNext={activeFocusedIndex >= 0 && activeFocusedIndex < dayBlocks.length - 1}
         onNavigatePrevious={() =>

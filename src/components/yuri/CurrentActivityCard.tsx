@@ -1,11 +1,19 @@
-import { useLayoutEffect, useRef, useState, type PointerEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type RefObject,
+  type PointerEvent,
+} from "react";
 import { Check, ChevronDown, Flag, Plus } from "lucide-react";
 
 import { ProgressBar } from "./ProgressBar";
 import { StatusBadge } from "./StatusBadge";
 import type { CurrentActivity } from "@/lib/schedule";
 import { formatDuration } from "@/lib/schedule";
-import type { Project } from "@/data/mockData";
+import type { Project, ScheduleBlock } from "@/data/mockData";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -17,6 +25,8 @@ interface Props {
   onToggleChecklistItem: (id: string) => void;
   onAddChecklistItem: (title: string, priority: boolean) => void;
   viewMode?: "current" | "past" | "future";
+  previousBlock?: ScheduleBlock | null;
+  nextBlock?: ScheduleBlock | null;
   canNavigatePrevious?: boolean;
   canNavigateNext?: boolean;
   onNavigatePrevious?: () => void;
@@ -32,6 +42,8 @@ export function CurrentActivityCard({
   onToggleChecklistItem,
   onAddChecklistItem,
   viewMode = "current",
+  previousBlock = null,
+  nextBlock = null,
   canNavigatePrevious = false,
   canNavigateNext = false,
   onNavigatePrevious,
@@ -41,11 +53,16 @@ export function CurrentActivityCard({
   const [draft, setDraft] = useState("");
   const [draftPriority, setDraftPriority] = useState(false);
   const [dragX, setDragX] = useState(0);
+  const [edgeFeedback, setEdgeFeedback] = useState<"previous" | "next" | null>(null);
   const checklistScrollRef = useRef<HTMLDivElement>(null);
   const firstPendingRef = useRef<HTMLButtonElement>(null);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
   const isHorizontalDragRef = useRef(false);
+  const edgeFeedbackTimeoutRef = useRef<number | null>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const { current, next, progress, remaining } = context;
+  const activityTitle = current ? (current.subtitle ?? current.title) : "";
+  const titleFontSize = useFitText(titleRef, activityTitle, 28, 18);
   const checklist = current
     ? orderChecklistItems(
         [...getActivityChecklist(current), ...extraChecklistItems],
@@ -73,6 +90,15 @@ export function CurrentActivityCard({
     };
   }, [current?.id, checklist.length, firstPendingId]);
 
+  useEffect(
+    () => () => {
+      if (edgeFeedbackTimeoutRef.current) {
+        window.clearTimeout(edgeFeedbackTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
   if (!current) {
     return (
       <section className="rise rounded-3xl border border-border/60 bg-card p-6">
@@ -95,7 +121,6 @@ export function CurrentActivityCard({
     );
   }
 
-  const activityTitle = current.subtitle ?? current.title;
   const viewLabel = viewMode === "past" ? "ANTERIOR" : viewMode === "future" ? "PRÓXIMA" : "AGORA";
   const statusLabel = done
     ? "Concluído"
@@ -113,8 +138,11 @@ export function CurrentActivityCard({
         : "Finalizada";
 
   const handlePointerDown = (event: PointerEvent<HTMLElement>) => {
+    if (isInteractiveElement(event.target)) return;
+
     dragStartRef.current = { x: event.clientX, y: event.clientY };
     isHorizontalDragRef.current = false;
+    event.currentTarget.setPointerCapture(event.pointerId);
   };
 
   const handlePointerMove = (event: PointerEvent<HTMLElement>) => {
@@ -126,11 +154,13 @@ export function CurrentActivityCard({
 
     if (!isHorizontalDragRef.current && Math.abs(deltaX) > 12) {
       isHorizontalDragRef.current = Math.abs(deltaX) > Math.abs(deltaY) * 1.25;
+      if (isHorizontalDragRef.current && open) setOpen(false);
     }
 
     if (!isHorizontalDragRef.current) return;
+    event.preventDefault();
     const blocked = (deltaX > 0 && !canNavigatePrevious) || (deltaX < 0 && !canNavigateNext);
-    setDragX(blocked ? deltaX * 0.18 : deltaX * 0.35);
+    setDragX(blocked ? deltaX * 0.18 : deltaX);
   };
 
   const handlePointerEnd = (event: PointerEvent<HTMLElement>) => {
@@ -138,28 +168,91 @@ export function CurrentActivityCard({
     if (!start) return;
 
     const deltaX = event.clientX - start.x;
-    const shouldNavigate = Math.abs(deltaX) > 64 && isHorizontalDragRef.current;
+    const shouldNavigate = Math.abs(deltaX) > 42 && isHorizontalDragRef.current;
 
     if (shouldNavigate && deltaX > 0 && canNavigatePrevious) onNavigatePrevious?.();
     if (shouldNavigate && deltaX < 0 && canNavigateNext) onNavigateNext?.();
+    if (shouldNavigate && deltaX > 0 && !canNavigatePrevious) showEdgeFeedback("previous");
+    if (shouldNavigate && deltaX < 0 && !canNavigateNext) showEdgeFeedback("next");
 
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
     dragStartRef.current = null;
     isHorizontalDragRef.current = false;
     setDragX(0);
   };
 
+  const showEdgeFeedback = (edge: "previous" | "next") => {
+    if (edgeFeedbackTimeoutRef.current) {
+      window.clearTimeout(edgeFeedbackTimeoutRef.current);
+    }
+    setEdgeFeedback(edge);
+    edgeFeedbackTimeoutRef.current = window.setTimeout(() => {
+      setEdgeFeedback(null);
+      edgeFeedbackTimeoutRef.current = null;
+    }, 900);
+  };
+  const slideStyle = { "--drag-x": `${dragX}px`, "--slide-gap": "12px" } as CSSProperties;
+  const isDragging = dragX !== 0;
+
   return (
     <section
-      className="rise touch-pan-y overflow-hidden rounded-3xl border border-primary/25 bg-card transition-transform duration-200 ease-out"
-      style={{ transform: `translateX(${dragX}px)` }}
+      className={cn(
+        "rise relative touch-pan-y cursor-grab overflow-hidden transition-[height] duration-300 ease-out active:cursor-grabbing",
+        open ? "h-[660px]" : "h-[545px]",
+      )}
+      style={slideStyle}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerEnd}
       onPointerCancel={handlePointerEnd}
     >
-      <div className="p-6">
+      {previousBlock ? (
+        <SlidePreview
+          block={previousBlock}
+          label="ANTERIOR"
+          className={cn(
+            "-translate-x-full",
+            "translate-x-[calc(-100%-var(--slide-gap)+var(--drag-x))]",
+            !isDragging && "transition-transform duration-200 ease-out",
+          )}
+        />
+      ) : null}
+      {nextBlock ? (
+        <SlidePreview
+          block={nextBlock}
+          label="PRÓXIMA"
+          className={cn(
+            "translate-x-full",
+            "translate-x-[calc(100%+var(--slide-gap)+var(--drag-x))]",
+            !isDragging && "transition-transform duration-200 ease-out",
+          )}
+        />
+      ) : null}
+
+      {edgeFeedback ? (
+        <div
+          className={cn(
+            "edge-feedback pointer-events-none absolute top-1/2 z-10 rounded-full bg-background/95 px-3 py-1.5 text-[11px] font-medium text-muted-foreground shadow-lg shadow-black/20",
+            edgeFeedback === "previous" ? "left-4" : "right-4",
+          )}
+        >
+          {edgeFeedback === "previous" ? "Nada antes" : "Nada depois"}
+        </div>
+      ) : null}
+
+      <div
+        className={cn(
+          "relative z-10 h-full overflow-hidden rounded-3xl border border-primary/25 bg-card p-6",
+          isDragging ? "transition-none" : "transition-transform duration-200 ease-out",
+        )}
+        style={{ transform: "translateX(var(--drag-x))" }}
+      >
         <div className="flex items-center justify-between gap-3">
-          <p className="text-[11px] font-medium tracking-[0.18em] text-primary">{viewLabel}</p>
+          <p className="shrink-0 whitespace-nowrap text-[11px] font-medium tracking-[0.18em] text-primary">
+            {viewLabel}
+          </p>
           <StatusBadge tone={done ? "done" : "active"}>
             <span
               className={cn(
@@ -171,18 +264,24 @@ export function CurrentActivityCard({
           </StatusBadge>
         </div>
 
-        <p className="mt-4 text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+        <p className="mt-4 truncate whitespace-nowrap text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
           {current.category}
         </p>
-        <h2 className="mt-1.5 text-[28px] font-semibold leading-tight tracking-tight">
+        <h2
+          ref={titleRef}
+          className="mt-1.5 overflow-hidden whitespace-nowrap font-semibold leading-tight tracking-tight"
+          style={{ fontSize: titleFontSize }}
+        >
           {activityTitle}
         </h2>
 
         <div className="tabular mt-5 flex items-baseline justify-between text-sm">
-          <span className="text-muted-foreground">
+          <span className="shrink-0 whitespace-nowrap text-muted-foreground">
             {current.startTime} — {current.endTime}
           </span>
-          <span className="text-xs text-muted-foreground">{timeInfo}</span>
+          <span className="min-w-0 truncate whitespace-nowrap pl-3 text-right text-xs text-muted-foreground">
+            {timeInfo}
+          </span>
         </div>
         <ProgressBar value={progress} className="mt-1.5" size="md" />
 
@@ -195,12 +294,12 @@ export function CurrentActivityCard({
               {checklist.filter((item) => checklistItemDone(item.id)).length}/{checklist.length}
             </span>
           </div>
-          {checklist.length > 0 ? (
-            <div
-              ref={checklistScrollRef}
-              className="app-scrollbar relative mt-3 max-h-[156px] space-y-2 overflow-y-auto pr-1"
-            >
-              {checklist.map((item) => {
+          <div
+            ref={checklistScrollRef}
+            className="app-scrollbar relative mt-3 h-[156px] space-y-2 overflow-y-auto pr-1"
+          >
+            {checklist.length > 0 ? (
+              checklist.map((item) => {
                 const itemDone = checklistItemDone(item.id);
                 return (
                   <button
@@ -233,9 +332,13 @@ export function CurrentActivityCard({
                     </span>
                   </button>
                 );
-              })}
-            </div>
-          ) : null}
+              })
+            ) : (
+              <div className="flex h-full items-center rounded-2xl bg-card/70 px-3.5 py-3 text-[13px] leading-snug text-muted-foreground">
+                Nenhum item nesta atividade.
+              </div>
+            )}
+          </div>
           <form
             className="mt-2 flex gap-2"
             onSubmit={(event) => {
@@ -287,24 +390,113 @@ export function CurrentActivityCard({
             />
           </button>
         ) : null}
-      </div>
 
-      {open ? (
-        <div className="rise space-y-4 border-t border-border/60 bg-elevated/30 px-6 py-5 text-sm">
-          {current.description ? <Detail label="Atividade" value={current.description} /> : null}
-          {project ? (
-            <>
-              <Detail label="Projeto" value={`${project.title} · ${project.progress}%`} />
-              <Detail label="Objetivo relacionado" value={project.objective} />
-            </>
-          ) : null}
-          {current.expectedResult ? (
-            <Detail label="Resultado esperado" value={current.expectedResult} />
-          ) : null}
-        </div>
-      ) : null}
+        {open ? (
+          <div className="-mx-6 mt-2 space-y-4 border-t border-border/60 bg-elevated/30 px-6 py-5 text-sm">
+            {current.description ? <Detail label="Atividade" value={current.description} /> : null}
+            {project ? (
+              <>
+                <Detail label="Projeto" value={`${project.title} · ${project.progress}%`} />
+                <Detail label="Objetivo relacionado" value={project.objective} />
+              </>
+            ) : null}
+            {current.expectedResult ? (
+              <Detail label="Resultado esperado" value={current.expectedResult} />
+            ) : null}
+          </div>
+        ) : null}
+      </div>
     </section>
   );
+}
+
+function isInteractiveElement(target: EventTarget | null) {
+  return (
+    target instanceof HTMLElement && Boolean(target.closest("button, input, textarea, select, a"))
+  );
+}
+
+function SlidePreview({
+  block,
+  label,
+  className,
+}: {
+  block: ScheduleBlock;
+  label: string;
+  className: string;
+}) {
+  const title = block.subtitle ?? block.title;
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const titleFontSize = useFitText(titleRef, title, 28, 18);
+
+  return (
+    <article
+      className={cn(
+        "pointer-events-none absolute inset-0 h-full overflow-hidden rounded-3xl border border-primary/25 bg-card p-6",
+        className,
+      )}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <p className="shrink-0 whitespace-nowrap text-[11px] font-medium tracking-[0.18em] text-primary">
+          {label}
+        </p>
+        <StatusBadge tone="active">Arraste</StatusBadge>
+      </div>
+      <p className="mt-4 truncate whitespace-nowrap text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+        {block.category}
+      </p>
+      <h2
+        ref={titleRef}
+        className="mt-1.5 overflow-hidden whitespace-nowrap font-semibold leading-tight tracking-tight"
+        style={{ fontSize: titleFontSize }}
+      >
+        {title}
+      </h2>
+      <p className="tabular mt-5 whitespace-nowrap text-sm text-muted-foreground">
+        {block.startTime} — {block.endTime}
+      </p>
+      <div className="mt-5 rounded-2xl bg-elevated/60 p-4">
+        <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">CHECKLIST</p>
+        <p className="mt-3 text-sm leading-snug text-muted-foreground">
+          Solte para editar esta atividade.
+        </p>
+      </div>
+    </article>
+  );
+}
+
+function useFitText(
+  ref: RefObject<HTMLElement | null>,
+  text: string,
+  maxFontSize: number,
+  minFontSize: number,
+) {
+  const [fontSize, setFontSize] = useState(maxFontSize);
+
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+
+    const fit = () => {
+      let nextSize = maxFontSize;
+      element.style.fontSize = `${nextSize}px`;
+
+      while (element.scrollWidth > element.clientWidth && nextSize > minFontSize) {
+        nextSize -= 1;
+        element.style.fontSize = `${nextSize}px`;
+      }
+
+      setFontSize(nextSize);
+    };
+
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, [ref, text, maxFontSize, minFontSize]);
+
+  return `${fontSize}px`;
 }
 
 interface ActivityChecklistItem {

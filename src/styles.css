@@ -154,6 +154,26 @@
   animation: pulse-dot 2.4s ease-in-out infinite;
 }
 
+@keyframes edge-feedback {
+  0% {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.96);
+  }
+  18%,
+  78% {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.98);
+  }
+}
+
+@utility edge-feedback {
+  animation: edge-feedback 900ms ease both;
+}
+
 @utility app-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: var(--background) transparent;
