@@ -43,7 +43,7 @@ function SemanaPage() {
   const dayBlocks = blocksForDay(schedule, selectedDay);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <PageHeader title="Semana" subtitle={weekFocus.range} />
 
       <section className="rounded-3xl border border-border/60 bg-card p-5">

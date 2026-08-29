@@ -148,7 +148,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <StoreProvider>
         <div className="min-h-screen bg-background">
-          <main className="safe-top mx-auto w-full max-w-lg px-5 pb-32 pt-6">
+          <main className="safe-top mx-auto w-full max-w-s25 px-5 pb-32">
             {/* Required: nested routes render here. */}
             <Outlet />
           </main>

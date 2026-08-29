@@ -46,7 +46,7 @@ function ProjetoDetalhe() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <PageHeader title={project.title} subtitle={project.category} back />
 
       <section className="rounded-3xl border border-border/60 bg-card p-5">

@@ -52,8 +52,8 @@ function AgoraPage() {
   const dateLabel = `${WEEKDAYS[dayOfWeek]}, ${realNow.getDate()} de ${MONTHS[realNow.getMonth()]}`;
 
   return (
-    <div className="space-y-4">
-      <header className="rise mb-2 rounded-2xl bg-primary p-5 text-primary-foreground shadow-[0_18px_40px_rgba(0,0,0,0.18)]">
+    <div className="space-y-3">
+      <header className="rise rounded-2xl bg-primary p-5 text-primary-foreground shadow-[0_18px_40px_rgba(0,0,0,0.18)]">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <h1 className="truncate text-2xl font-semibold tracking-tight">

@@ -28,7 +28,7 @@ function FinanceiroPage() {
   const { finance, financeHistory } = useStore();
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <PageHeader title="Financeiro" subtitle="Visão gerencial" back />
 
       <FinanceSummary data={finance} />

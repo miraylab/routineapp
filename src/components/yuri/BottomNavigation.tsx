@@ -37,7 +37,7 @@ export function BottomNavigation() {
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border/70 bg-background/85 backdrop-blur-xl">
-      <div className="safe-bottom mx-auto flex max-w-lg items-stretch justify-between px-2 pt-1.5">
+      <div className="safe-bottom mx-auto flex max-w-s25 items-stretch justify-between px-2 pt-1.5">
         {items.map(({ to, label, icon: Icon, match }) => {
           const active = match(pathname);
           return (

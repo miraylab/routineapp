@@ -38,10 +38,13 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --font-sans: var(--font-sans);
+  --container-s25: 380px;
 }
 
 :root {
   --radius: 1rem;
+  --app-top-space: 16px;
+  --app-section-gap: 12px;
 
   --background: oklch(0.155 0.003 180);
   --foreground: oklch(0.96 0.003 180);
@@ -102,7 +105,7 @@
 }
 
 @utility safe-top {
-  padding-top: calc(env(safe-area-inset-top, 0px));
+  padding-top: calc(env(safe-area-inset-top, 0px) + var(--app-top-space));
 }
 
 @utility tabular {

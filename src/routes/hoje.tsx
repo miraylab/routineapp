@@ -50,7 +50,7 @@ function HojePage() {
         subtitle={`${WEEKDAYS[dayOfWeek]}, ${realNow.getDate()} de ${MONTHS[realNow.getMonth()]}`}
       />
 
-      <section className="mb-8 rounded-3xl border border-border/60 bg-card p-5">
+      <section className="mb-4 rounded-3xl border border-border/60 bg-card p-5">
         <div className="flex items-baseline justify-between">
           <p className="text-[11px] font-medium tracking-[0.18em] text-muted-foreground">
             RESULTADOS DE HOJE

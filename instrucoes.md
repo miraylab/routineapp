@@ -59,6 +59,8 @@ Desktop e apenas uma adaptacao, nao o foco principal.
 
 - Blocos, cards e containers principais devem usar raio visual fixo de 15px. Esta decisao substitui os cantos muito arredondados da versao inicial e deve ser preservada nas novas telas.
 - O header da tela Agora deve aparecer em um box verde do design system, com a data acima da hora e a meta do dia vinda da fonte de dados.
+- A largura maxima da experiencia deve mirar o viewport real do S25 Ultra, usando o container `max-w-s25` de 380px para o conteudo principal e a bottom navigation. O aparelho tem largura fisica de 1440px, mas a interface do Chrome/Android trabalha em pixels CSS apos escala do dispositivo; por isso a referencia visual do app deve ser calibrada por viewport CSS, nao por pixels fisicos.
+- O topo do app deve sempre ter respiro padrao antes do primeiro elemento, definido por `--app-top-space`. A distancia entre blocos/cards principais deve ser consistente e compacta, usando 12px como referencia visual.
 
 ## Tela Principal - Agora
 

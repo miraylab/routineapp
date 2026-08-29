@@ -10,7 +10,7 @@ export function FinanceSummary({ data }: { data: FinanceMonth }) {
   const expenses = data.fixedExpenses + data.variableExpenses + data.leisure;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <section className="rounded-3xl border border-border/60 bg-card p-5">
         <p className="text-[11px] font-medium tracking-[0.18em] text-muted-foreground">
           {data.month.toUpperCase()}

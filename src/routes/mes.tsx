@@ -28,7 +28,7 @@ function MesPage() {
   const { monthView } = useStore();
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <PageHeader title="Mês" subtitle={monthView.month} back />
 
       <section className="rounded-3xl border border-border/60 bg-card p-5">

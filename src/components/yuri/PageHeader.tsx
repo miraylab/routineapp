@@ -13,7 +13,7 @@ export function PageHeader({
   const router = useRouter();
 
   return (
-    <header className="mb-6 flex items-start gap-3">
+    <header className="mb-4 flex items-start gap-3">
       {back ? (
         <button
           type="button"

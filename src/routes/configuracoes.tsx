@@ -39,7 +39,7 @@ function ConfiguracoesPage() {
   const { simulation, setSimulation, resetState } = useStore();
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <PageHeader title="Configurações" subtitle="Protótipo · dados locais" back />
 
       <section className="rounded-3xl border border-border/60 bg-card p-5">
