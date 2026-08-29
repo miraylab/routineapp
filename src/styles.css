@@ -13,9 +13,9 @@
   --radius-sm: calc(var(--radius) - 6px);
   --radius-md: calc(var(--radius) - 3px);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 6px);
-  --radius-2xl: calc(var(--radius) + 12px);
-  --radius-3xl: calc(var(--radius) + 18px);
+  --radius-xl: 15px;
+  --radius-2xl: 15px;
+  --radius-3xl: 15px;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
