@@ -77,7 +77,7 @@
   --ring: oklch(0.82 0.145 175);
 
   --font-sans:
-    Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    Geist, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 @layer base {

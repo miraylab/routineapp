@@ -18,8 +18,8 @@ O objetivo inicial nao e criar mais uma lista de tarefas. O Yuri OS deve funcion
 
 O produto conecta diferentes niveis da vida e da rotina:
 
-- Agora
 - Hoje
+- Agora dentro de Hoje
 - Semana
 - Mes
 - Projetos
@@ -58,13 +58,14 @@ Desktop e apenas uma adaptacao, nao o foco principal.
 ## Decisoes de Design
 
 - Blocos, cards e containers principais devem usar raio visual fixo de 15px. Esta decisao substitui os cantos muito arredondados da versao inicial e deve ser preservada nas novas telas.
-- O header da tela Agora deve aparecer em um box verde do design system, com a data acima da hora e a meta do dia vinda da fonte de dados.
+- O header da tela Hoje deve aparecer em um box verde do design system, com a coluna direita na ordem hora, data por extenso com virgula e dia da semana. Na coluna esquerda, o rotulo deve ser "Sua meta de hoje:" e a meta deve vir na linha seguinte com peso medio, vinda da fonte de dados. A coluna esquerda deve ser estreita, usando 170px como referencia, mantendo respiro visivel entre ela e a coluna direita.
 - A largura maxima da experiencia deve mirar o viewport real do S25 Ultra, usando o container `max-w-s25` de 380px para o conteudo principal e a bottom navigation. O aparelho tem largura fisica de 1440px, mas a interface do Chrome/Android trabalha em pixels CSS apos escala do dispositivo; por isso a referencia visual do app deve ser calibrada por viewport CSS, nao por pixels fisicos.
 - O topo do app deve sempre ter respiro padrao antes do primeiro elemento, definido por `--app-top-space`. A distancia entre blocos/cards principais deve ser consistente e compacta, usando 12px como referencia visual.
+- A fonte oficial do app deve ser Geist, usando suas variacoes de peso pelo carregamento `100..900`.
 
-## Tela Principal - Agora
+## Tela Principal - Hoje
 
-A tela "Agora" e a tela mais importante do sistema.
+A tela "Hoje" e a tela mais importante do sistema. Ela concentra a antiga tela Agora e a antiga tela Hoje em uma unica experiencia mobile.
 
 Ela deve responder imediatamente:
 
@@ -74,6 +75,8 @@ Ela deve responder imediatamente:
 - qual e a acao concreta dentro do bloco;
 - qual e a proxima atividade;
 - como esta o progresso do dia.
+- quais sao os resultados prioritarios;
+- qual e a rotina completa do dia.
 
 Quando nao houver atividade planejada, o app deve respeitar o tempo livre. Ele nao deve tentar otimizar cada minuto do usuario.
 
@@ -119,7 +122,7 @@ Principais estruturas:
 
 - `schedule`: blocos de rotina por dia da semana.
 - `tasks`: prioridades e tarefas.
-- `todayGoal`: meta principal exibida no header da tela Agora.
+- `todayGoal`: meta principal exibida no header da tela Hoje.
 - `projects`: projetos, progresso e acoes.
 - `goals`: objetivos maiores.
 - `habits`: habitos semanais.
@@ -169,8 +172,8 @@ Nao existe backend, banco, login, autenticacao ou sincronizacao remota neste mom
 
 ## Rotas Atuais
 
-- `/`: Agora
-- `/hoje`: timeline do dia e resultados prioritarios
+- `/`: Hoje, com contexto de agora, progresso, resultados prioritarios e timeline do dia
+- `/hoje`: rota legada da timeline do dia, mantida temporariamente ate decidirmos remover ou redirecionar
 - `/semana`: foco semanal, resultados-chave e visao dos dias
 - `/projetos`: lista de projetos
 - `/projetos/$projectId`: detalhe de projeto
@@ -183,7 +186,7 @@ Nao existe backend, banco, login, autenticacao ou sincronizacao remota neste mom
 
 ## Componentes Principais
 
-- `CurrentActivityCard`: card central da tela Agora.
+- `CurrentActivityCard`: card central de contexto atual dentro da tela Hoje.
 - `NextActivityCard`: proximas atividades.
 - `DailyProgress`: progresso do dia.
 - `TimelineItem`: item da rotina em Hoje.

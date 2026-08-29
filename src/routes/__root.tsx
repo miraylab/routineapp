@@ -28,7 +28,7 @@ function NotFoundComponent() {
             to="/"
             className="press inline-flex items-center justify-center rounded-2xl bg-primary px-5 py-3 text-sm font-medium text-primary-foreground"
           >
-            Voltar para Agora
+            Voltar para Hoje
           </Link>
         </div>
       </div>
@@ -66,7 +66,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
             href="/"
             className="press inline-flex items-center justify-center rounded-2xl border border-border px-5 py-3 text-sm font-medium"
           >
-            Ir para Agora
+            Ir para Hoje
           </a>
         </div>
       </div>
@@ -114,7 +114,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+        href: "https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap",
       },
       { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "apple-touch-icon", href: "/icons/icon-192.png" },

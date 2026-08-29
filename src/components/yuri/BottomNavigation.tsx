@@ -1,14 +1,8 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Clock, CalendarDays, LayoutGrid, Target, Menu } from "lucide-react";
+import { Clock, LayoutGrid, Target, Menu } from "lucide-react";
 
 const items = [
-  { to: "/", label: "Agora", icon: Clock, match: (p: string) => p === "/" },
-  {
-    to: "/hoje",
-    label: "Hoje",
-    icon: CalendarDays,
-    match: (p: string) => p.startsWith("/hoje"),
-  },
+  { to: "/", label: "Hoje", icon: Clock, match: (p: string) => p === "/" },
   {
     to: "/semana",
     label: "Semana",
