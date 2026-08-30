@@ -41,6 +41,7 @@ interface PersistedState {
   doneBlocks: string[];
   doneActivityChecklistItems: string[];
   extraActivityChecklistItems: Record<string, { id: string; title: string; priority?: boolean }[]>;
+  routineRatings: Record<string, Record<string, number>>;
   projectActions: Record<string, string[]>; // projectId -> action ids toggled
   extraActions: Record<string, { id: string; title: string }[]>;
   doneKeyResults: string[];
@@ -65,6 +66,7 @@ const initialState: PersistedState = {
   doneBlocks: [],
   doneActivityChecklistItems: [],
   extraActivityChecklistItems: {},
+  routineRatings: {},
   projectActions: {},
   extraActions: {},
   doneKeyResults: weekFocus.keyResults.filter((k) => k.done).map((k) => k.id),
@@ -178,6 +180,7 @@ function useStoreValue() {
     [state.doneDailyHabits, todayKey],
   );
   const dailyJournalEntries = state.dailyJournalEntries?.[todayKey] ?? [];
+  const routineRatingsToday = state.routineRatings?.[todayKey] ?? {};
 
   const toggleId = (list: string[], id: string) =>
     list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
@@ -256,6 +259,21 @@ function useStoreValue() {
       }));
     },
     [],
+  );
+
+  const setRoutineRating = useCallback(
+    (activityId: string, rating: number) =>
+      setState((s) => ({
+        ...s,
+        routineRatings: {
+          ...(s.routineRatings ?? {}),
+          [todayKey]: {
+            ...(s.routineRatings?.[todayKey] ?? {}),
+            [activityId]: rating,
+          },
+        },
+      })),
+    [todayKey],
   );
 
   const toggleKeyResult = useCallback(
@@ -354,6 +372,7 @@ function useStoreValue() {
     habits,
     dailyHabits,
     dailyJournalEntries,
+    routineRatingsToday,
     finance,
     financeHistory,
     todayGoal,
@@ -374,6 +393,7 @@ function useStoreValue() {
     toggleBlock,
     toggleActivityChecklistItem,
     addActivityChecklistItem,
+    setRoutineRating,
     toggleKeyResult,
     toggleWeekMilestone,
     toggleProjectAction,

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { BookOpen, Check, ChevronDown, Send } from "lucide-react";
+import { BookOpen, Check, ChevronDown, Plus, Send } from "lucide-react";
 
 import { CurrentActivityCard } from "@/components/yuri/CurrentActivityCard";
 import { useStore } from "@/lib/store";
@@ -52,6 +52,7 @@ function HojePage() {
     todayGoal,
     todayGoalDone,
     weekMilestones,
+    routineRatingsToday,
     blockDone,
     dailyHabitDone,
     weekMilestoneDone,
@@ -62,16 +63,19 @@ function HojePage() {
     toggleWeekMilestone,
     toggleActivityChecklistItem,
     addActivityChecklistItem,
+    setRoutineRating,
     addDailyJournalEntry,
   } = useStore();
   const [journalOpen, setJournalOpen] = useState(false);
   const [journalDraft, setJournalDraft] = useState("");
+  const [reliefNoteComposerOpen, setReliefNoteComposerOpen] = useState(false);
+  const [reliefNoteDraft, setReliefNoteDraft] = useState("");
   const [openMilestoneId, setOpenMilestoneId] = useState<string | null>(null);
   const [selectedWeekDay, setSelectedWeekDay] = useState(dayOfWeek);
 
   const { current, dayBlocks } = context;
   const currentIndex = current ? dayBlocks.findIndex((block) => block.id === current.id) : -1;
-  const nextBlockIndex = dayBlocks.findIndex((block) => toMinutes(block.startTime) > nowMinutes);
+  const nextBlockIndex = findNextFreeTimeBoundaryIndex(dayBlocks, nowMinutes);
   const freeTimeIndex = current ? -1 : nextBlockIndex >= 0 ? nextBlockIndex : dayBlocks.length;
   const activeTimeIndex =
     freeTimeIndex >= 0 ? freeTimeIndex : dayBlocks.length > 0 ? dayBlocks.length : -1;
@@ -153,6 +157,12 @@ function HojePage() {
 
   const weekdayLabel = WEEKDAYS[dayOfWeek];
   const fullDateLabel = `${realNow.getDate()} de ${MONTHS[realNow.getMonth()]}`;
+  const handleAddReliefNote = () => {
+    if (!freeTimeBlock || !reliefNoteDraft.trim()) return;
+    addActivityChecklistItem(freeTimeBlock.id, reliefNoteDraft.trim(), false);
+    setReliefNoteDraft("");
+    setReliefNoteComposerOpen(false);
+  };
 
   if (!hydrated) {
     return (
@@ -215,7 +225,12 @@ function HojePage() {
         project={focusedProject}
         done={focusedCurrent ? blockDone(focusedCurrent.id) : false}
         activityIndicators={activityIndicators}
+        nowMinutes={nowMinutes}
+        projects={projects}
+        blockDoneById={blockDone}
         checklistItemDone={activityChecklistItemDone}
+        routineRatings={routineRatingsToday}
+        extraChecklistItemsByActivity={extraActivityChecklistItems}
         extraChecklistItems={
           focusedCurrent ? (extraActivityChecklistItems[focusedCurrent.id] ?? []) : []
         }
@@ -223,6 +238,7 @@ function HojePage() {
         onAddChecklistItem={(title, priority) =>
           focusedCurrent && addActivityChecklistItem(focusedCurrent.id, title, priority)
         }
+        onSetRoutineRating={setRoutineRating}
         viewMode={focusedMode}
         previousSlide={previousFocusedSlide}
         nextSlide={nextFocusedSlide}
@@ -476,6 +492,48 @@ function HojePage() {
           ) : null}
         </ul>
       </section>
+
+      {freeTimeBlock ? (
+        <div className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+86px)] right-[max(1rem,calc((100vw-430px)/2+1rem))] z-40 flex flex-col items-end gap-2">
+          {reliefNoteComposerOpen ? (
+            <form
+              className="rise w-[min(320px,calc(100vw-2rem))] rounded-3xl border border-border/60 bg-card p-3 shadow-[0_18px_46px_rgba(0,0,0,0.42)]"
+              onSubmit={(event) => {
+                event.preventDefault();
+                handleAddReliefNote();
+              }}
+            >
+              <textarea
+                value={reliefNoteDraft}
+                onChange={(event) => setReliefNoteDraft(event.target.value)}
+                placeholder="Nova nota de alívio"
+                className="app-scrollbar h-24 w-full resize-none rounded-2xl bg-elevated/60 px-3.5 py-3 text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+              />
+              <button
+                type="submit"
+                disabled={!reliefNoteDraft.trim()}
+                className="press mt-2 flex h-10 w-full items-center justify-center rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+              >
+                Adicionar
+              </button>
+            </form>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setReliefNoteComposerOpen((open) => !open)}
+            className="press grid size-14 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-[0_16px_34px_rgba(0,0,0,0.34)]"
+            aria-label="Adicionar nota de alívio"
+            aria-expanded={reliefNoteComposerOpen}
+          >
+            <Plus
+              className={cn(
+                "size-6 transition-transform duration-200",
+                reliefNoteComposerOpen && "rotate-45",
+              )}
+            />
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -520,13 +578,24 @@ function buildFreeTimeBlock(
   const endTime = formatMinutes(end);
 
   return {
-    id: `${FREE_TIME_ID_PREFIX}-${dayOfWeek}-${startTime}-${endTime}`,
+    id: `${FREE_TIME_ID_PREFIX}-${dayOfWeek}-${previousBlock?.id ?? "inicio"}-${nextBlock?.id ?? "sono"}`,
     dayOfWeek,
     startTime,
     endTime,
     category: "Tempo livre",
     title: "Aproveite seu tempo",
   };
+}
+
+function findNextFreeTimeBoundaryIndex(dayBlocks: ScheduleBlock[], nowMinutes: number) {
+  const nextBeforeBedtime = dayBlocks.findIndex((block) => {
+    const start = toMinutes(block.startTime);
+    return start > nowMinutes && start < BEDTIME_MINUTES;
+  });
+
+  if (nextBeforeBedtime >= 0) return nextBeforeBedtime;
+
+  return dayBlocks.findIndex((block) => toMinutes(block.startTime) >= BEDTIME_MINUTES);
 }
 
 function isFreeTimeBlock(block: ScheduleBlock | null) {

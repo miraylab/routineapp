@@ -21,12 +21,15 @@ export interface ScheduleBlock {
   startTime: string; // "HH:MM"
   endTime: string; // "HH:MM"
   blockEndTime?: string; // fim do contexto/bloco maior da rotina
+  cardType?: "activity" | "routine";
   category: Category;
   title: string;
   subtitle?: string;
   description?: string;
   nextAction?: string;
   activityChecklist?: ActivityChecklistItemSeed[];
+  routineItems?: string[];
+  routineReviewLabel?: string;
   expectedResult?: string;
   projectId?: string;
   taskId?: string;
@@ -154,8 +157,36 @@ const workAfternoon = (d: number) =>
     ],
   });
 
-const lunch = (d: number) => b(d, "12:00", "12:40", "Alimentação", "Almoço");
+const lunch = (d: number) =>
+  b(d, "12:00", "12:40", "Alimentação", "Almoço", {
+    cardType: "routine",
+    routineReviewLabel: "Aderência",
+    routineItems: [
+      "Prato base com proteína",
+      "Legumes ou salada",
+      "Carboidrato na porção planejada",
+      "Sem sobremesa fora do plano",
+    ],
+  });
 const sleep = (d: number) => b(d, "21:30", "23:30", "Rotina", "Sono");
+
+const strengthRoutine = (focus: string) => ({
+  cardType: "routine" as const,
+  routineReviewLabel: "Nota do treino",
+  routineItems: [
+    "Aquecimento e mobilidade",
+    focus,
+    "Exercício principal com carga controlada",
+    "Acessórios do treino",
+    "Alongamento rápido no fim",
+  ],
+});
+
+const runningRoutine = (focus: string) => ({
+  cardType: "routine" as const,
+  routineReviewLabel: "Nota do treino",
+  routineItems: ["Aquecimento leve", focus, "Desaceleração", "Alongamento rápido no fim"],
+});
 
 export const schedule: ScheduleBlock[] = [
   // Segunda
@@ -172,6 +203,7 @@ export const schedule: ScheduleBlock[] = [
     subtitle: "Treino A · Peito e tríceps",
     description: "Treino de força, 5 exercícios.",
     nextAction: "Supino 4x8 com carga progressiva.",
+    ...strengthRoutine("Peito e tríceps"),
   }),
   workMorning(1),
   lunch(1),
@@ -206,6 +238,7 @@ export const schedule: ScheduleBlock[] = [
   b(2, "17:00", "18:30", "Estudos", "Leitura"),
   b(2, "18:40", "19:30", "Saúde", "Corrida", {
     subtitle: "6 km em ritmo leve",
+    ...runningRoutine("6 km em ritmo leve"),
   }),
   sleep(2),
 
@@ -217,6 +250,7 @@ export const schedule: ScheduleBlock[] = [
   }),
   b(3, "07:00", "08:20", "Saúde", "Musculação", {
     subtitle: "Treino B · Costas e bíceps",
+    ...strengthRoutine("Costas e bíceps"),
   }),
   workMorning(3),
   lunch(3),
@@ -239,13 +273,17 @@ export const schedule: ScheduleBlock[] = [
   lunch(4),
   workAfternoon(4),
   b(4, "17:00", "18:30", "Estudos", "Leitura"),
-  b(4, "18:40", "19:30", "Saúde", "Corrida", { subtitle: "Intervalado" }),
+  b(4, "18:40", "19:30", "Saúde", "Corrida", {
+    subtitle: "Intervalado",
+    ...runningRoutine("Blocos intervalados"),
+  }),
   sleep(4),
 
   // Sexta
   b(5, "05:20", "05:55", "Rotina", "Preparação"),
   b(5, "06:10", "07:00", "Saúde", "Musculação", {
     subtitle: "Treino C · Pernas",
+    ...strengthRoutine("Pernas"),
   }),
   workMorning(5),
   lunch(5),
@@ -256,7 +294,10 @@ export const schedule: ScheduleBlock[] = [
   sleep(5),
 
   // Sábado
-  b(6, "07:00", "08:00", "Saúde", "Corrida", { subtitle: "10 km longão" }),
+  b(6, "07:00", "08:00", "Saúde", "Corrida", {
+    subtitle: "10 km longão",
+    ...runningRoutine("10 km longão"),
+  }),
   b(6, "08:00", "11:00", "Estudos", "Inglês", {
     description: "Aula e conversação.",
   }),
@@ -276,6 +317,7 @@ export const schedule: ScheduleBlock[] = [
   // Domingo
   b(0, "08:00", "09:20", "Saúde", "Musculação", {
     subtitle: "Treino full body",
+    ...strengthRoutine("Full body"),
   }),
   b(0, "17:00", "18:00", "Pessoal", "Planejamento da semana", {
     description: "Definir foco, resultados e blocos da semana.",
