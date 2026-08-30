@@ -7,6 +7,7 @@ import {
   type RefObject,
   type PointerEvent,
 } from "react";
+import { flushSync } from "react-dom";
 import { Check, ChevronDown, Flag, Plus } from "lucide-react";
 
 import { ProgressBar } from "./ProgressBar";
@@ -183,13 +184,20 @@ export function CurrentActivityCard({
 
     if (shouldGoPrevious || shouldGoNext) {
       const slideDistance = event.currentTarget.clientWidth + 12;
-      setIsSettling(true);
-      setDragX(shouldGoPrevious ? slideDistance : -slideDistance);
+      const settledStartX = shouldGoPrevious ? dragX - slideDistance : dragX + slideDistance;
 
-      slideTransitionTimeoutRef.current = window.setTimeout(() => {
+      flushSync(() => {
+        setIsSettling(true);
+        setDragX(settledStartX);
         if (shouldGoPrevious) onNavigatePrevious?.();
         if (shouldGoNext) onNavigateNext?.();
+      });
+
+      window.requestAnimationFrame(() => {
         setDragX(0);
+      });
+
+      slideTransitionTimeoutRef.current = window.setTimeout(() => {
         setIsSettling(false);
         slideTransitionTimeoutRef.current = null;
       }, SLIDE_TRANSITION_MS);
