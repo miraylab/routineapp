@@ -112,6 +112,7 @@ No card principal de atividade atual, existe uma separacao conceitual entre cont
 - O formato comprido indica o que esta em andamento no horario atual, como se a bolinha tivesse sido esticada para os lados sem perder as bordas arredondadas. Se a atividade em andamento nao for o card selecionado, ela deve ficar comprida em cinza; se tambem for o card selecionado, deve ficar comprida em verde.
 - Preenchido indica compromisso/atividade; vazado indica tempo livre. Quando o estado atual em foco for "Tempo livre", ele nao deve aparecer como compromisso cinza. Deve entrar na posicao temporal correta como uma bolinha/pilula extra vazada, usando contorno verde quando selecionado e contorno cinza quando nao selecionado.
 - O antigo bloco "RESULTADOS DE HOJE" passa a ser "CONSTRUÇÃO DE HÁBITOS". No MVP ele deve mostrar apenas a lista de habitos esperados para o dia atual, cada item como texto simples em formato de checklist. Nao deve haver botao para adicionar habito nessa tela; no lugar dele existe um botao "DIÁRIO" que abre um campo de texto com botao de envio. Cada envio deve virar uma entrada separada na tabela/lista do diario daquele dia, com horario, para permitir varios registros ao longo do dia.
+- A tela Hoje tambem deve trazer, abaixo da construcao de habitos, uma leitura de semana compacta. O bloco "FOCO DA SEMANA" nao deve ser checklist: ele apresenta marcos importantes da semana em cartoes horizontais/linhas empilhadas, com marco e data sempre visiveis; ao clicar, a linha expande e mostra o detalhamento. Abaixo dele entra "VISÃO DOS DIAS", reaproveitando a leitura de agenda semanal com barra de rolagem minimalista `app-scrollbar`.
 
 ## Stack Atual
 
@@ -164,6 +165,7 @@ Principais estruturas:
 - `finance`: resumo financeiro mensal.
 - `financeHistory`: historico financeiro.
 - `weekFocus`: foco da semana.
+- `weekMilestones`: marcos importantes da semana exibidos na tela Hoje como linhas expansíveis com marco, data e detalhamento.
 - `weekAreas`: progresso semanal por area.
 - `monthView`: progresso mensal, conquistas e pontos de atencao.
 

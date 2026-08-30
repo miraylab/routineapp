@@ -74,6 +74,13 @@ export interface Goal {
   relatedProjects: string[];
 }
 
+export interface WeekMilestone {
+  id: string;
+  title: string;
+  date: string;
+  detail?: string;
+}
+
 export interface Habit {
   id: string;
   title: string;
@@ -497,6 +504,30 @@ export const weekFocus = {
     { id: "kr4", title: "Primeiro carrossel produzido", done: false },
   ],
 };
+
+export const weekMilestones: WeekMilestone[] = [
+  {
+    id: "wm-entrega-miray",
+    title: "Entrega do planejamento Miray",
+    date: "02 set",
+    detail:
+      "Fechar foco da semana, blocos de execução e próximos entregáveis do MVP para destravar a rotina de produção.",
+  },
+  {
+    id: "wm-dashboard-rqe",
+    title: "Revisão do dashboard RQE",
+    date: "03 set",
+    detail:
+      "Validar principais leituras, pontos de atrito e próximos ajustes antes de avançar para a versão de apresentação.",
+  },
+  {
+    id: "wm-viagem",
+    title: "Organizar viagem para Belo Horizonte",
+    date: "05 set",
+    detail:
+      "Separar horários, deslocamento e pendências pessoais para reduzir ruído antes do fim de semana.",
+  },
+];
 
 export const weekAreas = [
   {

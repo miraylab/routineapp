@@ -7,13 +7,15 @@ import { useStore } from "@/lib/store";
 import {
   MONTHS,
   WEEKDAYS,
+  WEEKDAYS_SHORT,
+  blocksForDay,
   formatMinutes,
   greetingFor,
   toMinutes,
   type CurrentActivity,
 } from "@/lib/schedule";
 import { cn } from "@/lib/utils";
-import type { ScheduleBlock } from "@/data/mockData";
+import { schedule, type ScheduleBlock } from "@/data/mockData";
 
 const BEDTIME_MINUTES = toMinutes("21:30");
 const FREE_TIME_ID_PREFIX = "tempo-livre";
@@ -48,6 +50,7 @@ function HojePage() {
     dailyJournalEntries,
     todayGoal,
     todayGoalDone,
+    weekMilestones,
     blockDone,
     dailyHabitDone,
     activityChecklistItemDone,
@@ -60,6 +63,8 @@ function HojePage() {
   } = useStore();
   const [journalOpen, setJournalOpen] = useState(false);
   const [journalDraft, setJournalDraft] = useState("");
+  const [openMilestoneId, setOpenMilestoneId] = useState<string | null>(null);
+  const [selectedWeekDay, setSelectedWeekDay] = useState(dayOfWeek);
 
   const { current, dayBlocks } = context;
   const currentIndex = current ? dayBlocks.findIndex((block) => block.id === current.id) : -1;
@@ -133,7 +138,15 @@ function HojePage() {
     setFocusedBlockId(current?.id ?? null);
   }, [current?.id]);
 
+  useEffect(() => {
+    setSelectedWeekDay(dayOfWeek);
+  }, [dayOfWeek]);
+
   const dailyHabitsDone = dailyHabits.filter((habit) => dailyHabitDone(habit.id)).length;
+  const selectedDayBlocks = useMemo(
+    () => blocksForDay(schedule, selectedWeekDay),
+    [selectedWeekDay],
+  );
 
   const weekdayLabel = WEEKDAYS[dayOfWeek];
   const fullDateLabel = `${realNow.getDate()} de ${MONTHS[realNow.getMonth()]}`;
@@ -340,6 +353,77 @@ function HojePage() {
             </div>
           )}
         </div>
+      </section>
+
+      <section className="rounded-3xl border border-border/60 bg-card p-5">
+        <p className="text-[11px] font-medium tracking-[0.18em] text-muted-foreground">
+          FOCO DA SEMANA
+        </p>
+        <div className="mt-4 space-y-2">
+          {weekMilestones.map((milestone) => {
+            const open = openMilestoneId === milestone.id;
+            return (
+              <button
+                key={milestone.id}
+                type="button"
+                onClick={() => setOpenMilestoneId(open ? null : milestone.id)}
+                className="press w-full rounded-2xl bg-elevated/50 px-4 py-3.5 text-left transition-colors duration-200"
+                aria-expanded={open}
+              >
+                <span className="flex items-center justify-between gap-4">
+                  <span className="min-w-0 truncate text-sm font-medium text-foreground">
+                    {milestone.title}
+                  </span>
+                  <span className="shrink-0 tabular text-xs font-medium text-primary">
+                    {milestone.date}
+                  </span>
+                </span>
+                {open && milestone.detail ? (
+                  <span className="mt-2 block text-sm leading-snug text-muted-foreground">
+                    {milestone.detail}
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="rounded-3xl border border-border/60 bg-card p-5">
+        <p className="text-[11px] font-medium tracking-[0.18em] text-muted-foreground">
+          VISÃO DOS DIAS
+        </p>
+        <div className="app-scrollbar -mx-1 mt-4 flex gap-1.5 overflow-x-auto px-1 pb-1">
+          {WEEKDAYS_SHORT.map((label, index) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => setSelectedWeekDay(index)}
+              className={cn(
+                "press h-11 min-w-12 flex-1 rounded-2xl text-xs font-medium transition-colors",
+                selectedWeekDay === index
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-elevated/50 text-muted-foreground",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <ul className="app-scrollbar mt-4 max-h-64 divide-y divide-border/60 overflow-y-auto pr-1">
+          {selectedDayBlocks.map((block) => (
+            <li key={block.id} className="flex items-center gap-4 py-2.5">
+              <span className="tabular w-11 shrink-0 text-sm text-muted-foreground">
+                {block.startTime}
+              </span>
+              <span className="min-w-0 truncate text-sm">{block.title}</span>
+            </li>
+          ))}
+          {selectedDayBlocks.length === 0 ? (
+            <li className="py-3 text-sm text-muted-foreground">Dia livre de compromissos.</li>
+          ) : null}
+        </ul>
       </section>
     </div>
   );
