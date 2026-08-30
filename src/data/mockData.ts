@@ -83,6 +83,12 @@ export interface Habit {
   note?: string;
 }
 
+export interface DailyHabit {
+  id: string;
+  title: string;
+  daysOfWeek?: number[];
+}
+
 export interface FinanceMonth {
   month: string;
   income: number;
@@ -442,6 +448,13 @@ export const habits: Habit[] = [
   },
   { id: "h4", title: "Leitura", weeklyTarget: 5, weeklyCompleted: 4 },
   { id: "h5", title: "Curso", weeklyTarget: 5, weeklyCompleted: 3 },
+];
+
+export const dailyHabits: DailyHabit[] = [
+  { id: "dh-agua-4l", title: "Beber 4L de água" },
+  { id: "dh-alimentacao-saudavel", title: "Alimentação Saudável" },
+  { id: "dh-leitura", title: "Leitura" },
+  { id: "dh-treino", title: "Treino" },
 ];
 
 /* ------------------------------- FINANCEIRO ------------------------------- */

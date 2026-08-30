@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Check, Plus } from "lucide-react";
+import { BookOpen, Check, ChevronDown, Send } from "lucide-react";
 
 import { CurrentActivityCard } from "@/components/yuri/CurrentActivityCard";
-import { PriorityItem } from "@/components/yuri/PriorityItem";
 import { useStore } from "@/lib/store";
 import {
   MONTHS,
@@ -45,19 +44,22 @@ function HojePage() {
     dayOfWeek,
     realNow,
     projects,
-    tasks,
+    dailyHabits,
+    dailyJournalEntries,
     todayGoal,
     todayGoalDone,
     blockDone,
+    dailyHabitDone,
     activityChecklistItemDone,
     extraActivityChecklistItems,
-    toggleTask,
     toggleTodayGoal,
+    toggleDailyHabit,
     toggleActivityChecklistItem,
     addActivityChecklistItem,
-    addTask,
+    addDailyJournalEntry,
   } = useStore();
-  const [draft, setDraft] = useState("");
+  const [journalOpen, setJournalOpen] = useState(false);
+  const [journalDraft, setJournalDraft] = useState("");
 
   const { current, dayBlocks } = context;
   const currentIndex = current ? dayBlocks.findIndex((block) => block.id === current.id) : -1;
@@ -131,7 +133,7 @@ function HojePage() {
     setFocusedBlockId(current?.id ?? null);
   }, [current?.id]);
 
-  const prioritiesDone = tasks.filter((t) => t.status === "done").length;
+  const dailyHabitsDone = dailyHabits.filter((habit) => dailyHabitDone(habit.id)).length;
 
   const weekdayLabel = WEEKDAYS[dayOfWeek];
   const fullDateLabel = `${realNow.getDate()} de ${MONTHS[realNow.getMonth()]}`;
@@ -156,15 +158,15 @@ function HojePage() {
             </p>
           </div>
         </div>
-        <p className="mt-5 text-sm leading-snug text-primary-foreground/80">Sua meta de hoje:</p>
+        <p className="mt-3 text-sm leading-snug text-primary-foreground/80">Sua meta de hoje:</p>
         <button
           type="button"
           onClick={toggleTodayGoal}
           className={cn(
-            "press relative mt-1.5 flex w-full items-start gap-2 overflow-hidden rounded-2xl border px-3.5 py-3 text-left text-sm leading-snug shadow-[0_12px_28px_rgba(0,0,0,0.16)] transition-colors duration-300 before:pointer-events-none before:absolute before:inset-x-4 before:top-0 before:h-px before:bg-primary-foreground/45",
+            "press relative mt-1.5 flex w-full items-start gap-2 overflow-hidden rounded-2xl px-3.5 py-3 text-left text-sm leading-snug shadow-[0_12px_28px_rgba(0,0,0,0.16)] transition-colors duration-300",
             todayGoalDone
-              ? "border-primary-foreground/45 bg-primary-foreground/20 text-primary-foreground/75"
-              : "border-primary-foreground/45 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.42),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.22),rgba(0,125,98,0.28))] text-primary-foreground",
+              ? "bg-primary-foreground/20 text-primary-foreground/75"
+              : "bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.42),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.22),rgba(0,125,98,0.28))] text-primary-foreground",
           )}
         >
           <span
@@ -231,39 +233,113 @@ function HojePage() {
             CONSTRUÇÃO DE HÁBITOS
           </p>
           <p className="tabular text-sm text-muted-foreground">
-            {prioritiesDone} de {tasks.length}
+            {dailyHabitsDone} de {dailyHabits.length}
           </p>
         </div>
 
         <div className="mt-4 space-y-2">
-          {tasks.map((t, i) => (
-            <PriorityItem key={t.id} task={t} index={i} onToggle={() => toggleTask(t.id)} />
-          ))}
+          {dailyHabits.map((habit) => {
+            const done = dailyHabitDone(habit.id);
+            return (
+              <button
+                key={habit.id}
+                type="button"
+                onClick={() => toggleDailyHabit(habit.id)}
+                className={cn(
+                  "press flex w-full items-start gap-3 rounded-2xl bg-elevated/50 px-4 py-3.5 text-left transition-colors duration-200",
+                  done && "bg-primary/10",
+                )}
+              >
+                <span
+                  className={cn(
+                    "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border transition-colors duration-200",
+                    done
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-muted-foreground/35 text-transparent",
+                  )}
+                >
+                  <Check className="size-3.5" strokeWidth={3} />
+                </span>
+                <span
+                  className={cn(
+                    "min-w-0 flex-1 text-sm font-medium leading-snug text-foreground",
+                    done && "text-muted-foreground line-through",
+                  )}
+                >
+                  {habit.title}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
-        <form
-          className="mt-3 flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!draft.trim()) return;
-            addTask(draft.trim());
-            setDraft("");
-          }}
-        >
-          <input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Adicionar hábito"
-            className="h-12 min-w-0 flex-1 rounded-2xl bg-elevated/50 px-4 text-[15px] outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
-          />
+        <div className="mt-3 rounded-2xl bg-elevated/50 p-3.5">
           <button
-            type="submit"
-            className="press grid size-12 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground"
-            aria-label="Adicionar"
+            type="button"
+            onClick={() => setJournalOpen((open) => !open)}
+            className="press flex w-full items-center justify-between gap-3 text-left"
+            aria-expanded={journalOpen}
           >
-            <Plus className="size-5" />
+            <span className="flex min-w-0 items-center gap-2 text-[11px] font-medium tracking-[0.18em] text-muted-foreground">
+              <BookOpen className="size-4 shrink-0" />
+              DIÁRIO
+            </span>
+            <ChevronDown
+              className={cn(
+                "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
+                journalOpen && "rotate-180",
+              )}
+            />
           </button>
-        </form>
+          {journalOpen && (
+            <div className="mt-3 space-y-3">
+              <form
+                className="space-y-2.5"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (!journalDraft.trim()) return;
+                  addDailyJournalEntry(journalDraft, formatMinutes(nowMinutes));
+                  setJournalDraft("");
+                }}
+              >
+                <textarea
+                  value={journalDraft}
+                  onChange={(event) => setJournalDraft(event.target.value)}
+                  placeholder="Como foi seu dia?"
+                  className="app-scrollbar h-24 w-full resize-none rounded-2xl bg-card/70 px-3.5 py-3 text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+                />
+                <button
+                  type="submit"
+                  disabled={!journalDraft.trim()}
+                  className="press flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+                  aria-label="Enviar registro do diário"
+                >
+                  <Send className="size-4" />
+                  Enviar
+                </button>
+              </form>
+
+              {dailyJournalEntries.length > 0 && (
+                <div className="app-scrollbar max-h-40 space-y-2 overflow-y-auto pr-1">
+                  {dailyJournalEntries
+                    .slice()
+                    .reverse()
+                    .map((entry) => (
+                      <div
+                        key={entry.id}
+                        className="grid grid-cols-[44px_1fr] gap-3 rounded-2xl bg-card/60 px-3.5 py-3"
+                      >
+                        <span className="tabular text-xs font-medium text-primary">
+                          {entry.time}
+                        </span>
+                        <p className="text-sm leading-snug text-foreground">{entry.text}</p>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </section>
     </div>
   );

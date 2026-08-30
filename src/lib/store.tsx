@@ -9,6 +9,7 @@ import {
 } from "react";
 
 import {
+  dailyHabits as dailyHabitsSeed,
   finance,
   financeHistory,
   goals,
@@ -20,6 +21,7 @@ import {
   todayGoal,
   weekAreas,
   weekFocus,
+  type DailyHabit,
   type Project,
   type Task,
 } from "@/data/mockData";
@@ -30,6 +32,9 @@ const STORAGE_KEY = "yuri-os.state.v1";
 interface PersistedState {
   doneTasks: string[];
   todayGoalDone: boolean;
+  doneDailyHabits: Record<string, string[]>;
+  dailyJournal: Record<string, string>;
+  dailyJournalEntries: Record<string, DailyJournalEntry[]>;
   extraTasks: Task[];
   doneBlocks: string[];
   doneActivityChecklistItems: string[];
@@ -40,9 +45,19 @@ interface PersistedState {
   simulation: { enabled: boolean; dayOfWeek: number; time: string };
 }
 
+interface DailyJournalEntry {
+  id: string;
+  time: string;
+  text: string;
+  createdAt: string;
+}
+
 const initialState: PersistedState = {
   doneTasks: tasksSeed.filter((t) => t.status === "done").map((t) => t.id),
   todayGoalDone: false,
+  doneDailyHabits: {},
+  dailyJournal: {},
+  dailyJournalEntries: {},
   extraTasks: [],
   doneBlocks: [],
   doneActivityChecklistItems: [],
@@ -93,6 +108,7 @@ function useStoreValue() {
   const nowMinutes = sim.enabled
     ? toMinutes(sim.time)
     : realNow.getHours() * 60 + realNow.getMinutes();
+  const todayKey = useMemo(() => toDateKey(realNow), [realNow]);
 
   const context = useMemo(
     () => getCurrentActivity(schedule, dayOfWeek, nowMinutes),
@@ -146,6 +162,18 @@ function useStoreValue() {
     [state.doneKeyResults],
   );
 
+  const dailyHabits: DailyHabit[] = useMemo(
+    () =>
+      dailyHabitsSeed.filter((habit) => !habit.daysOfWeek || habit.daysOfWeek.includes(dayOfWeek)),
+    [dayOfWeek],
+  );
+
+  const doneDailyHabitsToday = useMemo(
+    () => state.doneDailyHabits?.[todayKey] ?? [],
+    [state.doneDailyHabits, todayKey],
+  );
+  const dailyJournalEntries = state.dailyJournalEntries?.[todayKey] ?? [];
+
   const toggleId = (list: string[], id: string) =>
     list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
 
@@ -157,6 +185,41 @@ function useStoreValue() {
   const toggleTodayGoal = useCallback(
     () => setState((s) => ({ ...s, todayGoalDone: !s.todayGoalDone })),
     [],
+  );
+
+  const toggleDailyHabit = useCallback(
+    (id: string) =>
+      setState((s) => ({
+        ...s,
+        doneDailyHabits: {
+          ...(s.doneDailyHabits ?? {}),
+          [todayKey]: toggleId(s.doneDailyHabits?.[todayKey] ?? [], id),
+        },
+      })),
+    [todayKey],
+  );
+
+  const addDailyJournalEntry = useCallback(
+    (text: string, time: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      setState((s) => ({
+        ...s,
+        dailyJournalEntries: {
+          ...(s.dailyJournalEntries ?? {}),
+          [todayKey]: [
+            ...(s.dailyJournalEntries?.[todayKey] ?? []),
+            {
+              id: `journal-${Date.now()}`,
+              time,
+              text: trimmed,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+      }));
+    },
+    [todayKey],
   );
 
   const toggleBlock = useCallback(
@@ -254,6 +317,11 @@ function useStoreValue() {
     [state.doneActivityChecklistItems],
   );
 
+  const dailyHabitDone = useCallback(
+    (id: string) => doneDailyHabitsToday.includes(id),
+    [doneDailyHabitsToday],
+  );
+
   return {
     hydrated,
     realNow,
@@ -265,6 +333,8 @@ function useStoreValue() {
     keyResults,
     goals,
     habits,
+    dailyHabits,
+    dailyJournalEntries,
     finance,
     financeHistory,
     todayGoal,
@@ -275,9 +345,11 @@ function useStoreValue() {
     simulation: state.simulation,
     blockDone,
     activityChecklistItemDone,
+    dailyHabitDone,
     extraActivityChecklistItems: state.extraActivityChecklistItems ?? {},
     toggleTask,
     toggleTodayGoal,
+    toggleDailyHabit,
     toggleBlock,
     toggleActivityChecklistItem,
     addActivityChecklistItem,
@@ -285,9 +357,17 @@ function useStoreValue() {
     toggleProjectAction,
     addProjectAction,
     addTask,
+    addDailyJournalEntry,
     setSimulation,
     resetState,
   };
+}
+
+function toDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);

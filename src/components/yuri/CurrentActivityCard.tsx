@@ -298,7 +298,7 @@ export function CurrentActivityCard({
     <section
       className={cn(
         "rise relative touch-pan-y cursor-grab overflow-hidden transition-[height] duration-300 ease-out active:cursor-grabbing",
-        open ? "h-[790px]" : "h-[600px]",
+        open ? "h-[710px]" : "h-[600px]",
       )}
       style={slideStyle}
       onPointerDown={handlePointerDown}
@@ -342,7 +342,7 @@ export function CurrentActivityCard({
 
       <div
         className={cn(
-          "relative z-10 flex h-full flex-col overflow-hidden rounded-3xl border border-primary/25 bg-card p-6",
+          "relative z-10 flex h-full flex-col overflow-hidden rounded-3xl border border-border/60 bg-card p-6",
           isDragging ? "transition-none" : "transition-transform duration-[420ms] ease-out",
         )}
         style={{ transform: "translateX(var(--drag-x))" }}
@@ -518,7 +518,7 @@ export function CurrentActivityCard({
                 {hasObjectiveDetail ? (
                   <div
                     className={cn(
-                      "app-scrollbar h-[96px] overflow-y-auto pr-1",
+                      "app-scrollbar max-h-[96px] overflow-y-auto pr-1",
                       hasDeliveryDetail ? "mt-4" : "mt-0",
                     )}
                   >
@@ -565,7 +565,7 @@ function SlidePreview({
   return (
     <article
       className={cn(
-        "pointer-events-none absolute inset-0 h-full overflow-hidden rounded-3xl border border-primary/25 bg-card p-6",
+        "pointer-events-none absolute inset-0 h-full overflow-hidden rounded-3xl border border-border/60 bg-card p-6",
         className,
       )}
     >
@@ -649,7 +649,7 @@ interface ActivityIndicator {
 
 function ActivityPositionDots({ indicators }: { indicators: ActivityIndicator[] }) {
   return (
-    <div className="mt-auto flex items-center justify-center gap-1.5 pt-3">
+    <div className="mt-3 flex items-center justify-center gap-1.5">
       {indicators.map((indicator) => (
         <span
           key={indicator.id}
