@@ -18,9 +18,9 @@ import type { Project, ScheduleBlock } from "@/data/mockData";
 import { cn } from "@/lib/utils";
 
 type ActivitySlide = ScheduleBlock;
-const SLIDE_TRANSITION_MS = 720;
+const SLIDE_TRANSITION_MS = 1200;
 const SLIDE_SETTLE_TRANSITION =
-  "transition-transform duration-[720ms] ease-[cubic-bezier(0.22,1,0.36,1)]";
+  "transition-transform duration-[1200ms] ease-[cubic-bezier(0.16,1,0.3,1)]";
 
 interface Props {
   context: CurrentActivity;
