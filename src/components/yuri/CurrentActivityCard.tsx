@@ -7,7 +7,6 @@ import {
   type RefObject,
   type PointerEvent,
 } from "react";
-import { flushSync } from "react-dom";
 import { Check, ChevronDown, Flag, Plus } from "lucide-react";
 
 import { ProgressBar } from "./ProgressBar";
@@ -63,6 +62,7 @@ export function CurrentActivityCard({
   const [dragX, setDragX] = useState(0);
   const [isSettling, setIsSettling] = useState(false);
   const [edgeFeedback, setEdgeFeedback] = useState<"previous" | "next" | null>(null);
+  const stageRef = useRef<HTMLElement>(null);
   const checklistScrollRef = useRef<HTMLDivElement>(null);
   const firstPendingRef = useRef<HTMLButtonElement>(null);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -81,6 +81,19 @@ export function CurrentActivityCard({
       )
     : [];
   const firstPendingId = checklist.find((item) => !checklistItemDone(item.id))?.id;
+  const [stageWidth, setStageWidth] = useState(0);
+
+  useLayoutEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    const syncWidth = () => setStageWidth(stage.clientWidth);
+    syncWidth();
+    const observer = new ResizeObserver(syncWidth);
+    observer.observe(stage);
+
+    return () => observer.disconnect();
+  }, []);
 
   useLayoutEffect(() => {
     const scrollRoot = checklistScrollRef.current;
@@ -186,20 +199,13 @@ export function CurrentActivityCard({
 
     if (shouldGoPrevious || shouldGoNext) {
       const slideDistance = event.currentTarget.clientWidth + 12;
-      const settledStartX = shouldGoPrevious ? dragX - slideDistance : dragX + slideDistance;
-
-      flushSync(() => {
-        setIsSettling(true);
-        setDragX(settledStartX);
-        if (shouldGoPrevious) onNavigatePrevious?.();
-        if (shouldGoNext) onNavigateNext?.();
-      });
-
-      window.requestAnimationFrame(() => {
-        setDragX(0);
-      });
+      setIsSettling(true);
+      setDragX(shouldGoPrevious ? slideDistance : -slideDistance);
 
       slideTransitionTimeoutRef.current = window.setTimeout(() => {
+        if (shouldGoPrevious) onNavigatePrevious?.();
+        if (shouldGoNext) onNavigateNext?.();
+        setDragX(0);
         setIsSettling(false);
         slideTransitionTimeoutRef.current = null;
       }, SLIDE_TRANSITION_MS);
@@ -224,7 +230,15 @@ export function CurrentActivityCard({
       edgeFeedbackTimeoutRef.current = null;
     }, 900);
   };
-  const slideStyle = { "--drag-x": `${dragX}px`, "--slide-gap": "12px" } as CSSProperties;
+  const slideStyle = {
+    "--drag-x": `${dragX}px`,
+    "--slide-gap": "12px",
+    "--slide-width": `${stageWidth}px`,
+  } as CSSProperties;
+  const carouselTrackStyle = {
+    ...slideStyle,
+    transform: "translateX(calc(-1 * (var(--slide-width) + var(--slide-gap)) + var(--drag-x)))",
+  } as CSSProperties;
   const isDragging = dragX !== 0 && !isSettling;
 
   if (!current) {
@@ -306,6 +320,7 @@ export function CurrentActivityCard({
 
   return (
     <section
+      ref={stageRef}
       className={cn(
         "rise relative touch-pan-y cursor-grab overflow-hidden transition-[height] duration-300 ease-out active:cursor-grabbing",
         open ? "h-[710px]" : "h-[600px]",
@@ -316,29 +331,6 @@ export function CurrentActivityCard({
       onPointerUp={handlePointerEnd}
       onPointerCancel={handlePointerEnd}
     >
-      {previousSlide ? (
-        <SlidePreview
-          slide={previousSlide}
-          label="ANTERIOR"
-          className={cn(
-            "-translate-x-full",
-            "translate-x-[calc(-100%-var(--slide-gap)+var(--drag-x))]",
-            !isDragging && SLIDE_SETTLE_TRANSITION,
-          )}
-        />
-      ) : null}
-      {nextSlide ? (
-        <SlidePreview
-          slide={nextSlide}
-          label="PRÓXIMA"
-          className={cn(
-            "translate-x-full",
-            "translate-x-[calc(100%+var(--slide-gap)+var(--drag-x))]",
-            !isDragging && SLIDE_SETTLE_TRANSITION,
-          )}
-        />
-      ) : null}
-
       {edgeFeedback ? (
         <div
           className={cn(
@@ -352,202 +344,220 @@ export function CurrentActivityCard({
 
       <div
         className={cn(
-          "relative z-10 flex h-full flex-col overflow-hidden rounded-3xl border border-border/60 bg-card p-6",
+          "flex h-full gap-[var(--slide-gap)]",
           isDragging ? "transition-none" : SLIDE_SETTLE_TRANSITION,
         )}
-        style={{ transform: "translateX(var(--drag-x))" }}
+        style={carouselTrackStyle}
       >
-        <div className="flex items-center justify-between gap-3">
-          <p className="shrink-0 whitespace-nowrap text-[11px] font-medium tracking-[0.18em] text-primary">
-            {viewLabel}
-          </p>
-          <StatusBadge tone={done ? "done" : "active"}>
-            <span
-              className={cn(
-                "size-1.5 rounded-full bg-current",
-                viewMode === "current" && !done && "live-dot",
-              )}
-            />
-            {statusLabel}
-          </StatusBadge>
-        </div>
+        {previousSlide ? (
+          <SlidePreview slide={previousSlide} label="ANTERIOR" className="h-full w-full shrink-0" />
+        ) : (
+          <div className="h-full w-full shrink-0" />
+        )}
 
-        <p className="mt-4 truncate whitespace-nowrap text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-          {current.category}
-        </p>
-        <h2
-          ref={titleRef}
-          className="mt-1.5 overflow-hidden whitespace-nowrap font-semibold leading-tight tracking-tight"
-          style={{ fontSize: titleFontSize }}
+        <div
+          className={cn(
+            "flex h-full w-full shrink-0 flex-col overflow-hidden rounded-3xl border border-border/60 bg-card p-6",
+          )}
         >
-          {activityTitle}
-        </h2>
-
-        <div className="tabular mt-5 flex items-baseline justify-between text-sm">
-          <span className="shrink-0 whitespace-nowrap text-muted-foreground">
-            {current.startTime} — {current.endTime}
-          </span>
-          <span className="min-w-0 truncate whitespace-nowrap pl-3 text-right text-xs text-muted-foreground">
-            {timeInfo}
-          </span>
-        </div>
-        <ProgressBar value={progress} className="mt-1.5" size="md" />
-
-        <div className="mt-5 rounded-2xl bg-elevated/60 p-4">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
-              {checklistTitle}
+            <p className="shrink-0 whitespace-nowrap text-[11px] font-medium tracking-[0.18em] text-primary">
+              {viewLabel}
             </p>
-            <span className="tabular text-xs font-medium text-muted-foreground">
-              {checklist.filter((item) => checklistItemDone(item.id)).length}/{checklist.length}
-            </span>
-          </div>
-          <div
-            ref={checklistScrollRef}
-            className={cn(
-              "app-scrollbar relative mt-3 space-y-2 overflow-y-auto pr-1",
-              hasDetails ? "h-[190px]" : "h-[235px]",
-            )}
-          >
-            {checklist.length > 0 ? (
-              checklist.map((item) => {
-                const itemDone = checklistItemDone(item.id);
-                return (
-                  <button
-                    key={item.id}
-                    ref={item.id === firstPendingId ? firstPendingRef : undefined}
-                    type="button"
-                    onClick={() => onToggleChecklistItem(item.id)}
-                    className="press relative flex w-full items-start gap-3 rounded-2xl bg-card/70 px-3.5 py-3 text-left"
-                  >
-                    {item.priority && !itemDone ? (
-                      <span className="absolute right-2 top-2 size-2 rounded-full bg-primary" />
-                    ) : null}
-                    <span
-                      className={cn(
-                        "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border transition-colors duration-300",
-                        itemDone
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border text-transparent",
-                      )}
-                    >
-                      <Check className="size-3.5" strokeWidth={3} />
-                    </span>
-                    <span
-                      className={cn(
-                        "min-w-0 flex-1 text-[13px] leading-snug",
-                        itemDone && "text-muted-foreground line-through",
-                      )}
-                    >
-                      {item.title}
-                    </span>
-                  </button>
-                );
-              })
-            ) : (
-              <div className="flex h-full items-center rounded-2xl bg-card/70 px-3.5 py-3 text-[13px] leading-snug text-muted-foreground">
-                Nenhum item nesta atividade.
-              </div>
-            )}
-          </div>
-          <form
-            className="mt-2 flex gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!draft.trim()) return;
-              onAddChecklistItem(draft.trim(), draftPriority);
-              setDraft("");
-              setDraftPriority(false);
-            }}
-          >
-            <input
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder="Adicionar item"
-              className="h-11 min-w-0 flex-1 rounded-2xl bg-card/70 px-3.5 text-[13px] outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
-            />
-            <button
-              type="button"
-              onClick={() => setDraftPriority((value) => !value)}
-              className={cn(
-                "press grid size-11 shrink-0 place-items-center rounded-2xl border",
-                draftPriority
-                  ? "border-primary text-primary"
-                  : "border-border text-muted-foreground",
-              )}
-              aria-label="Marcar novo item como prioridade"
-            >
-              <Flag className="size-4" />
-            </button>
-            <button
-              type="submit"
-              className="press grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground"
-              aria-label="Adicionar item ao checklist"
-            >
-              <Plus className="size-4" />
-            </button>
-          </form>
-        </div>
-
-        {hasDetails ? (
-          <div className="mt-3 rounded-2xl bg-elevated/60 p-4">
-            <button
-              type="button"
-              onClick={() => setOpen((o) => !o)}
-              className="press flex w-full items-center justify-between gap-3 text-left"
-            >
-              <span className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
-                VER DETALHES
-              </span>
-              <ChevronDown
+            <StatusBadge tone={done ? "done" : "active"}>
+              <span
                 className={cn(
-                  "size-4 shrink-0 text-muted-foreground transition-transform duration-300",
-                  open && "rotate-180",
+                  "size-1.5 rounded-full bg-current",
+                  viewMode === "current" && !done && "live-dot",
                 )}
               />
-            </button>
-
-            {open ? (
-              <div className="rise mt-4 text-sm">
-                {hasDeliveryDetail ? (
-                  <>
-                    <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
-                      ENTREGA
-                    </p>
-                    <div className="mt-2 flex items-center justify-between gap-3">
-                      <span className="tabular whitespace-nowrap text-sm font-medium text-foreground">
-                        {project.deadline}
-                      </span>
-                      <StatusBadge tone="active" className="shrink-0">
-                        {formatDeadlineDistance(project.deadline)}
-                      </StatusBadge>
-                    </div>
-                  </>
-                ) : null}
-
-                {hasObjectiveDetail ? (
-                  <div
-                    className={cn(
-                      "app-scrollbar max-h-[96px] overflow-y-auto pr-1",
-                      hasDeliveryDetail ? "mt-4" : "mt-0",
-                    )}
-                  >
-                    <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
-                      OBJETIVO
-                    </p>
-                    <p className="mt-2 text-sm leading-relaxed text-foreground/90">
-                      {detailObjective}
-                    </p>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
+              {statusLabel}
+            </StatusBadge>
           </div>
-        ) : null}
 
-        {activityIndicators.length > 0 ? (
-          <ActivityPositionDots indicators={activityIndicators} />
-        ) : null}
+          <p className="mt-4 truncate whitespace-nowrap text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+            {current.category}
+          </p>
+          <h2
+            ref={titleRef}
+            className="mt-1.5 overflow-hidden whitespace-nowrap font-semibold leading-tight tracking-tight"
+            style={{ fontSize: titleFontSize }}
+          >
+            {activityTitle}
+          </h2>
+
+          <div className="tabular mt-5 flex items-baseline justify-between text-sm">
+            <span className="shrink-0 whitespace-nowrap text-muted-foreground">
+              {current.startTime} — {current.endTime}
+            </span>
+            <span className="min-w-0 truncate whitespace-nowrap pl-3 text-right text-xs text-muted-foreground">
+              {timeInfo}
+            </span>
+          </div>
+          <ProgressBar value={progress} className="mt-1.5" size="md" />
+
+          <div className="mt-5 rounded-2xl bg-elevated/60 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
+                {checklistTitle}
+              </p>
+              <span className="tabular text-xs font-medium text-muted-foreground">
+                {checklist.filter((item) => checklistItemDone(item.id)).length}/{checklist.length}
+              </span>
+            </div>
+            <div
+              ref={checklistScrollRef}
+              className={cn(
+                "app-scrollbar relative mt-3 space-y-2 overflow-y-auto pr-1",
+                hasDetails ? "h-[190px]" : "h-[235px]",
+              )}
+            >
+              {checklist.length > 0 ? (
+                checklist.map((item) => {
+                  const itemDone = checklistItemDone(item.id);
+                  return (
+                    <button
+                      key={item.id}
+                      ref={item.id === firstPendingId ? firstPendingRef : undefined}
+                      type="button"
+                      onClick={() => onToggleChecklistItem(item.id)}
+                      className="press relative flex w-full items-start gap-3 rounded-2xl bg-card/70 px-3.5 py-3 text-left"
+                    >
+                      {item.priority && !itemDone ? (
+                        <span className="absolute right-2 top-2 size-2 rounded-full bg-primary" />
+                      ) : null}
+                      <span
+                        className={cn(
+                          "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border transition-colors duration-300",
+                          itemDone
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border text-transparent",
+                        )}
+                      >
+                        <Check className="size-3.5" strokeWidth={3} />
+                      </span>
+                      <span
+                        className={cn(
+                          "min-w-0 flex-1 text-[13px] leading-snug",
+                          itemDone && "text-muted-foreground line-through",
+                        )}
+                      >
+                        {item.title}
+                      </span>
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="flex h-full items-center rounded-2xl bg-card/70 px-3.5 py-3 text-[13px] leading-snug text-muted-foreground">
+                  Nenhum item nesta atividade.
+                </div>
+              )}
+            </div>
+            <form
+              className="mt-2 flex gap-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!draft.trim()) return;
+                onAddChecklistItem(draft.trim(), draftPriority);
+                setDraft("");
+                setDraftPriority(false);
+              }}
+            >
+              <input
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                placeholder="Adicionar item"
+                className="h-11 min-w-0 flex-1 rounded-2xl bg-card/70 px-3.5 text-[13px] outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+              />
+              <button
+                type="button"
+                onClick={() => setDraftPriority((value) => !value)}
+                className={cn(
+                  "press grid size-11 shrink-0 place-items-center rounded-2xl border",
+                  draftPriority
+                    ? "border-primary text-primary"
+                    : "border-border text-muted-foreground",
+                )}
+                aria-label="Marcar novo item como prioridade"
+              >
+                <Flag className="size-4" />
+              </button>
+              <button
+                type="submit"
+                className="press grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground"
+                aria-label="Adicionar item ao checklist"
+              >
+                <Plus className="size-4" />
+              </button>
+            </form>
+          </div>
+
+          {hasDetails ? (
+            <div className="mt-3 rounded-2xl bg-elevated/60 p-4">
+              <button
+                type="button"
+                onClick={() => setOpen((o) => !o)}
+                className="press flex w-full items-center justify-between gap-3 text-left"
+              >
+                <span className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
+                  VER DETALHES
+                </span>
+                <ChevronDown
+                  className={cn(
+                    "size-4 shrink-0 text-muted-foreground transition-transform duration-300",
+                    open && "rotate-180",
+                  )}
+                />
+              </button>
+
+              {open ? (
+                <div className="rise mt-4 text-sm">
+                  {hasDeliveryDetail ? (
+                    <>
+                      <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
+                        ENTREGA
+                      </p>
+                      <div className="mt-2 flex items-center justify-between gap-3">
+                        <span className="tabular whitespace-nowrap text-sm font-medium text-foreground">
+                          {project.deadline}
+                        </span>
+                        <StatusBadge tone="active" className="shrink-0">
+                          {formatDeadlineDistance(project.deadline)}
+                        </StatusBadge>
+                      </div>
+                    </>
+                  ) : null}
+
+                  {hasObjectiveDetail ? (
+                    <div
+                      className={cn(
+                        "app-scrollbar max-h-[96px] overflow-y-auto pr-1",
+                        hasDeliveryDetail ? "mt-4" : "mt-0",
+                      )}
+                    >
+                      <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
+                        OBJETIVO
+                      </p>
+                      <p className="mt-2 text-sm leading-relaxed text-foreground/90">
+                        {detailObjective}
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {activityIndicators.length > 0 ? (
+            <ActivityPositionDots indicators={activityIndicators} />
+          ) : null}
+        </div>
+
+        {nextSlide ? (
+          <SlidePreview slide={nextSlide} label="PRÓXIMA" className="h-full w-full shrink-0" />
+        ) : (
+          <div className="h-full w-full shrink-0" />
+        )}
       </div>
     </section>
   );
@@ -575,7 +585,7 @@ function SlidePreview({
   return (
     <article
       className={cn(
-        "pointer-events-none absolute inset-0 h-full overflow-hidden rounded-3xl border border-border/60 bg-card p-6",
+        "pointer-events-none overflow-hidden rounded-3xl border border-border/60 bg-card p-6",
         className,
       )}
     >
