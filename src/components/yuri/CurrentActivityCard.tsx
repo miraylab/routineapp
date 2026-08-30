@@ -18,7 +18,9 @@ import type { Project, ScheduleBlock } from "@/data/mockData";
 import { cn } from "@/lib/utils";
 
 type ActivitySlide = ScheduleBlock;
-const SLIDE_TRANSITION_MS = 420;
+const SLIDE_TRANSITION_MS = 720;
+const SLIDE_SETTLE_TRANSITION =
+  "transition-transform duration-[720ms] ease-[cubic-bezier(0.22,1,0.36,1)]";
 
 interface Props {
   context: CurrentActivity;
@@ -242,7 +244,7 @@ export function CurrentActivityCard({
             className={cn(
               "-translate-x-full",
               "translate-x-[calc(-100%-var(--slide-gap)+var(--drag-x))]",
-              !isDragging && "transition-transform duration-[420ms] ease-out",
+              !isDragging && SLIDE_SETTLE_TRANSITION,
             )}
           />
         ) : null}
@@ -253,7 +255,7 @@ export function CurrentActivityCard({
             className={cn(
               "translate-x-full",
               "translate-x-[calc(100%+var(--slide-gap)+var(--drag-x))]",
-              !isDragging && "transition-transform duration-[420ms] ease-out",
+              !isDragging && SLIDE_SETTLE_TRANSITION,
             )}
           />
         ) : null}
@@ -272,7 +274,7 @@ export function CurrentActivityCard({
         <article
           className={cn(
             "relative z-10 h-full overflow-hidden rounded-3xl border border-border/60 bg-card p-6",
-            isDragging ? "transition-none" : "transition-transform duration-[420ms] ease-out",
+            isDragging ? "transition-none" : SLIDE_SETTLE_TRANSITION,
           )}
           style={{ transform: "translateX(var(--drag-x))" }}
         >
@@ -321,7 +323,7 @@ export function CurrentActivityCard({
           className={cn(
             "-translate-x-full",
             "translate-x-[calc(-100%-var(--slide-gap)+var(--drag-x))]",
-            !isDragging && "transition-transform duration-[420ms] ease-out",
+            !isDragging && SLIDE_SETTLE_TRANSITION,
           )}
         />
       ) : null}
@@ -332,7 +334,7 @@ export function CurrentActivityCard({
           className={cn(
             "translate-x-full",
             "translate-x-[calc(100%+var(--slide-gap)+var(--drag-x))]",
-            !isDragging && "transition-transform duration-[420ms] ease-out",
+            !isDragging && SLIDE_SETTLE_TRANSITION,
           )}
         />
       ) : null}
@@ -351,7 +353,7 @@ export function CurrentActivityCard({
       <div
         className={cn(
           "relative z-10 flex h-full flex-col overflow-hidden rounded-3xl border border-border/60 bg-card p-6",
-          isDragging ? "transition-none" : "transition-transform duration-[420ms] ease-out",
+          isDragging ? "transition-none" : SLIDE_SETTLE_TRANSITION,
         )}
         style={{ transform: "translateX(var(--drag-x))" }}
       >
