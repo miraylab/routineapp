@@ -58,7 +58,7 @@ Desktop e apenas uma adaptacao, nao o foco principal.
 ## Decisoes de Design
 
 - Blocos, cards e containers principais devem usar raio visual fixo de 15px. Esta decisao substitui os cantos muito arredondados da versao inicial e deve ser preservada nas novas telas.
-- O header da tela Hoje deve aparecer em um box verde do design system, com a coluna direita na ordem hora, data por extenso com virgula e dia da semana. A saudacao e a data/hora ficam na linha superior. O rotulo "Sua meta de hoje:" deve ficar separado da meta em si, com respiro compacto abaixo da data/hora para nao parecer deslocado para baixo. A meta deve ocupar a largura total do header como elemento clicavel em formato de box/pilula sem borda, semelhante a tasks e habitos, com destaque verde/brilho sutil sem artefatos de linha, check de concluir/desconcluir e persistencia local.
+- O header da tela Hoje deve aparecer em um box verde do design system, com a coluna direita na ordem hora, data por extenso com virgula e dia da semana. A saudacao e a data/hora ficam na linha superior. O rotulo "Sua meta de hoje:" deve ficar separado da meta em si, com respiro compacto abaixo da data/hora para nao parecer deslocado para baixo. A meta deve ocupar a largura total do header como elemento clicavel em formato de box/pilula sem borda, semelhante a tasks e habitos, com destaque verde/brilho sutil sem artefatos de linha, check de concluir/desconcluir e persistencia local. O circulo do check da meta deve usar um preenchimento translucido/brilhado no mesmo espirito dos marcadores de dia do Foco da Semana, evitando borda dura quando estiver pendente.
 - A largura maxima da experiencia deve mirar o viewport real do S25 Ultra, usando o container `max-w-s25` de 380px para o conteudo principal e a bottom navigation. O aparelho tem largura fisica de 1440px, mas a interface do Chrome/Android trabalha em pixels CSS apos escala do dispositivo; por isso a referencia visual do app deve ser calibrada por viewport CSS, nao por pixels fisicos.
 - O topo do app deve sempre ter respiro padrao antes do primeiro elemento, definido por `--app-top-space`. A distancia entre blocos/cards principais deve ser consistente e compacta, usando 12px como referencia visual.
 - A fonte oficial do app deve ser Geist, usando suas variacoes de peso pelo carregamento `100..900`.
@@ -106,13 +106,13 @@ No card principal de atividade atual, existe uma separacao conceitual entre cont
 - O card de atividade atual nao deve ter botao separado de concluir; o checklist deve concentrar a execucao da atividade.
 - Itens do checklist podem ter flag `priority`. Enquanto estiverem pendentes, itens prioritarios aparecem no topo, preservando a ordem de entrada entre eles, e devem receber destaque por uma bolinha verde discreta no canto superior direito do item, sem contorno e sem pilula textual ocupando espaco. Itens sem prioridade aparecem depois, tambem preservando a ordem de entrada. Depois de concluidos, os itens nao precisam mais manter hierarquia de prioridade. O controle manual de prioridade deve usar icone de bandeira, sem texto.
 - Os itens marcados e itens adicionados manualmente ao checklist da atividade devem persistir localmente no `localStorage`.
-- Barras de rolagem internas, como a do checklist da atividade, devem usar visual discreto com trilho transparente e barra/setas no cinza escuro do background do app.
+- Por ser mobile first, rolagens internas devem preservar o gesto natural de arrastar/rolar, mas sem exibir barras visuais de rolagem. A utilidade `app-scrollbar` deve esconder a barra mantendo o scroll funcional.
 - A tela Hoje nao deve mais exibir blocos separados de "PROXIMO", o bloco de progresso "HOJE" nem o bloco "ROTINA"; essas informacoes foram absorvidas pelo card principal/slideshow.
 - Na parte inferior do card principal deve existir um indicador compacto de posicao em formato de bolinhas pequenas, com respiro consistente em relacao ao box anterior no estado fechado e expandido. A quantidade de bolinhas cinzas representa a quantidade de atividades/compromissos do dia. Verde sempre indica apenas o card selecionado/visivel; portanto so pode haver um indicador verde por vez. Pela posicao do indicador verde, deve ficar claro quantas atividades ja passaram e quantas ainda vem depois.
 - O formato comprido indica o que esta em andamento no horario atual, como se a bolinha tivesse sido esticada para os lados sem perder as bordas arredondadas. Se a atividade em andamento nao for o card selecionado, ela deve ficar comprida em cinza; se tambem for o card selecionado, deve ficar comprida em verde.
 - Preenchido indica compromisso/atividade; vazado indica tempo livre. Quando o estado atual em foco for "Tempo livre", ele nao deve aparecer como compromisso cinza. Deve entrar na posicao temporal correta como uma bolinha/pilula extra vazada, usando contorno verde quando selecionado e contorno cinza quando nao selecionado.
-- O antigo bloco "RESULTADOS DE HOJE" passa a ser "CONSTRUÇÃO DE HÁBITOS". No MVP ele deve mostrar apenas a lista de habitos esperados para o dia atual, cada item como texto simples em formato de checklist. Nao deve haver botao para adicionar habito nessa tela; no lugar dele existe um botao "DIÁRIO" que abre um campo de texto com botao de envio. Cada envio deve virar uma entrada separada na tabela/lista do diario daquele dia, com horario, para permitir varios registros ao longo do dia.
-- A tela Hoje tambem deve trazer, abaixo da construcao de habitos, uma leitura de semana compacta. O bloco "FOCO DA SEMANA" nao deve ser checklist: ele apresenta marcos importantes da semana em cartoes horizontais/linhas empilhadas, com marco e data sempre visiveis; ao clicar, a linha expande e mostra o detalhamento. Abaixo dele entra "VISÃO DOS DIAS", reaproveitando a leitura de agenda semanal com barra de rolagem minimalista `app-scrollbar`.
+- O antigo bloco "RESULTADOS DE HOJE" passa a ser "CONSTRUÇÃO DE HÁBITOS". No MVP ele deve mostrar apenas a lista de habitos esperados para o dia atual, cada item como texto simples em formato de checklist. Nao deve haver botao para adicionar habito nessa tela; no lugar dele existe um botao "BLOCO DE NOTAS" destacado visualmente, que abre um campo de texto com botao de envio. Cada envio deve virar uma entrada separada na tabela/lista de notas daquele dia, com horario, para permitir varios registros ao longo do dia.
+- A tela Hoje tambem deve trazer, abaixo da construcao de habitos, uma leitura de semana compacta. O bloco "FOCO DA SEMANA" nao deve ser checklist e o container externo deve ser verde como o header do topo, por ser uma area de destaque. Dentro dele, os marcos importantes da semana aparecem em cartoes horizontais/linhas empilhadas. Cada card deve usar o mesmo efeito de brilho/gradiente da pilula da meta do dia, com o dia curto como marcador discreto a esquerda e o marco em texto claro. O texto do marco nao deve truncar; o card cresce verticalmente para caber o conteudo. Ao clicar, a linha expande e mostra o detalhamento; abaixo da descricao deve aparecer um botao para marcar/desmarcar o marco, persistindo localmente. Antes de concluir, o botao deve dizer "CONCLUIR" e ter maior destaque; depois de concluido, deve dizer "CONCLUÍDO", ficar visualmente mais discreto, riscar o texto do marco como nas tasks e fechar automaticamente a pilula expandida ao clicar. Abaixo dele entra "VISÃO DOS DIAS", reaproveitando a leitura de agenda semanal com rolagem funcional sem barra visual.
 
 ## Stack Atual
 
@@ -161,11 +161,12 @@ Principais estruturas:
 - `goals`: objetivos maiores.
 - `habits`: habitos semanais.
 - `dailyHabits`: habitos simples do dia usados no bloco "CONSTRUÇÃO DE HÁBITOS" da tela Hoje. No MVP os mocks incluem "Beber 4L de água", "Alimentação Saudável", "Leitura" e "Treino".
-- `dailyJournalEntries`: entradas locais do diario, organizadas por data, simulando a tabela que futuramente podera vir de uma planilha.
+- `dailyJournalEntries`: entradas locais do bloco de notas, organizadas por data, simulando a tabela que futuramente podera vir de uma planilha.
+- `doneWeekMilestones`: marcos semanais marcados localmente como executados.
 - `finance`: resumo financeiro mensal.
 - `financeHistory`: historico financeiro.
 - `weekFocus`: foco da semana.
-- `weekMilestones`: marcos importantes da semana exibidos na tela Hoje como linhas expansíveis com marco, data e detalhamento.
+- `weekMilestones`: marcos importantes da semana exibidos na tela Hoje como linhas expansíveis com dia curto, marco, data opcional e detalhamento.
 - `weekAreas`: progresso semanal por area.
 - `monthView`: progresso mensal, conquistas e pontos de atencao.
 
@@ -202,6 +203,7 @@ A logica temporal atual esta em `src/lib/schedule.ts` e `src/lib/store.tsx`.
 
 - leitura do horario real com `new Date()`;
 - atualizacao periodica a cada 20 segundos;
+- protecao contra mismatch de hidratacao: telas que dependem de data/hora reais devem renderizar uma base neutra ate o store hidratar no cliente, evitando que SSR e navegador mostrem minutos/datas diferentes no primeiro paint;
 - modo demonstracao configuravel com dia e horario simulados;
 - chamada para `getCurrentActivity`.
 

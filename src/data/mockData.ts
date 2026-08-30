@@ -77,7 +77,8 @@ export interface Goal {
 export interface WeekMilestone {
   id: string;
   title: string;
-  date: string;
+  dayLabel: string;
+  date?: string;
   detail?: string;
 }
 
@@ -509,6 +510,7 @@ export const weekMilestones: WeekMilestone[] = [
   {
     id: "wm-entrega-miray",
     title: "Entrega do planejamento Miray",
+    dayLabel: "QUA",
     date: "02 set",
     detail:
       "Fechar foco da semana, blocos de execução e próximos entregáveis do MVP para destravar a rotina de produção.",
@@ -516,6 +518,7 @@ export const weekMilestones: WeekMilestone[] = [
   {
     id: "wm-dashboard-rqe",
     title: "Revisão do dashboard RQE",
+    dayLabel: "QUI",
     date: "03 set",
     detail:
       "Validar principais leituras, pontos de atrito e próximos ajustes antes de avançar para a versão de apresentação.",
@@ -523,6 +526,7 @@ export const weekMilestones: WeekMilestone[] = [
   {
     id: "wm-viagem",
     title: "Organizar viagem para Belo Horizonte",
+    dayLabel: "SÁB",
     date: "05 set",
     detail:
       "Separar horários, deslocamento e pendências pessoais para reduzir ruído antes do fim de semana.",

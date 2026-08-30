@@ -29,6 +29,7 @@ import {
 import { getCurrentActivity, toMinutes } from "@/lib/schedule";
 
 const STORAGE_KEY = "yuri-os.state.v1";
+const HYDRATION_CLOCK_FALLBACK = new Date(0);
 
 interface PersistedState {
   doneTasks: string[];
@@ -43,6 +44,7 @@ interface PersistedState {
   projectActions: Record<string, string[]>; // projectId -> action ids toggled
   extraActions: Record<string, { id: string; title: string }[]>;
   doneKeyResults: string[];
+  doneWeekMilestones: string[];
   simulation: { enabled: boolean; dayOfWeek: number; time: string };
 }
 
@@ -66,6 +68,7 @@ const initialState: PersistedState = {
   projectActions: {},
   extraActions: {},
   doneKeyResults: weekFocus.keyResults.filter((k) => k.done).map((k) => k.id),
+  doneWeekMilestones: [],
   simulation: { enabled: false, dayOfWeek: 1, time: "19:42" },
 };
 
@@ -74,7 +77,7 @@ type StoreValue = ReturnType<typeof useStoreValue>;
 function useStoreValue() {
   const [state, setState] = useState<PersistedState>(initialState);
   const [hydrated, setHydrated] = useState(false);
-  const [tick, setTick] = useState(0);
+  const [realNow, setRealNow] = useState(HYDRATION_CLOCK_FALLBACK);
 
   // hidratação a partir do localStorage (apenas melhora o protótipo)
   useEffect(() => {
@@ -84,6 +87,7 @@ function useStoreValue() {
     } catch {
       /* ignora */
     }
+    setRealNow(new Date());
     setHydrated(true);
   }, []);
 
@@ -98,11 +102,11 @@ function useStoreValue() {
 
   // relógio: atualiza a cada 20s (suficiente para precisão de minuto)
   useEffect(() => {
-    const id = window.setInterval(() => setTick((t) => t + 1), 20000);
+    const updateClock = () => setRealNow(new Date());
+    updateClock();
+    const id = window.setInterval(updateClock, 20000);
     return () => window.clearInterval(id);
   }, []);
-
-  const realNow = useMemo(() => new Date(), [tick, hydrated]);
 
   const sim = state.simulation;
   const dayOfWeek = sim.enabled ? sim.dayOfWeek : realNow.getDay();
@@ -263,6 +267,15 @@ function useStoreValue() {
     [],
   );
 
+  const toggleWeekMilestone = useCallback(
+    (id: string) =>
+      setState((s) => ({
+        ...s,
+        doneWeekMilestones: toggleId(s.doneWeekMilestones ?? [], id),
+      })),
+    [],
+  );
+
   const toggleProjectAction = useCallback(
     (projectId: string, actionId: string) =>
       setState((s) => ({
@@ -323,6 +336,11 @@ function useStoreValue() {
     [doneDailyHabitsToday],
   );
 
+  const weekMilestoneDone = useCallback(
+    (id: string) => (state.doneWeekMilestones ?? []).includes(id),
+    [state.doneWeekMilestones],
+  );
+
   return {
     hydrated,
     realNow,
@@ -348,6 +366,7 @@ function useStoreValue() {
     blockDone,
     activityChecklistItemDone,
     dailyHabitDone,
+    weekMilestoneDone,
     extraActivityChecklistItems: state.extraActivityChecklistItems ?? {},
     toggleTask,
     toggleTodayGoal,
@@ -356,6 +375,7 @@ function useStoreValue() {
     toggleActivityChecklistItem,
     addActivityChecklistItem,
     toggleKeyResult,
+    toggleWeekMilestone,
     toggleProjectAction,
     addProjectAction,
     addTask,

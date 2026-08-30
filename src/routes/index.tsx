@@ -41,6 +41,7 @@ export const Route = createFileRoute("/")({
 
 function HojePage() {
   const {
+    hydrated,
     context,
     nowMinutes,
     dayOfWeek,
@@ -53,10 +54,12 @@ function HojePage() {
     weekMilestones,
     blockDone,
     dailyHabitDone,
+    weekMilestoneDone,
     activityChecklistItemDone,
     extraActivityChecklistItems,
     toggleTodayGoal,
     toggleDailyHabit,
+    toggleWeekMilestone,
     toggleActivityChecklistItem,
     addActivityChecklistItem,
     addDailyJournalEntry,
@@ -151,6 +154,15 @@ function HojePage() {
   const weekdayLabel = WEEKDAYS[dayOfWeek];
   const fullDateLabel = `${realNow.getDate()} de ${MONTHS[realNow.getMonth()]}`;
 
+  if (!hydrated) {
+    return (
+      <div className="space-y-3">
+        <section className="h-48 animate-pulse rounded-2xl bg-card" />
+        <section className="h-[600px] animate-pulse rounded-3xl bg-card" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       <header className="rise rounded-2xl bg-primary p-5 text-primary-foreground shadow-[0_18px_40px_rgba(0,0,0,0.18)]">
@@ -184,10 +196,10 @@ function HojePage() {
         >
           <span
             className={cn(
-              "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border transition-colors duration-300",
+              "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full shadow-[inset_0_1px_0_rgba(255,255,255,0.30),0_4px_10px_rgba(0,0,0,0.10)] transition-colors duration-300",
               todayGoalDone
-                ? "border-primary-foreground bg-primary-foreground text-primary"
-                : "border-primary-foreground/55 text-transparent",
+                ? "bg-primary-foreground text-primary"
+                : "bg-primary-foreground/18 text-transparent",
             )}
           >
             <Check className="size-3.5" strokeWidth={3} />
@@ -286,20 +298,24 @@ function HojePage() {
           })}
         </div>
 
-        <div className="mt-3 rounded-2xl bg-elevated/50 p-3.5">
+        <div className="mt-3 rounded-2xl bg-primary/10 p-3.5 shadow-[0_12px_28px_rgba(0,0,0,0.10)]">
           <button
             type="button"
             onClick={() => setJournalOpen((open) => !open)}
-            className="press flex w-full items-center justify-between gap-3 text-left"
+            className="press flex w-full items-center justify-between gap-3 rounded-2xl px-1 text-left"
             aria-expanded={journalOpen}
           >
-            <span className="flex min-w-0 items-center gap-2 text-[11px] font-medium tracking-[0.18em] text-muted-foreground">
-              <BookOpen className="size-4 shrink-0" />
-              DIÁRIO
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">
+                <BookOpen className="size-4" />
+              </span>
+              <span className="block min-w-0 truncate text-[11px] font-medium tracking-[0.18em] text-primary">
+                BLOCO DE NOTAS
+              </span>
             </span>
             <ChevronDown
               className={cn(
-                "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
+                "size-4 shrink-0 text-primary transition-transform duration-200",
                 journalOpen && "rotate-180",
               )}
             />
@@ -355,32 +371,67 @@ function HojePage() {
         </div>
       </section>
 
-      <section className="rounded-3xl border border-border/60 bg-card p-5">
-        <p className="text-[11px] font-medium tracking-[0.18em] text-muted-foreground">
+      <section className="rounded-3xl bg-primary p-5 text-primary-foreground shadow-[0_18px_40px_rgba(0,0,0,0.18)]">
+        <p className="text-[11px] font-medium tracking-[0.18em] text-primary-foreground/70">
           FOCO DA SEMANA
         </p>
         <div className="mt-4 space-y-2">
           {weekMilestones.map((milestone) => {
             const open = openMilestoneId === milestone.id;
+            const done = weekMilestoneDone(milestone.id);
             return (
               <button
                 key={milestone.id}
                 type="button"
                 onClick={() => setOpenMilestoneId(open ? null : milestone.id)}
-                className="press w-full rounded-2xl bg-elevated/50 px-4 py-3.5 text-left transition-colors duration-200"
+                className="press w-full overflow-hidden rounded-2xl bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.42),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.22),rgba(0,125,98,0.28))] px-3.5 py-3 text-left text-primary-foreground shadow-[0_12px_28px_rgba(0,0,0,0.16)] transition-colors duration-300"
                 aria-expanded={open}
               >
-                <span className="flex items-center justify-between gap-4">
-                  <span className="min-w-0 truncate text-sm font-medium text-foreground">
+                <span className="flex items-center gap-3">
+                  <span className="shrink-0 rounded-full bg-primary-foreground/18 px-2.5 py-1 text-[11px] font-semibold tracking-[0.12em] text-primary-foreground/82">
+                    {milestone.dayLabel}
+                  </span>
+                  <span
+                    className={cn(
+                      "min-w-0 flex-1 text-sm font-medium leading-snug",
+                      done && "text-primary-foreground/68 line-through",
+                    )}
+                  >
                     {milestone.title}
                   </span>
-                  <span className="shrink-0 tabular text-xs font-medium text-primary">
-                    {milestone.date}
-                  </span>
                 </span>
-                {open && milestone.detail ? (
-                  <span className="mt-2 block text-sm leading-snug text-muted-foreground">
-                    {milestone.detail}
+                {open ? (
+                  <span className="mt-2.5 block">
+                    {milestone.detail ? (
+                      <span className="block text-sm leading-snug text-primary-foreground/78">
+                        {milestone.detail}
+                      </span>
+                    ) : null}
+                    <span
+                      role="checkbox"
+                      aria-checked={done}
+                      tabIndex={0}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleWeekMilestone(milestone.id);
+                        setOpenMilestoneId(null);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter" && event.key !== " ") return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        toggleWeekMilestone(milestone.id);
+                        setOpenMilestoneId(null);
+                      }}
+                      className={cn(
+                        "press mt-3 flex h-10 w-full items-center justify-center rounded-2xl text-xs font-semibold tracking-[0.16em] transition-colors duration-200",
+                        done
+                          ? "bg-primary-foreground/18 text-primary-foreground/72"
+                          : "bg-primary-foreground text-primary",
+                      )}
+                    >
+                      {done ? "CONCLUÍDO" : "CONCLUIR"}
+                    </span>
                   </span>
                 ) : null}
               </button>

@@ -76,8 +76,7 @@
   --input: oklch(0.28 0.005 185);
   --ring: oklch(0.82 0.145 175);
 
-  --font-sans:
-    Geist, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: Geist, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 @layer base {
@@ -175,27 +174,12 @@
 }
 
 @utility app-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: var(--background) transparent;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 
   &::-webkit-scrollbar {
-    width: 8px;
-  }
-
-  &::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    min-height: 32px;
-    border: 2px solid transparent;
-    border-radius: 999px;
-    background-color: var(--background);
-    background-clip: content-box;
-  }
-
-  &::-webkit-scrollbar-button {
-    height: 8px;
-    background-color: var(--background);
+    width: 0;
+    height: 0;
+    display: none;
   }
 }
