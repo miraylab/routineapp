@@ -44,6 +44,8 @@ Area
 
 Areas iniciais: Michelin, Miray e Estudos. Saude fica em aba propria e nao deve entrar como area principal de projetos por enquanto. A Frente representa uma camada macro dentro da area, como Data-Driven na Michelin, Conteudo Inteligente ou Produto na Miray, e Produto/Lideranca/Tecnologia nos Estudos. O Projeto representa uma iniciativa concreta, como Dashboard RQE, Robo Instagram, Estruturacao Miray ou Curso de Produto. Tarefas podem pertencer diretamente a uma Frente quando forem acoes soltas, sem exigir a criacao de um projeto artificial.
 
+A pagina Projetos nao deve abrir com um header textual generico do tipo "Projetos / X areas / Y projetos", pois isso agrega pouco. Esse espaco superior deve ser preservado como um cartao visual; por enquanto fica vazio, e depois pode receber imagem e metricas mais uteis como numero de frentes e projetos. Os botoes de troca de area devem ter largura fixa igual entre si, mas compacta o suficiente para nao parecerem esticados. Ao filtrar uma area, nao deve haver um box extra repetindo o nome da area; as frentes aparecem diretamente como blocos. Cada frente deve mostrar primeiro seu nome, depois tarefas soltas da frente em pilulas, depois projetos ligados a ela dentro de boxes/cartoes. A frente nao deve exibir titulo "FRENTE" nem barra de progresso propria por enquanto.
+
 O diferencial central e o contexto temporal. A aplicacao deve saber o dia, a hora e o minuto atuais, e usar isso para identificar qual atividade deveria estar acontecendo naquele momento.
 
 ## Principio de UX
