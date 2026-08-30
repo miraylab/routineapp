@@ -74,23 +74,28 @@ function HojePage() {
   const [selectedWeekDay, setSelectedWeekDay] = useState(dayOfWeek);
 
   const { current, dayBlocks } = context;
-  const currentIndex = current ? dayBlocks.findIndex((block) => block.id === current.id) : -1;
-  const nextBlockIndex = findNextFreeTimeBoundaryIndex(dayBlocks, nowMinutes);
-  const freeTimeIndex = current ? -1 : nextBlockIndex >= 0 ? nextBlockIndex : dayBlocks.length;
-  const activeTimeIndex =
-    freeTimeIndex >= 0 ? freeTimeIndex : dayBlocks.length > 0 ? dayBlocks.length : -1;
+  const activeFreeTimeBlock = useMemo(
+    () => buildActiveFreeTimeBlock(dayBlocks, dayOfWeek, nowMinutes, current),
+    [current, dayBlocks, dayOfWeek, nowMinutes],
+  );
+  const finalFreeTimeBlock = useMemo(
+    () => buildFinalFreeTimeBlock(dayBlocks, dayOfWeek, nowMinutes),
+    [dayBlocks, dayOfWeek, nowMinutes],
+  );
+  const freeTimeBlock = activeFreeTimeBlock ?? finalFreeTimeBlock;
+  const carouselBlocks = useMemo(
+    () => buildCarouselBlocks(dayBlocks, activeFreeTimeBlock, finalFreeTimeBlock),
+    [activeFreeTimeBlock, dayBlocks, finalFreeTimeBlock],
+  );
   const [focusedBlockId, setFocusedBlockId] = useState<string | null>(current?.id ?? null);
   const focusedIndex = focusedBlockId
-    ? dayBlocks.findIndex((block) => block.id === focusedBlockId)
+    ? carouselBlocks.findIndex((block) => block.id === focusedBlockId)
     : current
-      ? currentIndex
-      : -1;
-  const activeFocusedIndex = focusedIndex >= 0 ? focusedIndex : activeTimeIndex;
-  const focusedBlock = focusedIndex >= 0 ? (dayBlocks[focusedIndex] ?? null) : null;
-  const freeTimeBlock = useMemo(
-    () => buildFreeTimeBlock(dayBlocks, dayOfWeek, nowMinutes, nextBlockIndex),
-    [dayBlocks, dayOfWeek, nextBlockIndex, nowMinutes],
-  );
+      ? carouselBlocks.findIndex((block) => block.id === current.id)
+      : freeTimeBlock
+        ? carouselBlocks.findIndex((block) => block.id === freeTimeBlock.id)
+        : -1;
+  const focusedBlock = focusedIndex >= 0 ? (carouselBlocks[focusedIndex] ?? null) : null;
   const focusedContext = useMemo(
     () =>
       focusedBlock
@@ -113,37 +118,26 @@ function HojePage() {
     ? projects.find((p) => p.id === focusedCurrent.projectId)
     : undefined;
   const focusedMode =
-    !focusedBlock && freeTimeBlock
+    focusedBlock && isFreeTimeBlock(focusedBlock) && !current
       ? "current"
       : focusedBlock && current?.id === focusedBlock.id
         ? "current"
         : focusedBlock && toMinutes(focusedBlock.endTime) <= nowMinutes
           ? "past"
           : "future";
-  const previousFocusedSlide =
-    focusedBlock && freeTimeIndex >= 0 && activeFocusedIndex === freeTimeIndex
-      ? freeTimeBlock
-      : focusedBlock && activeFocusedIndex > 0
-        ? (dayBlocks[activeFocusedIndex - 1] ?? null)
-        : !focusedBlock && activeTimeIndex > 0
-          ? (dayBlocks[activeTimeIndex - 1] ?? null)
-          : null;
+  const previousFocusedSlide = focusedIndex > 0 ? (carouselBlocks[focusedIndex - 1] ?? null) : null;
   const nextFocusedSlide =
-    focusedBlock && freeTimeIndex >= 0 && activeFocusedIndex === freeTimeIndex - 1
-      ? freeTimeBlock
-      : focusedBlock && activeFocusedIndex >= 0 && activeFocusedIndex < dayBlocks.length - 1
-        ? (dayBlocks[activeFocusedIndex + 1] ?? null)
-        : !focusedBlock && activeTimeIndex >= 0 && activeTimeIndex < dayBlocks.length
-          ? (dayBlocks[activeTimeIndex] ?? null)
-          : null;
+    focusedIndex >= 0 && focusedIndex < carouselBlocks.length - 1
+      ? (carouselBlocks[focusedIndex + 1] ?? null)
+      : null;
   const activityIndicators = useMemo(
-    () => buildActivityIndicators(dayBlocks, current, focusedBlock, freeTimeBlock, freeTimeIndex),
-    [dayBlocks, current, focusedBlock, freeTimeBlock, freeTimeIndex],
+    () => buildActivityIndicators(carouselBlocks, current, focusedBlock, activeFreeTimeBlock),
+    [activeFreeTimeBlock, carouselBlocks, current, focusedBlock],
   );
 
   useEffect(() => {
-    setFocusedBlockId(current?.id ?? null);
-  }, [current?.id]);
+    setFocusedBlockId(current?.id ?? activeFreeTimeBlock?.id ?? null);
+  }, [activeFreeTimeBlock?.id, current?.id]);
 
   useEffect(() => {
     setSelectedWeekDay(dayOfWeek);
@@ -245,26 +239,10 @@ function HojePage() {
         canNavigatePrevious={Boolean(previousFocusedSlide)}
         canNavigateNext={Boolean(nextFocusedSlide)}
         onNavigatePrevious={() =>
-          setFocusedBlockId(
-            focusedBlock && isFreeTimeBlock(previousFocusedSlide)
-              ? null
-              : focusedBlock
-                ? (dayBlocks[Math.max(0, activeFocusedIndex - 1)]?.id ?? null)
-                : previousFocusedSlide && !isFreeTimeBlock(previousFocusedSlide)
-                  ? previousFocusedSlide.id
-                  : null,
-          )
+          setFocusedBlockId(previousFocusedSlide ? previousFocusedSlide.id : focusedBlockId)
         }
         onNavigateNext={() =>
-          setFocusedBlockId(
-            focusedBlock && isFreeTimeBlock(nextFocusedSlide)
-              ? null
-              : focusedBlock
-                ? (dayBlocks[Math.min(dayBlocks.length - 1, activeFocusedIndex + 1)]?.id ?? null)
-                : nextFocusedSlide && !isFreeTimeBlock(nextFocusedSlide)
-                  ? nextFocusedSlide.id
-                  : null,
-          )
+          setFocusedBlockId(nextFocusedSlide ? nextFocusedSlide.id : focusedBlockId)
         }
       />
 
@@ -281,19 +259,20 @@ function HojePage() {
         <div className="mt-4 space-y-2">
           {dailyHabits.map((habit) => {
             const done = dailyHabitDone(habit.id);
+            const streakDays = (habit.streakDays ?? 0) + (done ? 1 : 0);
             return (
               <button
                 key={habit.id}
                 type="button"
                 onClick={() => toggleDailyHabit(habit.id)}
                 className={cn(
-                  "press flex w-full items-start gap-3 rounded-2xl bg-elevated/50 px-4 py-3.5 text-left transition-colors duration-200",
+                  "press flex w-full items-center gap-3 rounded-2xl bg-elevated/50 px-4 py-3.5 text-left transition-colors duration-200",
                   done && "bg-primary/10",
                 )}
               >
                 <span
                   className={cn(
-                    "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border transition-colors duration-200",
+                    "grid size-5 shrink-0 place-items-center rounded-full border transition-colors duration-200",
                     done
                       ? "border-primary bg-primary text-primary-foreground"
                       : "border-muted-foreground/35 text-transparent",
@@ -308,6 +287,15 @@ function HojePage() {
                   )}
                 >
                   {habit.title}
+                </span>
+                <span
+                  className={cn(
+                    "tabular grid size-10 shrink-0 place-items-center rounded-xl bg-card/65 text-sm font-semibold text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]",
+                    done && "bg-primary/15 text-primary",
+                  )}
+                  aria-label={`${streakDays} dias consecutivos`}
+                >
+                  {streakDays}
                 </span>
               </button>
             );
@@ -558,19 +546,21 @@ function buildFocusedActivityContext(
   };
 }
 
-function buildFreeTimeBlock(
+function buildActiveFreeTimeBlock(
   dayBlocks: ScheduleBlock[],
   dayOfWeek: number,
   nowMinutes: number,
-  nextBlockIndex: number,
+  currentBlock: ScheduleBlock | null,
 ): ScheduleBlock | null {
-  const nextBlock = nextBlockIndex >= 0 ? dayBlocks[nextBlockIndex] : null;
+  if (currentBlock) return null;
+
+  const nextBlock = dayBlocks.find((block) => toMinutes(block.startTime) > nowMinutes) ?? null;
   const previousBlock = [...dayBlocks]
     .reverse()
     .find((block) => toMinutes(block.endTime) <= nowMinutes);
-  const fallbackEnd = Math.max(nowMinutes + 1, BEDTIME_MINUTES);
+  const boundary = nextBlock ? toMinutes(nextBlock.startTime) : BEDTIME_MINUTES;
   const start = previousBlock ? toMinutes(previousBlock.endTime) : nowMinutes;
-  const end = nextBlock ? toMinutes(nextBlock.startTime) : fallbackEnd;
+  const end = Math.max(nowMinutes + 1, boundary);
 
   if (end <= start) return null;
 
@@ -578,7 +568,7 @@ function buildFreeTimeBlock(
   const endTime = formatMinutes(end);
 
   return {
-    id: `${FREE_TIME_ID_PREFIX}-${dayOfWeek}-${previousBlock?.id ?? "inicio"}-${nextBlock?.id ?? "sono"}`,
+    id: `${FREE_TIME_ID_PREFIX}-ativo-${dayOfWeek}-${previousBlock?.id ?? "inicio"}-${nextBlock?.id ?? "sono"}`,
     dayOfWeek,
     startTime,
     endTime,
@@ -587,15 +577,53 @@ function buildFreeTimeBlock(
   };
 }
 
-function findNextFreeTimeBoundaryIndex(dayBlocks: ScheduleBlock[], nowMinutes: number) {
-  const nextBeforeBedtime = dayBlocks.findIndex((block) => {
-    const start = toMinutes(block.startTime);
-    return start > nowMinutes && start < BEDTIME_MINUTES;
-  });
+function buildFinalFreeTimeBlock(
+  dayBlocks: ScheduleBlock[],
+  dayOfWeek: number,
+  nowMinutes: number,
+): ScheduleBlock | null {
+  if (nowMinutes >= BEDTIME_MINUTES) return null;
 
-  if (nextBeforeBedtime >= 0) return nextBeforeBedtime;
+  const firstPostBedtimeIndex = dayBlocks.findIndex(
+    (block) => toMinutes(block.startTime) >= BEDTIME_MINUTES,
+  );
+  const blocksBeforeBedtime =
+    firstPostBedtimeIndex >= 0 ? dayBlocks.slice(0, firstPostBedtimeIndex) : dayBlocks;
+  const lastBlockBeforeBedtime = blocksBeforeBedtime.at(-1) ?? null;
+  const freeStart = Math.max(nowMinutes, lastBlockBeforeBedtime ? toMinutes(lastBlockBeforeBedtime.endTime) : nowMinutes);
 
-  return dayBlocks.findIndex((block) => toMinutes(block.startTime) >= BEDTIME_MINUTES);
+  if (freeStart >= BEDTIME_MINUTES) return null;
+
+  return {
+    id: `${FREE_TIME_ID_PREFIX}-final-${dayOfWeek}-${lastBlockBeforeBedtime?.id ?? "inicio"}-21h30`,
+    dayOfWeek,
+    startTime: formatMinutes(freeStart),
+    endTime: "21:30",
+    category: "Tempo livre",
+    title: "Aproveite seu tempo",
+  };
+}
+
+function buildCarouselBlocks(
+  dayBlocks: ScheduleBlock[],
+  activeFreeTimeBlock: ScheduleBlock | null,
+  finalFreeTimeBlock: ScheduleBlock | null,
+) {
+  const blocks = [...dayBlocks];
+
+  if (activeFreeTimeBlock) {
+    const activeIndex = blocks.findIndex(
+      (block) => toMinutes(block.startTime) >= toMinutes(activeFreeTimeBlock.endTime),
+    );
+    blocks.splice(activeIndex >= 0 ? activeIndex : blocks.length, 0, activeFreeTimeBlock);
+  }
+
+  if (finalFreeTimeBlock && finalFreeTimeBlock.endTime !== activeFreeTimeBlock?.endTime) {
+    const finalIndex = blocks.findIndex((block) => toMinutes(block.startTime) >= BEDTIME_MINUTES);
+    blocks.splice(finalIndex >= 0 ? finalIndex : blocks.length, 0, finalFreeTimeBlock);
+  }
+
+  return blocks;
 }
 
 function isFreeTimeBlock(block: ScheduleBlock | null) {
@@ -603,27 +631,16 @@ function isFreeTimeBlock(block: ScheduleBlock | null) {
 }
 
 function buildActivityIndicators(
-  dayBlocks: ScheduleBlock[],
+  carouselBlocks: ScheduleBlock[],
   currentBlock: ScheduleBlock | null,
   focusedBlock: ScheduleBlock | null,
-  freeTimeBlock: ScheduleBlock | null,
-  freeTimeIndex: number,
+  activeFreeTimeBlock: ScheduleBlock | null,
 ) {
-  const indicators = dayBlocks.map((block) => ({
+  return carouselBlocks.map((block) => ({
     id: block.id,
-    kind: "activity" as const,
+    kind: isFreeTimeBlock(block) ? ("free" as const) : ("activity" as const),
     selected: focusedBlock?.id === block.id,
-    inProgress: currentBlock?.id === block.id,
+    inProgress:
+      currentBlock?.id === block.id || (!currentBlock && activeFreeTimeBlock?.id === block.id),
   }));
-
-  if (freeTimeBlock && freeTimeIndex >= 0) {
-    indicators.splice(freeTimeIndex, 0, {
-      id: freeTimeBlock.id,
-      kind: "free" as const,
-      selected: !focusedBlock,
-      inProgress: !currentBlock,
-    });
-  }
-
-  return indicators;
 }

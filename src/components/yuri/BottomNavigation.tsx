@@ -1,13 +1,13 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Clock, HeartPulse, Menu, Target, Wallet } from "lucide-react";
+import { Folder, HeartPlus, Menu, SquareCheckBig, Wallet } from "lucide-react";
 
 const items = [
-  { to: "/", label: "Hoje", icon: Clock, match: (p: string) => p === "/" },
+  { to: "/", label: "Hoje", icon: SquareCheckBig, match: (p: string) => p === "/" },
   {
-    to: "/semana",
-    label: "Semana",
-    icon: Target,
-    match: (p: string) => p.startsWith("/semana"),
+    to: "/projetos",
+    label: "Projetos",
+    icon: Folder,
+    match: (p: string) => p.startsWith("/projetos"),
   },
   {
     to: "/financeiro",
@@ -18,7 +18,7 @@ const items = [
   {
     to: "/habitos",
     label: "Saúde",
-    icon: HeartPulse,
+    icon: HeartPlus,
     match: (p: string) => p.startsWith("/habitos"),
   },
   {
@@ -26,7 +26,7 @@ const items = [
     label: "Mais",
     icon: Menu,
     match: (p: string) =>
-      ["/mais", "/objetivos", "/mes", "/configuracoes", "/projetos"].some((x) => p.startsWith(x)),
+      ["/mais", "/objetivos", "/mes", "/configuracoes"].some((x) => p.startsWith(x)),
   },
 ];
 

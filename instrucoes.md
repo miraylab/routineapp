@@ -20,7 +20,6 @@ O produto conecta diferentes niveis da vida e da rotina:
 
 - Hoje
 - Agora dentro de Hoje
-- Semana
 - Mes
 - Projetos
 - Objetivos
@@ -35,6 +34,15 @@ Grandes objetivos
 -> tarefas e proximas acoes
 -> blocos de tempo
 -> o que fazer agora
+
+Na tela Projetos, a hierarquia operacional deve ser:
+
+Area
+-> Frente
+-> Projeto
+-> Tarefa
+
+Areas iniciais: Michelin, Miray e Estudos. Saude fica em aba propria e nao deve entrar como area principal de projetos por enquanto. A Frente representa uma camada macro dentro da area, como Data-Driven na Michelin, Conteudo Inteligente ou Produto na Miray, e Produto/Lideranca/Tecnologia nos Estudos. O Projeto representa uma iniciativa concreta, como Dashboard RQE, Robo Instagram, Estruturacao Miray ou Curso de Produto. Tarefas podem pertencer diretamente a uma Frente quando forem acoes soltas, sem exigir a criacao de um projeto artificial.
 
 O diferencial central e o contexto temporal. A aplicacao deve saber o dia, a hora e o minuto atuais, e usar isso para identificar qual atividade deveria estar acontecendo naquele momento.
 
@@ -91,7 +99,7 @@ No card principal de atividade atual, existe uma separacao conceitual entre cont
 - Durante o gesto de slideshow, o card deve seguir diretamente a velocidade do dedo/mouse. Ao soltar, a animacao de assentamento deve ser lenta, suave e fluida, completando a troca ou retornando ao centro sem salto brusco; a duracao de referencia atual e 1200ms com easing macio `cubic-bezier(0.16,1,0.3,1)`.
 - Ao finalizar um gesto valido de slideshow, a transicao deve trocar para o card real no mesmo ponto visual onde o preview estava e animar esse card ate o centro. Evitar trocar o preview simplificado pelo card real apenas no fim da animacao, pois isso gera piscada/salto visual.
 - Periodos sem atividade tambem devem aparecer como cartao de tempo livre dentro do mesmo slideshow, permitindo navegar para a atividade anterior e para a proxima. O tempo livre deve usar exatamente a mesma estrutura visual dos outros cartoes, incluindo categoria, titulo, horario, barra de progresso, checklist fixo e formulario de adicao. O texto do cartao livre deve ser categoria "TEMPO LIVRE" e titulo "Aproveite seu tempo"; nesse cartao, o bloco de checklist deve se chamar "NOTAS DE ALÍVIO". A barra de progresso deve medir o intervalo livre atual ate a proxima atividade do dia; se nao houver proxima atividade, deve ir ate 21:30, horario de dormir. Ao sair do tempo livre para uma atividade vizinha, o gesto inverso deve voltar para o cartao de tempo livre antes de seguir para outros blocos.
-- O tempo livre deve entrar no carrossel pela ordem temporal do dia. Se nao houver nenhuma atividade antes de 21:30, o cartao de tempo livre deve ser o ultimo cartao do dia e terminar em 21:30. Ele so deixa de ser o ultimo quando houver algum compromisso das 21:30 em diante. O id do cartao de tempo livre deve ser estavel dentro da janela livre para que notas adicionadas nao mudem de lugar conforme o minuto atual avanca.
+- O tempo livre deve entrar no carrossel pela ordem temporal do dia. Tempos livres intermediarios nao precisam aparecer quando nao estiverem ativos. O tempo livre final do dia, porem, deve aparecer sempre como ultimo cartao antes de dormir, terminando em 21:30, mesmo quando uma atividade ainda estiver em andamento. A unica excecao e quando alguma atividade/compromisso ja termina em 21:30 ou depois; nesse caso nao ha cartao livre final. Se houver compromisso das 21:30 em diante, o tempo livre pode aparecer antes dele, sem ser o ultimo absoluto do carrossel. O id do cartao de tempo livre deve ser estavel dentro da janela livre para que notas adicionadas nao mudem de lugar conforme o minuto atual avanca.
 - A tela Hoje deve ter um botao flutuante verde, quadrado com bordas arredondadas, fixo no canto inferior direito acima da navegacao. Ao clicar, ele abre um pequeno compositor para adicionar uma nova nota de alivio no cartao de tempo livre. Essa nota deve persistir localmente como item extra das "NOTAS DE ALÍVIO".
 - No slideshow, cada atividade deve se comportar como um cartao completo: fundo, borda, raio e conteudo se movem juntos. O container externo funciona apenas como palco/clipe visual, sem parecer uma moldura fixa por onde o conteudo passa. O trilho deve renderizar os cartoes reais anterior, atual e proximo, com a mesma estrutura visual e dados operacionais, para evitar a troca brusca entre uma previa generica e o card completo ao final do gesto. Depois que o swipe termina, a troca de indice e o reset do `translateX` do trilho devem acontecer sem transicao visivel, em um reset invisivel, para nao parecer que o mesmo cartao recarregou ou deslizou de novo.
 - O card principal passa a ter tres tipos conceituais no MVP: tempo livre, atividade e rotina. Atividade se mantem como o card operacional completo com checklist, prioridade e adicao manual de itens. Rotina representa compromissos recorrentes como academia/corrida e alimentacao; ela nao deve ter checklist editavel nem formulario de adicionar itens. Em vez disso, mostra uma lista fixa do que compoe aquela rotina e uma avaliacao local do dia. A escala deve ser `X 1 2 3 4 5`, onde `X` equivale a 0/sem treino ou sem execucao, com o rotulo pequeno "AVALIAÇÃO" abaixo. Para Saude, o box operacional deve se chamar "TREINO"; para Alimentacao, "REFEIÇÃO". Estudos deve continuar mais perto de atividade: a direcao e usar checklist com capitulos de livro, aulas ou modulos do curso, marcados conforme forem concluidos; detalhes de historico/progresso ficam para uma decisao posterior.
@@ -116,7 +124,7 @@ No card principal de atividade atual, existe uma separacao conceitual entre cont
 - O cartao que representa a atividade em andamento no horario atual deve ter mais destaque que cartoes passados/futuros, mas sem virar um bloco verde. Usar um realce sutil: borda primaria um pouco mais grossa, baixa opacidade e sombra/halo discreto, mantendo o fundo escuro do card. Apenas esse card em andamento deve ter a palavra "AGORA" e a pilula de status em verde; em cartoes anteriores/futuros esses artefatos devem ficar em cinza.
 - O formato comprido indica o que esta em andamento no horario atual, como se a bolinha tivesse sido esticada para os lados sem perder as bordas arredondadas. Se a atividade em andamento nao for o card selecionado, ela deve ficar comprida em cinza; se tambem for o card selecionado, deve ficar comprida em verde.
 - Preenchido indica compromisso/atividade; vazado indica tempo livre. Quando o estado atual em foco for "Tempo livre", ele nao deve aparecer como compromisso cinza. Deve entrar na posicao temporal correta como uma bolinha/pilula extra vazada, usando contorno verde quando selecionado e contorno cinza quando nao selecionado.
-- O antigo bloco "RESULTADOS DE HOJE" passa a ser "CONSTRUÇÃO DE HÁBITOS". No MVP ele deve mostrar apenas a lista de habitos esperados para o dia atual, cada item como texto simples em formato de checklist. Nao deve haver botao para adicionar habito nessa tela; no lugar dele existe um botao "BLOCO DE NOTAS" destacado visualmente, que abre um campo de texto com botao de envio. Cada envio deve virar uma entrada separada na tabela/lista de notas daquele dia, com horario, para permitir varios registros ao longo do dia.
+- O antigo bloco "RESULTADOS DE HOJE" passa a ser "CONSTRUÇÃO DE HÁBITOS". No MVP ele deve mostrar apenas a lista de habitos esperados para o dia atual, cada item como texto simples em formato de checklist. Cada item tambem deve ter, na lateral direita, um quadrado pequeno com bordas arredondadas e contador central de dias consecutivos aplicando aquele habito. Ao marcar o habito do dia como feito, o contador visual deve aumentar em 1; ao desmarcar, volta ao valor base. Nao deve haver botao para adicionar habito nessa tela; no lugar dele existe um botao "BLOCO DE NOTAS" destacado visualmente, que abre um campo de texto com botao de envio. Cada envio deve virar uma entrada separada na tabela/lista de notas daquele dia, com horario, para permitir varios registros ao longo do dia.
 - A tela Hoje tambem deve trazer, abaixo da construcao de habitos, uma leitura de semana compacta. O bloco "FOCO DA SEMANA" nao deve ser checklist e o container externo deve ser verde como o header do topo, por ser uma area de destaque. Dentro dele, os marcos importantes da semana aparecem em cartoes horizontais/linhas empilhadas. Cada card deve usar o mesmo efeito de brilho/gradiente da pilula da meta do dia, com o dia curto como marcador discreto a esquerda e o marco em texto claro. O texto do marco nao deve truncar; o card cresce verticalmente para caber o conteudo. Ao clicar, a linha expande e mostra o detalhamento; abaixo da descricao deve aparecer um botao para marcar/desmarcar o marco, persistindo localmente. Antes de concluir, o botao deve dizer "CONCLUIR" e ter maior destaque; depois de concluido, deve dizer "CONCLUÍDO", ficar visualmente mais discreto, riscar o texto do marco como nas tasks e fechar automaticamente a pilula expandida ao clicar. Abaixo dele entra "VISÃO DOS DIAS", reaproveitando a leitura de agenda semanal com rolagem funcional sem barra visual.
 
 ## Stack Atual
@@ -165,7 +173,7 @@ Principais estruturas:
 - `projects`: projetos, progresso e acoes.
 - `goals`: objetivos maiores.
 - `habits`: habitos semanais.
-- `dailyHabits`: habitos simples do dia usados no bloco "CONSTRUÇÃO DE HÁBITOS" da tela Hoje. No MVP os mocks incluem "Beber 4L de água", "Alimentação Saudável", "Leitura" e "Treino".
+- `dailyHabits`: habitos simples do dia usados no bloco "CONSTRUÇÃO DE HÁBITOS" da tela Hoje. No MVP os mocks incluem "Beber 4L de água", "Alimentação Saudável", "Leitura" e "Treino", alem de `streakDays` para simular o contador base de dias consecutivos antes do check de hoje.
 - `dailyJournalEntries`: entradas locais do bloco de notas, organizadas por data, simulando a tabela que futuramente podera vir de uma planilha.
 - `doneWeekMilestones`: marcos semanais marcados localmente como executados.
 - `finance`: resumo financeiro mensal.
@@ -232,7 +240,7 @@ Nao existe backend, banco, login, autenticacao ou sincronizacao remota neste mom
 
 - `/`: Hoje, com contexto atual em slideshow, indicador compacto de posicao do dia e construcao de habitos
 - `/hoje`: rota legada da timeline do dia, mantida temporariamente ate decidirmos remover ou redirecionar
-- `/semana`: foco semanal, resultados-chave e visao dos dias
+- `/semana`: rota/tela antiga de semana, removida da navegacao principal porque o foco semanal foi absorvido pela tela Hoje
 - `/projetos`: lista de projetos
 - `/projetos/$projectId`: detalhe de projeto
 - `/mais`: hub secundario
@@ -247,12 +255,13 @@ Nao existe backend, banco, login, autenticacao ou sincronizacao remota neste mom
 A bottom navigation mobile deve priorizar cinco entradas principais:
 
 - Hoje (`/`)
-- Semana (`/semana`)
+- Projetos (`/projetos`)
 - Financeiro (`/financeiro`)
 - Saude (`/habitos`)
 - Mais (`/mais`)
 
-A entrada Mais deve funcionar como acesso secundario para Projetos, Objetivos, Mes e Configuracoes, sem repetir telas que ja estao no menu inferior. Financeiro deve usar icone de carteira no menu principal.
+A entrada Mais deve funcionar como acesso secundario para Objetivos, Mes e Configuracoes, sem repetir telas que ja estao no menu inferior. Financeiro deve usar icone de carteira no menu principal. Saude deve usar o icone HeartPlus. A tela Semana nao deve aparecer na bottom navigation; Projetos ocupa esse lugar e deve usar um icone simples de pasta.
+Hoje deve usar um icone que represente gestao e execucao do dia, nao apenas passagem de hora; a referencia atual e `SquareCheckBig`.
 
 ## Componentes Principais
 

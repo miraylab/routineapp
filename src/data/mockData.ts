@@ -41,6 +41,7 @@ export interface Task {
   id: string;
   title: string;
   projectId?: string;
+  frontId?: string;
   category: Category;
   status: "todo" | "done";
   priority: number;
@@ -57,6 +58,8 @@ export interface Project {
   id: string;
   title: string;
   category: Category;
+  frontId: string;
+  frontTitle: string;
   objective: string;
   progress: number;
   status: "Em andamento" | "Planejado" | "Em pausa";
@@ -97,6 +100,7 @@ export interface Habit {
 export interface DailyHabit {
   id: string;
   title: string;
+  streakDays?: number;
   daysOfWeek?: number[];
 }
 
@@ -136,6 +140,7 @@ const workMorning = (d: number) =>
     blockEndTime: "17:00",
     description: "Análises e entregas do time de dados.",
     nextAction: "Fechar a análise de retenção do trimestre.",
+    projectId: "dashboard-rqe",
     activityChecklist: [
       { title: "Mandar email X", priority: true },
       "Validar dados carregados no dashboard",
@@ -149,6 +154,7 @@ const workAfternoon = (d: number) =>
     blockEndTime: "17:00",
     description: "Reuniões, revisões e entregas.",
     nextAction: "Revisar o documento de discovery com o time.",
+    projectId: "dashboard-rqe",
     activityChecklist: [
       { title: "Enviar status rápido para o time", priority: true },
       "Responder mensagens prioritárias",
@@ -331,7 +337,8 @@ export const tasks: Task[] = [
   {
     id: "t1",
     title: "Finalizar análise de retenção",
-    category: "Trabalho",
+    frontId: "michelin-data-driven",
+    category: "Michelin",
     status: "done",
     priority: 1,
     dueDate: "hoje",
@@ -340,6 +347,7 @@ export const tasks: Task[] = [
     id: "t2",
     title: "Completar aula 4 do curso",
     projectId: "curso-produto",
+    frontId: "estudos-produto",
     category: "Estudos",
     status: "done",
     priority: 2,
@@ -349,6 +357,7 @@ export const tasks: Task[] = [
     id: "t3",
     title: "Testar geração de pautas",
     projectId: "robo-instagram",
+    frontId: "miray-conteudo",
     category: "Miray",
     status: "todo",
     priority: 3,
@@ -360,9 +369,31 @@ export const tasks: Task[] = [
 
 export const projects: Project[] = [
   {
+    id: "dashboard-rqe",
+    title: "Dashboard RQE",
+    category: "Michelin",
+    frontId: "michelin-data-driven",
+    frontTitle: "Data-Driven",
+    objective: "Melhorar a leitura dos indicadores de RQE e reduzir fricção nas decisões do time.",
+    progress: 54,
+    status: "Em andamento",
+    health: "No prazo",
+    nextMilestone: "Revisão executiva do dashboard",
+    nextAction: "Validar dados carregados no dashboard",
+    deadline: "18 set",
+    actions: [
+      { id: "rqe-a1", title: "Revisar filtros principais", done: true },
+      { id: "rqe-a2", title: "Validar dados carregados", done: false },
+      { id: "rqe-a3", title: "Registrar pendências para o time", done: false },
+      { id: "rqe-a4", title: "Preparar visão executiva", done: false },
+    ],
+  },
+  {
     id: "robo-instagram",
     title: "Robô Instagram",
     category: "Miray",
+    frontId: "miray-conteudo",
+    frontTitle: "Conteúdo Inteligente",
     objective:
       "Criar um sistema capaz de gerar conteúdo autoral consistente sobre negócios inteligentes.",
     progress: 65,
@@ -385,6 +416,8 @@ export const projects: Project[] = [
     id: "curso-produto",
     title: "Curso de Produto",
     category: "Estudos",
+    frontId: "estudos-produto",
+    frontTitle: "Produto",
     objective: "Construir repertório sólido em descoberta, métricas e estratégia de produto.",
     progress: 42,
     status: "Em andamento",
@@ -405,6 +438,8 @@ export const projects: Project[] = [
     id: "miray-estrutura",
     title: "Estruturação Miray",
     category: "Miray",
+    frontId: "miray-produto",
+    frontTitle: "Produto",
     objective: "Transformar a Miray em uma operação orientada a produtos escaláveis.",
     progress: 28,
     status: "Em andamento",
@@ -501,10 +536,10 @@ export const habits: Habit[] = [
 ];
 
 export const dailyHabits: DailyHabit[] = [
-  { id: "dh-agua-4l", title: "Beber 4L de água" },
-  { id: "dh-alimentacao-saudavel", title: "Alimentação Saudável" },
-  { id: "dh-leitura", title: "Leitura" },
-  { id: "dh-treino", title: "Treino" },
+  { id: "dh-agua-4l", title: "Beber 4L de água", streakDays: 12 },
+  { id: "dh-alimentacao-saudavel", title: "Alimentação Saudável", streakDays: 5 },
+  { id: "dh-leitura", title: "Leitura", streakDays: 3 },
+  { id: "dh-treino", title: "Treino", streakDays: 2 },
 ];
 
 /* ------------------------------- FINANCEIRO ------------------------------- */

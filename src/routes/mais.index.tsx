@@ -1,15 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { BriefcaseBusiness, ChevronRight, Compass, CalendarRange, Settings } from "lucide-react";
+import { CalendarRange, ChevronRight, Compass, Settings } from "lucide-react";
 
 import { PageHeader } from "@/components/yuri/PageHeader";
 
 const links = [
-  {
-    to: "/projetos" as const,
-    label: "Projetos",
-    desc: "Frentes em andamento",
-    icon: BriefcaseBusiness,
-  },
   {
     to: "/objetivos" as const,
     label: "Objetivos",
@@ -36,12 +30,12 @@ export const Route = createFileRoute("/mais/")({
       { title: "Mais · YURI OS" },
       {
         name: "description",
-        content: "Acesse projetos, objetivos, visão mensal e configurações do YURI OS.",
+        content: "Acesse objetivos, visão mensal e configurações do YURI OS.",
       },
       { property: "og:title", content: "Mais · YURI OS" },
       {
         property: "og:description",
-        content: "Projetos, objetivos, visão mensal e configurações.",
+        content: "Objetivos, visão mensal e configurações.",
       },
     ],
   }),

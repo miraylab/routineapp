@@ -766,7 +766,7 @@ function getViewModeForSlide(
   current: ScheduleBlock | null,
   nowMinutes: number,
 ): "current" | "past" | "future" {
-  if (slide.id === current?.id || slide.category === "Tempo livre") return "current";
+  if (slide.id === current?.id || (slide.category === "Tempo livre" && !current)) return "current";
   return toMinutesFromClock(slide.endTime) <= nowMinutes ? "past" : "future";
 }
 

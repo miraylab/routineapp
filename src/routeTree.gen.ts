@@ -16,7 +16,6 @@ import { Route as HabitosRouteImport } from './routes/habitos'
 import { Route as HojeRouteImport } from './routes/hoje'
 import { Route as MesRouteImport } from './routes/mes'
 import { Route as ObjetivosRouteImport } from './routes/objetivos'
-import { Route as SemanaRouteImport } from './routes/semana'
 import { Route as MaisIndexRouteImport } from './routes/mais.index'
 import { Route as ProjetosIndexRouteImport } from './routes/projetos.index'
 import { Route as ProjetosProjectIdRouteImport } from './routes/projetos.$projectId'
@@ -59,11 +58,6 @@ const ObjetivosRoute = ObjetivosRouteImport.update({
   path: '/objetivos',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SemanaRoute = SemanaRouteImport.update({
-  id: '/semana',
-  path: '/semana',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const MaisIndexRoute = MaisIndexRouteImport.update({
   id: '/mais/',
   path: '/mais/',
@@ -103,7 +97,6 @@ export interface FileRoutesByFullPath {
   '/hoje': typeof HojeRoute
   '/mes': typeof MesRoute
   '/objetivos': typeof ObjetivosRoute
-  '/semana': typeof SemanaRoute
   '/projetos/$projectId': typeof ProjetosProjectIdRoute
   '/mais/': typeof MaisIndexRoute
   '/projetos/': typeof ProjetosIndexRoute
@@ -119,7 +112,6 @@ export interface FileRoutesByTo {
   '/hoje': typeof HojeRoute
   '/mes': typeof MesRoute
   '/objetivos': typeof ObjetivosRoute
-  '/semana': typeof SemanaRoute
   '/projetos/$projectId': typeof ProjetosProjectIdRoute
   '/mais': typeof MaisIndexRoute
   '/projetos': typeof ProjetosIndexRoute
@@ -136,7 +128,6 @@ export interface FileRoutesById {
   '/hoje': typeof HojeRoute
   '/mes': typeof MesRoute
   '/objetivos': typeof ObjetivosRoute
-  '/semana': typeof SemanaRoute
   '/projetos/$projectId': typeof ProjetosProjectIdRoute
   '/mais/': typeof MaisIndexRoute
   '/projetos/': typeof ProjetosIndexRoute
@@ -154,7 +145,6 @@ export interface FileRouteTypes {
     | '/hoje'
     | '/mes'
     | '/objetivos'
-    | '/semana'
     | '/projetos/$projectId'
     | '/mais/'
     | '/projetos/'
@@ -170,7 +160,6 @@ export interface FileRouteTypes {
     | '/hoje'
     | '/mes'
     | '/objetivos'
-    | '/semana'
     | '/projetos/$projectId'
     | '/mais'
     | '/projetos'
@@ -186,7 +175,6 @@ export interface FileRouteTypes {
     | '/hoje'
     | '/mes'
     | '/objetivos'
-    | '/semana'
     | '/projetos/$projectId'
     | '/mais/'
     | '/projetos/'
@@ -203,7 +191,6 @@ export interface RootRouteChildren {
   HojeRoute: typeof HojeRoute
   MesRoute: typeof MesRoute
   ObjetivosRoute: typeof ObjetivosRoute
-  SemanaRoute: typeof SemanaRoute
   ProjetosProjectIdRoute: typeof ProjetosProjectIdRoute
   MaisIndexRoute: typeof MaisIndexRoute
   ProjetosIndexRoute: typeof ProjetosIndexRoute
@@ -263,13 +250,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ObjetivosRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/semana': {
-      id: '/semana'
-      path: '/semana'
-      fullPath: '/semana'
-      preLoaderRoute: typeof SemanaRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/mais/': {
       id: '/mais/'
       path: '/mais'
@@ -323,7 +303,6 @@ const rootRouteChildren: RootRouteChildren = {
   HojeRoute: HojeRoute,
   MesRoute: MesRoute,
   ObjetivosRoute: ObjetivosRoute,
-  SemanaRoute: SemanaRoute,
   ProjetosProjectIdRoute: ProjetosProjectIdRoute,
   MaisIndexRoute: MaisIndexRoute,
   ProjetosIndexRoute: ProjetosIndexRoute,

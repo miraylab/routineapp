@@ -47,7 +47,7 @@ function ProjetoDetalhe() {
 
   return (
     <div className="space-y-3">
-      <PageHeader title={project.title} subtitle={project.category} back />
+      <PageHeader title={project.title} subtitle={`${project.category} · ${project.frontTitle}`} back />
 
       <section className="rounded-3xl border border-border/60 bg-card p-5">
         <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
