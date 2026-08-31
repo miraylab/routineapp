@@ -32,7 +32,7 @@ const STORAGE_KEY = "yuri-os.state.v1";
 const HYDRATION_CLOCK_FALLBACK = new Date(0);
 
 interface PersistedState {
-  doneTasks: string[];
+  doneTasks: string[]; // legado/local: alterna dueDate em tasks baseadas nos mocks
   todayGoalDone: boolean;
   doneDailyHabits: Record<string, string[]>;
   dailyJournal: Record<string, string>;
@@ -40,10 +40,22 @@ interface PersistedState {
   extraTasks: Task[];
   doneBlocks: string[];
   doneActivityChecklistItems: string[];
+  doneActivityChecklistItemAt: Record<string, string>;
   extraActivityChecklistItems: Record<string, { id: string; title: string; priority?: boolean }[]>;
   routineRatings: Record<string, Record<string, number>>;
   projectActions: Record<string, string[]>; // projectId -> action ids toggled
-  extraActions: Record<string, { id: string; title: string }[]>;
+  extraActions: Record<
+    string,
+    {
+      id: string;
+      title: string;
+      quick?: boolean;
+      visibleFrom?: string;
+      recurrence?: "none" | "daily" | "weekly" | "monthly";
+      dueDate?: string;
+      note?: string;
+    }[]
+  >;
   doneKeyResults: string[];
   doneWeekMilestones: string[];
   simulation: { enabled: boolean; dayOfWeek: number; time: string };
@@ -57,7 +69,7 @@ interface DailyJournalEntry {
 }
 
 const initialState: PersistedState = {
-  doneTasks: tasksSeed.filter((t) => t.status === "done").map((t) => t.id),
+  doneTasks: [],
   todayGoalDone: false,
   doneDailyHabits: {},
   dailyJournal: {},
@@ -65,6 +77,7 @@ const initialState: PersistedState = {
   extraTasks: [],
   doneBlocks: [],
   doneActivityChecklistItems: [],
+  doneActivityChecklistItemAt: {},
   extraActivityChecklistItems: {},
   routineRatings: {},
   projectActions: {},
@@ -85,7 +98,19 @@ function useStoreValue() {
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) setState({ ...initialState, ...JSON.parse(raw) });
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<PersistedState>;
+        const legacyDoneItems = parsed.doneActivityChecklistItems ?? [];
+        const doneAt = parsed.doneActivityChecklistItemAt ?? {};
+        const migratedDoneAt = legacyDoneItems.reduce<Record<string, string>>(
+          (acc, id) => ({
+            ...acc,
+            [id]: acc[id] ?? new Date().toISOString(),
+          }),
+          { ...doneAt },
+        );
+        setState({ ...initialState, ...parsed, doneActivityChecklistItemAt: migratedDoneAt });
+      }
     } catch {
       /* ignora */
     }
@@ -124,32 +149,47 @@ function useStoreValue() {
 
   const tasks: Task[] = useMemo(
     () =>
-      [...tasksSeed, ...state.extraTasks].map((t) => ({
-        ...t,
-        status: state.doneTasks.includes(t.id) ? "done" : "todo",
-      })),
-    [state.extraTasks, state.doneTasks],
+      [...tasksSeed, ...state.extraTasks].map((t) => {
+        const baseDone = Boolean(t.dueDate);
+        const toggled = state.doneTasks.includes(t.id);
+        const done = toggled ? !baseDone : baseDone;
+
+        return {
+          ...t,
+          fatherId: t.fatherId ?? "pessoal",
+          dueDate: done ? (t.dueDate ?? todayKey) : undefined,
+        };
+      }),
+    [state.extraTasks, state.doneTasks, todayKey],
   );
 
   const projects: Project[] = useMemo(
     () =>
       projectsSeed.map((p) => {
         const toggled = state.projectActions[p.id] ?? [];
-        const extra = (state.extraActions[p.id] ?? []).map((a) => ({
-          ...a,
-          done: toggled.includes(a.id),
-        }));
-        const actions = [
-          ...p.actions.map((a) => ({
+        const extra = (state.extraActions[p.id] ?? []).map((a) => {
+          const baseDone = Boolean(a.dueDate);
+          const done = toggled.includes(a.id) ? !baseDone : baseDone;
+          return {
             ...a,
-            done: toggled.includes(a.id) ? !a.done : a.done,
-          })),
+            dueDate: done ? (a.dueDate ?? todayKey) : undefined,
+          };
+        });
+        const actions = [
+          ...p.actions.map((a) => {
+            const baseDone = Boolean(a.dueDate);
+            const done = toggled.includes(a.id) ? !baseDone : baseDone;
+            return {
+              ...a,
+              dueDate: done ? (a.dueDate ?? todayKey) : undefined,
+            };
+          }),
           ...extra,
         ];
         // O progresso base vem do mock; interações locais apenas o ajustam,
         // mantendo consistência com as visões de semana/mês.
-        const seedDone = p.actions.filter((a) => a.done).length;
-        const done = actions.filter((a) => a.done).length;
+        const seedDone = p.actions.filter((a) => Boolean(a.dueDate)).length;
+        const done = actions.filter((a) => Boolean(a.dueDate)).length;
         const step = 100 / Math.max(actions.length, 1);
         const progress = Math.max(
           0,
@@ -157,7 +197,7 @@ function useStoreValue() {
         );
         return { ...p, actions, progress };
       }),
-    [state.projectActions, state.extraActions],
+    [state.projectActions, state.extraActions, todayKey],
   );
 
   const keyResults = useMemo(
@@ -237,10 +277,21 @@ function useStoreValue() {
 
   const toggleActivityChecklistItem = useCallback(
     (id: string) =>
-      setState((s) => ({
-        ...s,
-        doneActivityChecklistItems: toggleId(s.doneActivityChecklistItems ?? [], id),
-      })),
+      setState((s) => {
+        const isDone = (s.doneActivityChecklistItems ?? []).includes(id);
+        const nextDoneAt = { ...(s.doneActivityChecklistItemAt ?? {}) };
+        if (isDone) {
+          delete nextDoneAt[id];
+        } else {
+          nextDoneAt[id] = new Date().toISOString();
+        }
+
+        return {
+          ...s,
+          doneActivityChecklistItems: toggleId(s.doneActivityChecklistItems ?? [], id),
+          doneActivityChecklistItemAt: nextDoneAt,
+        };
+      }),
     [],
   );
 
@@ -306,18 +357,40 @@ function useStoreValue() {
     [],
   );
 
-  const addProjectAction = useCallback((projectId: string, title: string) => {
-    const id = `x-${Date.now()}`;
-    setState((s) => ({
-      ...s,
-      extraActions: {
-        ...s.extraActions,
-        [projectId]: [...(s.extraActions[projectId] ?? []), { id, title }],
-      },
-    }));
-  }, []);
+  const addProjectAction = useCallback(
+    (
+      projectId: string,
+      title: string,
+      options: {
+        quick?: boolean;
+        visibleFrom?: string;
+        recurrence?: "none" | "daily" | "weekly" | "monthly";
+        dueDate?: string;
+        note?: string;
+      } = {},
+    ) => {
+      const id = `x-${Date.now()}`;
+      setState((s) => ({
+        ...s,
+        extraActions: {
+          ...s.extraActions,
+          [projectId]: [...(s.extraActions[projectId] ?? []), { id, title, ...options }],
+        },
+      }));
+    },
+    [],
+  );
 
-  const addTask = useCallback((title: string) => {
+  const addTask = useCallback(
+    (
+      title: string,
+      fatherId = "pessoal",
+      options: {
+        quick?: boolean;
+        visibleFrom?: string;
+        recurrence?: "none" | "daily" | "weekly" | "monthly";
+      } = {},
+    ) => {
     setState((s) => ({
       ...s,
       extraTasks: [
@@ -325,14 +398,16 @@ function useStoreValue() {
         {
           id: `t-${Date.now()}`,
           title,
-          category: "Pessoal",
-          status: "todo",
-          priority: 4,
-          dueDate: "hoje",
+          fatherId,
+          quick: options.quick,
+          visibleFrom: options.visibleFrom,
+          recurrence: options.recurrence,
         },
       ],
     }));
-  }, []);
+    },
+    [],
+  );
 
   const setSimulation = useCallback(
     (next: Partial<PersistedState["simulation"]>) =>
@@ -345,8 +420,15 @@ function useStoreValue() {
   const blockDone = useCallback((id: string) => state.doneBlocks.includes(id), [state.doneBlocks]);
 
   const activityChecklistItemDone = useCallback(
-    (id: string) => (state.doneActivityChecklistItems ?? []).includes(id),
-    [state.doneActivityChecklistItems],
+    (id: string) =>
+      (state.doneActivityChecklistItems ?? []).includes(id) ||
+      Boolean(state.doneActivityChecklistItemAt?.[id]),
+    [state.doneActivityChecklistItemAt, state.doneActivityChecklistItems],
+  );
+
+  const activityChecklistItemCompletedAt = useCallback(
+    (id: string) => state.doneActivityChecklistItemAt?.[id],
+    [state.doneActivityChecklistItemAt],
   );
 
   const dailyHabitDone = useCallback(
@@ -362,6 +444,7 @@ function useStoreValue() {
   return {
     hydrated,
     realNow,
+    todayKey,
     dayOfWeek,
     nowMinutes,
     context,
@@ -384,6 +467,7 @@ function useStoreValue() {
     simulation: state.simulation,
     blockDone,
     activityChecklistItemDone,
+    activityChecklistItemCompletedAt,
     dailyHabitDone,
     weekMilestoneDone,
     extraActivityChecklistItems: state.extraActivityChecklistItems ?? {},

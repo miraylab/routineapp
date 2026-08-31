@@ -28,10 +28,11 @@ export const Route = createFileRoute("/hoje")({
 });
 
 function HojePage() {
-  const { context, nowMinutes, dayOfWeek, realNow, tasks, toggleTask, addTask } = useStore();
+  const { context, nowMinutes, dayOfWeek, realNow, tasks, toggleTask, addTask, todayKey } = useStore();
   const [draft, setDraft] = useState("");
 
-  const done = tasks.filter((t) => t.status === "done").length;
+  const visibleTasks = tasks.filter((t) => taskIsVisibleToday(t, todayKey));
+  const openTasks = visibleTasks.filter((t) => !t.dueDate).length;
 
   return (
     <div>
@@ -46,12 +47,12 @@ function HojePage() {
             RESULTADOS DE HOJE
           </p>
           <p className="tabular text-sm text-muted-foreground">
-            {done} de {tasks.length}
+            {openTasks} abertas
           </p>
         </div>
 
         <div className="mt-4 space-y-2">
-          {tasks.map((t, i) => (
+          {visibleTasks.map((t, i) => (
             <PriorityItem key={t.id} task={t} index={i} onToggle={() => toggleTask(t.id)} />
           ))}
         </div>
@@ -98,4 +99,10 @@ function HojePage() {
       </ul>
     </div>
   );
+}
+
+function taskIsVisibleToday(task: { dueDate?: string; visibleFrom?: string }, todayKey: string) {
+  const visibleByStart = !task.visibleFrom || task.visibleFrom <= todayKey;
+  const visibleByCompletion = !task.dueDate || task.dueDate === todayKey;
+  return visibleByStart && visibleByCompletion;
 }

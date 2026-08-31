@@ -2,7 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { BookOpen, Check, ChevronDown, Plus, Send } from "lucide-react";
 
-import { CurrentActivityCard } from "@/components/yuri/CurrentActivityCard";
+import {
+  CurrentActivityCard,
+  getActivityChecklist,
+  type ActivityChecklistItem,
+} from "@/components/yuri/CurrentActivityCard";
 import { useStore } from "@/lib/store";
 import {
   MONTHS,
@@ -15,7 +19,7 @@ import {
   type CurrentActivity,
 } from "@/lib/schedule";
 import { cn } from "@/lib/utils";
-import { schedule, type ScheduleBlock } from "@/data/mockData";
+import { schedule, type ScheduleBlock, type Task } from "@/data/mockData";
 
 const BEDTIME_MINUTES = toMinutes("21:30");
 const FREE_TIME_ID_PREFIX = "tempo-livre";
@@ -43,9 +47,11 @@ function HojePage() {
   const {
     hydrated,
     context,
+    todayKey,
     nowMinutes,
     dayOfWeek,
     realNow,
+    tasks,
     projects,
     dailyHabits,
     dailyJournalEntries,
@@ -57,11 +63,13 @@ function HojePage() {
     dailyHabitDone,
     weekMilestoneDone,
     activityChecklistItemDone,
+    activityChecklistItemCompletedAt,
     extraActivityChecklistItems,
     toggleTodayGoal,
     toggleDailyHabit,
     toggleWeekMilestone,
     toggleActivityChecklistItem,
+    toggleTask,
     addActivityChecklistItem,
     setRoutineRating,
     addDailyJournalEntry,
@@ -134,6 +142,18 @@ function HojePage() {
     () => buildActivityIndicators(carouselBlocks, current, focusedBlock, activeFreeTimeBlock),
     [activeFreeTimeBlock, carouselBlocks, current, focusedBlock],
   );
+  const fastTasks = useMemo(
+    () =>
+      buildFastTasks(
+        carouselBlocks,
+        extraActivityChecklistItems,
+        tasks,
+        activityChecklistItemDone,
+        todayKey,
+      ),
+    [activityChecklistItemDone, carouselBlocks, extraActivityChecklistItems, tasks, todayKey],
+  );
+  const openFastTasks = fastTasks.filter((task) => !task.done).length;
 
   useEffect(() => {
     setFocusedBlockId(current?.id ?? activeFreeTimeBlock?.id ?? null);
@@ -143,7 +163,7 @@ function HojePage() {
     setSelectedWeekDay(dayOfWeek);
   }, [dayOfWeek]);
 
-  const dailyHabitsDone = dailyHabits.filter((habit) => dailyHabitDone(habit.id)).length;
+  const openDailyHabits = dailyHabits.filter((habit) => !dailyHabitDone(habit.id)).length;
   const selectedDayBlocks = useMemo(
     () => blocksForDay(schedule, selectedWeekDay),
     [selectedWeekDay],
@@ -157,7 +177,6 @@ function HojePage() {
     setReliefNoteDraft("");
     setReliefNoteComposerOpen(false);
   };
-
   if (!hydrated) {
     return (
       <div className="space-y-3">
@@ -214,6 +233,54 @@ function HojePage() {
         </button>
       </header>
 
+      {fastTasks.length > 0 ? (
+        <section className="rounded-3xl border border-primary/25 bg-card p-5 shadow-[0_18px_40px_rgba(0,0,0,0.16)]">
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="text-[11px] font-medium tracking-[0.18em] text-primary">
+              TAREFAS RÁPIDAS
+            </p>
+            <p className="tabular text-sm text-muted-foreground">{openFastTasks} abertas</p>
+          </div>
+
+          <div className="mt-4 space-y-2">
+            {fastTasks.map((task) => (
+              <button
+                key={task.id}
+                type="button"
+                onClick={() =>
+                  task.source === "task" ? toggleTask(task.id) : toggleActivityChecklistItem(task.id)
+                }
+                className="press flex w-full items-start gap-3 rounded-2xl bg-elevated/55 px-3.5 py-3 text-left"
+              >
+                <span
+                  className={cn(
+                    "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border transition-colors duration-200",
+                    task.done
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-primary/55 text-transparent",
+                  )}
+                >
+                  <Check className="size-3.5" strokeWidth={3} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span
+                    className={cn(
+                      "block text-[13px] font-medium leading-snug text-foreground",
+                      task.done && "text-muted-foreground line-through",
+                    )}
+                  >
+                    {task.title}
+                  </span>
+                  <span className="mt-1 block truncate text-[11px] text-muted-foreground">
+                    {task.context}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <CurrentActivityCard
         context={focusedContext}
         project={focusedProject}
@@ -223,6 +290,7 @@ function HojePage() {
         projects={projects}
         blockDoneById={blockDone}
         checklistItemDone={activityChecklistItemDone}
+        checklistItemCompletedAt={activityChecklistItemCompletedAt}
         routineRatings={routineRatingsToday}
         extraChecklistItemsByActivity={extraActivityChecklistItems}
         extraChecklistItems={
@@ -252,7 +320,7 @@ function HojePage() {
             CONSTRUÇÃO DE HÁBITOS
           </p>
           <p className="tabular text-sm text-muted-foreground">
-            {dailyHabitsDone} de {dailyHabits.length}
+            {openDailyHabits} abertos
           </p>
         </div>
 
@@ -544,6 +612,65 @@ function buildFocusedActivityContext(
     progress,
     remaining: Math.max(0, end - nowMinutes),
   };
+}
+
+interface FastTask extends ActivityChecklistItem {
+  context: string;
+  source: "checklist" | "task";
+  done?: boolean;
+}
+
+function buildFastTasks(
+  dayBlocks: ScheduleBlock[],
+  extraItemsByActivity: Record<string, ActivityChecklistItem[]>,
+  tasks: Task[],
+  checklistItemDone: (id: string) => boolean,
+  todayKey: string,
+): FastTask[] {
+  const checklistFastTasks = dayBlocks.flatMap((block) => {
+    const items = [...getActivityChecklist(block), ...(extraItemsByActivity[block.id] ?? [])];
+
+    return items
+      .filter((item) => item.priority && !checklistItemDone(item.id))
+      .map((item) => ({
+        ...item,
+        context: `${block.category} · ${block.subtitle ?? block.title}`,
+        source: "checklist" as const,
+      }));
+  });
+
+  const globalFastTasks = tasks
+    .filter((task) => task.quick && taskIsVisibleToday(task, todayKey))
+    .map((task) => ({
+      id: task.id,
+      title: task.title,
+      priority: true,
+      context: formatFatherId(task.fatherId),
+      source: "task" as const,
+      done: Boolean(task.dueDate),
+    }));
+
+  return [...globalFastTasks, ...checklistFastTasks];
+}
+
+function formatFatherId(fatherId: string) {
+  return fatherId
+    .split(".")
+    .filter(Boolean)
+    .map((part) =>
+      part
+        .split("-")
+        .filter(Boolean)
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" "),
+    )
+    .join(" · ");
+}
+
+function taskIsVisibleToday(task: Task, todayKey: string) {
+  const visibleByStart = !task.visibleFrom || task.visibleFrom <= todayKey;
+  const visibleByCompletion = !task.dueDate || task.dueDate === todayKey;
+  return visibleByStart && visibleByCompletion;
 }
 
 function buildActiveFreeTimeBlock(

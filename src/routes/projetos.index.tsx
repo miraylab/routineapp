@@ -1,6 +1,6 @@
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { ChevronRight } from "lucide-react";
+import { Check, ChevronRight, User } from "lucide-react";
 
 import { ProgressBar } from "@/components/yuri/ProgressBar";
 import { StatusBadge, healthTone } from "@/components/yuri/StatusBadge";
@@ -28,7 +28,7 @@ export const Route = createFileRoute("/projetos/")({
 });
 
 function ProjetosPage() {
-  const { projects, tasks } = useStore();
+  const { projects, tasks, toggleTask, todayKey } = useStore();
   const hierarchy = useMemo(() => buildProjectHierarchy(projects, tasks), [projects, tasks]);
   const [selectedArea, setSelectedArea] = useState<Category>(hierarchy[0]?.area ?? "Michelin");
 
@@ -38,20 +38,21 @@ function ProjetosPage() {
     <div className="space-y-3">
       {currentArea ? <ProjectOverview area={currentArea} /> : null}
 
-      <div className="app-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+      <div className="grid grid-cols-[1fr_1fr_1fr_44px] gap-2">
         {hierarchy.map((area) => (
           <button
             key={area.area}
             type="button"
             onClick={() => setSelectedArea(area.area)}
             className={cn(
-              "press h-11 w-24 shrink-0 rounded-2xl text-sm font-medium transition-colors",
+              "press h-11 min-w-0 rounded-2xl text-sm font-medium transition-colors",
               area.area === selectedArea
                 ? "bg-primary text-primary-foreground"
                 : "bg-card text-muted-foreground",
             )}
+            aria-label={area.area}
           >
-            {area.area}
+            {area.area === "Pessoal" ? <User className="mx-auto size-4" /> : area.area}
           </button>
         ))}
       </div>
@@ -59,7 +60,12 @@ function ProjetosPage() {
       {currentArea ? (
         <div className="space-y-3">
           {currentArea.fronts.map((front) => (
-            <FrontSection key={front.id} front={front} />
+            <FrontSection
+              key={front.id}
+              front={front}
+              todayKey={todayKey}
+              onToggleTask={toggleTask}
+            />
           ))}
         </div>
       ) : null}
@@ -76,44 +82,103 @@ function ProjectOverview({ area }: { area: ProjectArea }) {
   );
 }
 
-function FrontSection({ front }: { front: ProjectFront }) {
+function FrontSection({
+  front,
+  todayKey,
+  onToggleTask,
+}: {
+  front: ProjectFront;
+  todayKey: string;
+  onToggleTask: (id: string) => void;
+}) {
+  const navigate = useNavigate();
+  const visibleDirectTasks = front.directTasks.filter((task) => taskIsVisibleToday(task, todayKey));
+  const openDirectTasks = visibleDirectTasks.filter((task) => !task.dueDate);
+  const openFrontDetail = () => {
+    navigate({ to: "/projetos/frentes/$frontId", params: { frontId: front.id } });
+  };
+
   return (
-    <section className="rounded-3xl border border-border/60 bg-card p-5">
+    <section
+      role="button"
+      tabIndex={0}
+      onClick={(event) => {
+        if ((event.target as HTMLElement).closest("[data-projects-block],button,a,input,textarea")) {
+          return;
+        }
+        openFrontDetail();
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          openFrontDetail();
+        }
+      }}
+      className="press rounded-3xl border border-border/60 bg-card p-5 text-left"
+    >
       <div className="flex items-center justify-between gap-3">
         <h2 className="min-w-0 truncate text-xl font-semibold tracking-tight">{front.title}</h2>
-        <span className="tabular shrink-0 text-sm text-muted-foreground">
-          {front.projects.length}
-        </span>
+        <button
+          type="button"
+          onClick={openFrontDetail}
+          className="press grid size-8 shrink-0 place-items-center rounded-xl bg-elevated/60 text-muted-foreground"
+          aria-label={`Abrir frente ${front.title}`}
+        >
+          <ChevronRight className="size-4" />
+        </button>
       </div>
 
-      {front.directTasks.length > 0 ? (
-        <div className="mt-4">
+      {visibleDirectTasks.length > 0 ? (
+        <div className="mt-4 rounded-2xl bg-elevated/45 p-3.5">
           <div className="flex items-center justify-between gap-3">
             <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
               TAREFAS
             </p>
             <p className="tabular text-xs text-muted-foreground">
-              {front.directTasks.filter((task) => task.status === "done").length} de{" "}
-              {front.directTasks.length}
+              {openDirectTasks.length} abertas
             </p>
           </div>
-          <ul className="mt-2 space-y-2">
-            {front.directTasks.map((task) => (
-              <li
-                key={task.id}
-                className="rounded-2xl bg-elevated/55 px-3.5 py-2.5 text-sm text-foreground"
-              >
-                <span className={cn(task.status === "done" && "text-muted-foreground line-through")}>
-                  {task.title}
-                </span>
+          <ul className="app-scrollbar mt-3 max-h-[156px] space-y-2 overflow-y-auto pr-1">
+            {visibleDirectTasks.map((task) => {
+              const taskDone = Boolean(task.dueDate);
+              return (
+              <li key={task.id}>
+                <button
+                  type="button"
+                  onClick={() => onToggleTask(task.id)}
+                  className="press flex w-full items-start gap-3 rounded-2xl bg-card/70 px-3.5 py-3 text-left text-sm text-foreground"
+                >
+                  <span
+                    className={cn(
+                      "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border transition-colors duration-200",
+                      taskDone
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border text-transparent",
+                    )}
+                  >
+                    <Check className="size-3.5" strokeWidth={3} />
+                  </span>
+                  <span
+                    className={cn(
+                      "min-w-0 flex-1 leading-snug",
+                      taskDone && "text-muted-foreground line-through",
+                    )}
+                  >
+                    {task.title}
+                  </span>
+                </button>
               </li>
-            ))}
+            );
+            })}
           </ul>
         </div>
       ) : null}
 
       {front.projects.length > 0 ? (
-        <div className="mt-4">
+        <div
+          data-projects-block
+          className={cn(visibleDirectTasks.length > 0 ? "mt-4" : "mt-3")}
+        >
           <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
             PROJETOS
           </p>
@@ -123,6 +188,12 @@ function FrontSection({ front }: { front: ProjectFront }) {
             ))}
           </div>
         </div>
+      ) : null}
+
+      {visibleDirectTasks.length === 0 && front.projects.length === 0 ? (
+        <p className="mt-3 text-sm leading-snug text-muted-foreground">
+          Nenhuma tarefa aberta por enquanto.
+        </p>
       ) : null}
     </section>
   );
@@ -168,12 +239,16 @@ interface ProjectArea {
   fronts: ProjectFront[];
 }
 
-const AREA_ORDER: Category[] = ["Michelin", "Miray", "Estudos"];
+const AREA_ORDER: Category[] = ["Michelin", "Miray", "Estudos", "Pessoal"];
 
 function buildProjectHierarchy(projects: Project[], tasks: Task[]): ProjectArea[] {
   const areas = AREA_ORDER.map((area) => {
+    const areaId = toFatherSegment(area);
     const areaProjects = projects.filter((project) => project.category === area);
-    const directTasks = tasks.filter((task) => task.category === area && !task.projectId);
+    const directTasks = tasks.filter((task) => {
+      const father = parseFatherId(task.fatherId);
+      return father.areaId === areaId && !father.projectId;
+    });
     const frontMap = new Map<string, ProjectFront>();
 
     areaProjects.forEach((project) => {
@@ -188,16 +263,26 @@ function buildProjectHierarchy(projects: Project[], tasks: Task[]): ProjectArea[
     });
 
     directTasks.forEach((task) => {
-      const frontId = task.frontId ?? `${area.toLowerCase()}-geral`;
+      const father = parseFatherId(task.fatherId);
+      const frontId = father.frontId ?? `${areaId}-geral`;
       const front = frontMap.get(frontId) ?? {
         id: frontId,
-        title: "Geral",
+        title: father.frontId ? formatFatherSegment(father.frontId) : "Geral",
         projects: [],
         directTasks: [],
       };
       front.directTasks.push(task);
       frontMap.set(frontId, front);
     });
+
+    if (area === "Pessoal" && frontMap.size === 0) {
+      frontMap.set("pessoal-notas-de-alivio", {
+        id: "pessoal-notas-de-alivio",
+        title: "Notas de alívio",
+        projects: [],
+        directTasks: [],
+      });
+    }
 
     return {
       area,
@@ -207,4 +292,31 @@ function buildProjectHierarchy(projects: Project[], tasks: Task[]): ProjectArea[
   });
 
   return areas.filter((area) => area.fronts.length > 0);
+}
+
+function parseFatherId(fatherId: string) {
+  const [areaId, frontId, projectId] = fatherId.split(".");
+  return { areaId, frontId, projectId };
+}
+
+function taskIsVisibleToday(task: Task, todayKey: string) {
+  const visibleByStart = !task.visibleFrom || task.visibleFrom <= todayKey;
+  const visibleByCompletion = !task.dueDate || task.dueDate === todayKey;
+  return visibleByStart && visibleByCompletion;
+}
+
+function toFatherSegment(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, "-");
+}
+
+function formatFatherSegment(value: string) {
+  return value
+    .split("-")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }

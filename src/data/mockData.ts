@@ -40,18 +40,21 @@ export type ActivityChecklistItemSeed = string | { title: string; priority?: boo
 export interface Task {
   id: string;
   title: string;
-  projectId?: string;
-  frontId?: string;
-  category: Category;
-  status: "todo" | "done";
-  priority: number;
-  dueDate: string;
+  fatherId: string;
+  quick?: boolean;
+  visibleFrom?: string;
+  recurrence?: "none" | "daily" | "weekly" | "monthly";
+  dueDate?: string; // data de conclusao; vazio = aberta
 }
 
 export interface ProjectAction {
   id: string;
   title: string;
-  done: boolean;
+  quick?: boolean;
+  visibleFrom?: string;
+  recurrence?: "none" | "daily" | "weekly" | "monthly";
+  dueDate?: string; // data de conclusao; vazio = aberta
+  note?: string;
 }
 
 export interface Project {
@@ -337,31 +340,41 @@ export const tasks: Task[] = [
   {
     id: "t1",
     title: "Finalizar análise de retenção",
-    frontId: "michelin-data-driven",
-    category: "Michelin",
-    status: "done",
-    priority: 1,
-    dueDate: "hoje",
+    fatherId: "michelin.michelin-data-driven",
+    dueDate: "2026-08-30",
   },
   {
     id: "t2",
     title: "Completar aula 4 do curso",
-    projectId: "curso-produto",
-    frontId: "estudos-produto",
-    category: "Estudos",
-    status: "done",
-    priority: 2,
-    dueDate: "hoje",
+    fatherId: "estudos.estudos-produto.curso-produto",
+    dueDate: "2026-08-30",
   },
   {
     id: "t3",
     title: "Testar geração de pautas",
-    projectId: "robo-instagram",
-    frontId: "miray-conteudo",
-    category: "Miray",
-    status: "todo",
-    priority: 3,
-    dueDate: "hoje",
+    fatherId: "miray.miray-conteudo.robo-instagram",
+  },
+  {
+    id: "t4",
+    title: "Conferir atualização dos indicadores RQE",
+    fatherId: "michelin.michelin-data-driven",
+  },
+  {
+    id: "t5",
+    title: "Enviar resumo dos desvios para o time",
+    fatherId: "michelin.michelin-data-driven",
+    quick: true,
+  },
+  {
+    id: "t6",
+    title: "Validar regra de cálculo do painel mensal",
+    fatherId: "michelin.michelin-data-driven",
+  },
+  {
+    id: "t7",
+    title: "Separar dúvidas para a próxima reunião",
+    fatherId: "michelin.michelin-data-driven",
+    quick: true,
   },
 ];
 
@@ -382,10 +395,10 @@ export const projects: Project[] = [
     nextAction: "Validar dados carregados no dashboard",
     deadline: "18 set",
     actions: [
-      { id: "rqe-a1", title: "Revisar filtros principais", done: true },
-      { id: "rqe-a2", title: "Validar dados carregados", done: false },
-      { id: "rqe-a3", title: "Registrar pendências para o time", done: false },
-      { id: "rqe-a4", title: "Preparar visão executiva", done: false },
+      { id: "rqe-a1", title: "Revisar filtros principais", dueDate: "2026-08-30" },
+      { id: "rqe-a2", title: "Validar dados carregados" },
+      { id: "rqe-a3", title: "Registrar pendências para o time" },
+      { id: "rqe-a4", title: "Preparar visão executiva" },
     ],
   },
   {
@@ -403,13 +416,13 @@ export const projects: Project[] = [
     nextAction: "Testar prompt editorial",
     deadline: "12 set",
     actions: [
-      { id: "a1", title: "Definir posicionamento", done: true },
-      { id: "a2", title: "Definir ICP", done: true },
-      { id: "a3", title: "Criar linha editorial", done: true },
-      { id: "a4", title: "Atualizar prompt do robô", done: false },
-      { id: "a5", title: "Gerar 10 pautas", done: false },
-      { id: "a6", title: "Selecionar 3 pautas", done: false },
-      { id: "a7", title: "Criar primeiro carrossel", done: false },
+      { id: "a1", title: "Definir posicionamento", dueDate: "2026-08-30" },
+      { id: "a2", title: "Definir ICP", dueDate: "2026-08-30" },
+      { id: "a3", title: "Criar linha editorial", dueDate: "2026-08-30" },
+      { id: "a4", title: "Atualizar prompt do robô" },
+      { id: "a5", title: "Gerar 10 pautas" },
+      { id: "a6", title: "Selecionar 3 pautas" },
+      { id: "a7", title: "Criar primeiro carrossel" },
     ],
   },
   {
@@ -426,12 +439,12 @@ export const projects: Project[] = [
     nextAction: "Módulo 4 · Aula 2",
     deadline: "30 set",
     actions: [
-      { id: "b1", title: "Módulo 1 · Fundamentos", done: true },
-      { id: "b2", title: "Módulo 2 · Discovery", done: true },
-      { id: "b3", title: "Módulo 3 · Priorização", done: true },
-      { id: "b4", title: "Módulo 4 · Métricas", done: false },
-      { id: "b5", title: "Módulo 5 · Estratégia", done: false },
-      { id: "b6", title: "Projeto final", done: false },
+      { id: "b1", title: "Módulo 1 · Fundamentos", dueDate: "2026-08-30" },
+      { id: "b2", title: "Módulo 2 · Discovery", dueDate: "2026-08-30" },
+      { id: "b3", title: "Módulo 3 · Priorização", dueDate: "2026-08-30" },
+      { id: "b4", title: "Módulo 4 · Métricas" },
+      { id: "b5", title: "Módulo 5 · Estratégia" },
+      { id: "b6", title: "Projeto final" },
     ],
   },
   {
@@ -448,11 +461,11 @@ export const projects: Project[] = [
     nextAction: "Mapear 3 formatos de oferta",
     deadline: "30 out",
     actions: [
-      { id: "c1", title: "Diagnóstico da operação atual", done: true },
-      { id: "c2", title: "Definir tese de posicionamento", done: true },
-      { id: "c3", title: "Mapear 3 formatos de oferta", done: false },
-      { id: "c4", title: "Validar preço com 5 conversas", done: false },
-      { id: "c5", title: "Desenhar processo comercial", done: false },
+      { id: "c1", title: "Diagnóstico da operação atual", dueDate: "2026-08-30" },
+      { id: "c2", title: "Definir tese de posicionamento", dueDate: "2026-08-30" },
+      { id: "c3", title: "Mapear 3 formatos de oferta" },
+      { id: "c4", title: "Validar preço com 5 conversas" },
+      { id: "c5", title: "Desenhar processo comercial" },
     ],
   },
 ];

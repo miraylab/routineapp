@@ -30,6 +30,7 @@ interface Props {
   blockDoneById?: (id: string) => boolean;
   activityIndicators?: ActivityIndicator[];
   checklistItemDone: (id: string) => boolean;
+  checklistItemCompletedAt?: (id: string) => string | undefined;
   extraChecklistItems: ActivityChecklistItem[];
   extraChecklistItemsByActivity?: Record<string, ActivityChecklistItem[]>;
   routineRatings?: Record<string, number>;
@@ -54,6 +55,7 @@ export function CurrentActivityCard({
   blockDoneById,
   activityIndicators = [],
   checklistItemDone,
+  checklistItemCompletedAt,
   extraChecklistItems,
   extraChecklistItemsByActivity = {},
   routineRatings = {},
@@ -88,6 +90,7 @@ export function CurrentActivityCard({
     ? orderChecklistItems(
         [...getActivityChecklist(current), ...extraChecklistItems],
         checklistItemDone,
+        checklistItemCompletedAt,
       )
     : [];
   const firstPendingId = checklist.find((item) => !checklistItemDone(item.id))?.id;
@@ -286,6 +289,7 @@ export function CurrentActivityCard({
             viewMode={getViewModeForSlide(previousSlide, context.current, nowMinutes)}
             activityIndicators={previousIndicators}
             checklistItemDone={checklistItemDone}
+            checklistItemCompletedAt={checklistItemCompletedAt}
             extraChecklistItems={extraChecklistItemsByActivity[previousSlide.id] ?? []}
             routineRatings={routineRatings}
             onToggleChecklistItem={onToggleChecklistItem}
@@ -310,6 +314,7 @@ export function CurrentActivityCard({
           setDraftPriority={setDraftPriority}
           activityIndicators={activityIndicators}
           checklistItemDone={checklistItemDone}
+          checklistItemCompletedAt={checklistItemCompletedAt}
           extraChecklistItems={extraChecklistItems}
           routineRatings={routineRatings}
           onToggleChecklistItem={onToggleChecklistItem}
@@ -329,6 +334,7 @@ export function CurrentActivityCard({
             viewMode={getViewModeForSlide(nextSlide, context.current, nowMinutes)}
             activityIndicators={nextIndicators}
             checklistItemDone={checklistItemDone}
+            checklistItemCompletedAt={checklistItemCompletedAt}
             extraChecklistItems={extraChecklistItemsByActivity[nextSlide.id] ?? []}
             routineRatings={routineRatings}
             onToggleChecklistItem={onToggleChecklistItem}
@@ -357,6 +363,7 @@ function ActivityCardPanel({
   setDraftPriority,
   activityIndicators = [],
   checklistItemDone,
+  checklistItemCompletedAt,
   extraChecklistItems,
   routineRatings,
   onToggleChecklistItem,
@@ -379,6 +386,7 @@ function ActivityCardPanel({
   setDraftPriority?: (priority: boolean | ((priority: boolean) => boolean)) => void;
   activityIndicators?: ActivityIndicator[];
   checklistItemDone: (id: string) => boolean;
+  checklistItemCompletedAt?: (id: string) => string | undefined;
   extraChecklistItems: ActivityChecklistItem[];
   routineRatings: Record<string, number>;
   onToggleChecklistItem: (id: string) => void;
@@ -399,10 +407,12 @@ function ActivityCardPanel({
   const checklistTitle = getOperationalBoxTitle(current);
   const routineRating = routineRatings[current.id];
   const titleFontSize = useFitText(titleRef, activityTitle, 28, 18);
-  const checklist = orderChecklistItems(
-    [...getActivityChecklist(current), ...extraChecklistItems],
+  const checklist = getVisibleChecklistItems(
+    orderChecklistItems([...getActivityChecklist(current), ...extraChecklistItems], checklistItemDone),
     checklistItemDone,
+    checklistItemCompletedAt,
   );
+  const openChecklistItems = checklist.filter((item) => !checklistItemDone(item.id)).length;
   const viewLabel = viewMode === "past" ? "ANTERIOR" : viewMode === "future" ? "PRÓXIMA" : "AGORA";
   const statusLabel = done
     ? "Concluído"
@@ -491,7 +501,7 @@ function ActivityCardPanel({
               {checklistTitle}
             </p>
             <span className="tabular text-xs font-medium text-muted-foreground">
-              {checklist.filter((item) => checklistItemDone(item.id)).length}/{checklist.length}
+              {openChecklistItems} abertas
             </span>
           </div>
           <div
@@ -510,10 +520,10 @@ function ActivityCardPanel({
                     ref={item.id === firstPendingId ? firstPendingRef : undefined}
                     type="button"
                     onClick={() => onToggleChecklistItem(item.id)}
-                    className="press relative flex w-full items-start gap-3 rounded-2xl bg-card/70 px-3.5 py-3 text-left"
+                    className="press relative flex w-full items-start gap-3 rounded-2xl bg-card/70 px-3.5 py-3 pr-7 text-left"
                   >
                     {item.priority && !itemDone ? (
-                      <span className="absolute right-2 top-2 size-2 rounded-full bg-primary" />
+                      <span className="absolute right-3 top-1/2 size-2 -translate-y-1/2 rounded-full bg-primary" />
                     ) : null}
                     <span
                       className={cn(
@@ -820,7 +830,7 @@ function useFitText(
   return `${fontSize}px`;
 }
 
-interface ActivityChecklistItem {
+export interface ActivityChecklistItem {
   id: string;
   title: string;
   priority?: boolean;
@@ -857,7 +867,7 @@ function ActivityPositionDots({ indicators }: { indicators: ActivityIndicator[] 
   );
 }
 
-function getActivityChecklist(current: NonNullable<CurrentActivity["current"]>) {
+export function getActivityChecklist(current: NonNullable<CurrentActivity["current"]>) {
   const seeds =
     current.activityChecklist && current.activityChecklist.length > 0
       ? current.activityChecklist
@@ -882,6 +892,20 @@ function orderChecklistItems(
     if (aDone !== bDone) return aDone ? -1 : 1;
     if (aDone && bDone) return 0;
     return Number(Boolean(b.priority)) - Number(Boolean(a.priority));
+  });
+}
+
+function getVisibleChecklistItems(
+  items: ActivityChecklistItem[],
+  checklistItemDone: (id: string) => boolean,
+  checklistItemCompletedAt?: (id: string) => string | undefined,
+) {
+  return items.filter((item) => {
+    if (!checklistItemDone(item.id)) return true;
+    const completedAt = checklistItemCompletedAt?.(item.id);
+    if (!completedAt) return true;
+
+    return Date.now() - new Date(completedAt).getTime() < 86_400_000;
   });
 }
 

@@ -12,7 +12,7 @@ export function PriorityItem({
   index: number;
   onToggle: () => void;
 }) {
-  const done = task.status === "done";
+  const done = Boolean(task.dueDate);
   return (
     <button
       type="button"
@@ -39,7 +39,7 @@ export function PriorityItem({
           {task.title}
         </span>
         <span className="block text-xs text-muted-foreground">
-          {task.category}
+          {formatFatherId(task.fatherId)}
         </span>
       </span>
       <span className="tabular shrink-0 text-xs text-muted-foreground">
@@ -47,4 +47,18 @@ export function PriorityItem({
       </span>
     </button>
   );
+}
+
+function formatFatherId(fatherId: string) {
+  return fatherId
+    .split(".")
+    .filter(Boolean)
+    .map((part) =>
+      part
+        .split("-")
+        .filter(Boolean)
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" "),
+    )
+    .join(" · ");
 }

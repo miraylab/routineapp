@@ -45,6 +45,13 @@ Area
 Areas iniciais: Michelin, Miray e Estudos. Saude fica em aba propria e nao deve entrar como area principal de projetos por enquanto. A Frente representa uma camada macro dentro da area, como Data-Driven na Michelin, Conteudo Inteligente ou Produto na Miray, e Produto/Lideranca/Tecnologia nos Estudos. O Projeto representa uma iniciativa concreta, como Dashboard RQE, Robo Instagram, Estruturacao Miray ou Curso de Produto. Tarefas podem pertencer diretamente a uma Frente quando forem acoes soltas, sem exigir a criacao de um projeto artificial.
 
 A pagina Projetos nao deve abrir com um header textual generico do tipo "Projetos / X areas / Y projetos", pois isso agrega pouco. Esse espaco superior deve ser preservado como um cartao visual; por enquanto fica vazio, e depois pode receber imagem e metricas mais uteis como numero de frentes e projetos. Os botoes de troca de area devem ter largura fixa igual entre si, mas compacta o suficiente para nao parecerem esticados. Ao filtrar uma area, nao deve haver um box extra repetindo o nome da area; as frentes aparecem diretamente como blocos. Cada frente deve mostrar primeiro seu nome, depois tarefas soltas da frente em pilulas, depois projetos ligados a ela dentro de boxes/cartoes. A frente nao deve exibir titulo "FRENTE" nem barra de progresso propria por enquanto.
+Na aba Projetos, a navegacao superior deve ter quatro entradas encaixadas na largura total: Michelin, Miray, Estudos e Pessoal. A entrada Pessoal deve ser um botao quadrado com icone de usuario e, por enquanto, representa as notas de alivio/coisas pessoais.
+Dentro de cada area, cada frente deve exibir tarefas abertas da propria frente como checklist clicavel. Se nao houver nenhuma tarefa aberta, a secao de tarefas nao aparece. A area de tarefas cresce conforme houver 1, 2 ou 3 tarefas abertas; acima disso, deve manter uma altura maxima fixa comum e usar rolagem interna.
+Cada frente deve ter uma seta discreta no canto superior direito, alinhada ao nome da frente, usando o mesmo simbolo visual dos cards de projeto. Clicar nessa seta, ou em qualquer area do card da frente que nao seja o bloco de projetos/controles internos, deve abrir a pagina de aprofundamento da frente em `/projetos/frentes/$frontId`.
+A pagina de aprofundamento da frente deve permitir adicionar novas tasks diretamente naquela frente usando o `fatherId` da propria frente, marcar tasks como concluidas, exibir descricao da frente e reservar espaco para outras informacoes importantes que serao definidas depois.
+Em projetos/frentes, contadores de tarefas devem priorizar tarefas abertas, nao "feitas de total". Como projetos podem durar meses e acumular mais de 100 tasks, o numero acionavel para Yuri e o estoque pendente atual.
+Encerrar, reabrir ou gerenciar estado de frentes nao deve acontecer diretamente na pagina Projetos, para evitar encerramentos acidentais em uma tela de leitura. Essa acao deve ficar para uma futura tela de gerenciamento. A pagina Projetos deve exibir apenas a leitura operacional das frentes ativas, sem pilula "Frente ativa" e sem botao de filtro.
+Na tela Hoje, nao deve existir um atalho global solto para criar task. A criacao operacional acontece dentro do card da atividade em foco, porque ali o contexto ja esta definido. Ao adicionar um item no card de uma atividade/projeto, ele pertence naturalmente aquele contexto. Tarefas de projetos que nao foram trabalhados hoje devem ser adicionadas pela tela do proprio projeto, em "PROXIMAS ACOES".
 
 O diferencial central e o contexto temporal. A aplicacao deve saber o dia, a hora e o minuto atuais, e usar isso para identificar qual atividade deveria estar acontecendo naquele momento.
 
@@ -114,11 +121,13 @@ No card principal de atividade atual, existe uma separacao conceitual entre cont
 - Textos estruturais do card, como categoria, titulo da atividade, horarios e status, devem permanecer em uma unica linha. Quando houver risco de quebra, a fonte do titulo deve diminuir ate caber. A excecao sao os textos das tasks do checklist, que podem quebrar linha dentro da area fixa do checklist.
 - Quando o usuario tentar navegar por gesto para antes da primeira atividade ou depois da ultima atividade do dia, o card deve mostrar um feedback animado discreto indicando "Nada antes" ou "Nada depois".
 - Quando `activityChecklist` nao existir, `nextAction` pode funcionar como fallback de item unico.
-- O checklist deve exibir contador de itens concluidos no canto superior direito, alinhado com a palavra CHECKLIST. O texto de cada item deve poder quebrar linha para permitir leitura completa, sem truncamento.
+- O checklist deve exibir contador de itens abertos no canto superior direito, alinhado com a palavra CHECKLIST. O texto de cada item deve poder quebrar linha para permitir leitura completa, sem truncamento.
 - A area visual do checklist deve ter altura fixa e usar rolagem interna. Com o card principal mais alto, o checklist deve ocupar bem o espaco disponivel: maior tanto em cards com detalhes quanto em cards sem detalhes, e ainda maior quando nao houver box "VER DETALHES". Itens concluidos ficam acima; itens pendentes ficam abaixo. Ao abrir a atividade, a rolagem deve iniciar no primeiro item pendente, permitindo rolar para cima para ver o que ja foi executado e para baixo para ver o que falta executar.
 - Deve existir um controle para adicionar itens manualmente ao checklist da atividade atual.
 - O card de atividade atual nao deve ter botao separado de concluir; o checklist deve concentrar a execucao da atividade.
 - Itens do checklist podem ter flag `priority`. Enquanto estiverem pendentes, itens prioritarios aparecem no topo, preservando a ordem de entrada entre eles, e devem receber destaque por uma bolinha verde discreta no canto superior direito do item, sem contorno e sem pilula textual ocupando espaco. Itens sem prioridade aparecem depois, tambem preservando a ordem de entrada. Depois de concluidos, os itens nao precisam mais manter hierarquia de prioridade. O controle manual de prioridade deve usar icone de bandeira, sem texto.
+- A flag `priority` em itens de checklist representa, na pratica, tasks rapidas de menos de 5 minutos. A tela Hoje deve ter um box global "TAREFAS RÁPIDAS" logo abaixo do header e antes do card principal, que aparece somente quando houver itens `priority` pendentes em qualquer bloco do dia, independentemente do bloco atual. Ao concluir todas, o box desaparece. A ideia e ajudar Yuri a tirar micro pendencias da frente rapidamente.
+- Ao concluir itens de checklist, o app deve salvar timestamp de conclusao. Itens finalizados devem continuar visiveis apenas quando tiverem sido concluidos ha menos de 24 horas; tarefas finalizadas ontem ou antes nao precisam aparecer no checklist operacional.
 - Os itens marcados e itens adicionados manualmente ao checklist da atividade devem persistir localmente no `localStorage`.
 - Por ser mobile first, rolagens internas devem preservar o gesto natural de arrastar/rolar, mas sem exibir barras visuais de rolagem. A utilidade `app-scrollbar` deve esconder a barra mantendo o scroll funcional.
 - A tela Hoje nao deve mais exibir blocos separados de "PROXIMO", o bloco de progresso "HOJE" nem o bloco "ROTINA"; essas informacoes foram absorvidas pelo card principal/slideshow.
@@ -126,7 +135,7 @@ No card principal de atividade atual, existe uma separacao conceitual entre cont
 - O cartao que representa a atividade em andamento no horario atual deve ter mais destaque que cartoes passados/futuros, mas sem virar um bloco verde. Usar um realce sutil: borda primaria um pouco mais grossa, baixa opacidade e sombra/halo discreto, mantendo o fundo escuro do card. Apenas esse card em andamento deve ter a palavra "AGORA" e a pilula de status em verde; em cartoes anteriores/futuros esses artefatos devem ficar em cinza.
 - O formato comprido indica o que esta em andamento no horario atual, como se a bolinha tivesse sido esticada para os lados sem perder as bordas arredondadas. Se a atividade em andamento nao for o card selecionado, ela deve ficar comprida em cinza; se tambem for o card selecionado, deve ficar comprida em verde.
 - Preenchido indica compromisso/atividade; vazado indica tempo livre. Quando o estado atual em foco for "Tempo livre", ele nao deve aparecer como compromisso cinza. Deve entrar na posicao temporal correta como uma bolinha/pilula extra vazada, usando contorno verde quando selecionado e contorno cinza quando nao selecionado.
-- O antigo bloco "RESULTADOS DE HOJE" passa a ser "CONSTRUÇÃO DE HÁBITOS". No MVP ele deve mostrar apenas a lista de habitos esperados para o dia atual, cada item como texto simples em formato de checklist. Cada item tambem deve ter, na lateral direita, um quadrado pequeno com bordas arredondadas e contador central de dias consecutivos aplicando aquele habito. Ao marcar o habito do dia como feito, o contador visual deve aumentar em 1; ao desmarcar, volta ao valor base. Nao deve haver botao para adicionar habito nessa tela; no lugar dele existe um botao "BLOCO DE NOTAS" destacado visualmente, que abre um campo de texto com botao de envio. Cada envio deve virar uma entrada separada na tabela/lista de notas daquele dia, com horario, para permitir varios registros ao longo do dia.
+- O antigo bloco "RESULTADOS DE HOJE" passa a ser "CONSTRUÇÃO DE HÁBITOS". No MVP ele deve mostrar apenas a lista de habitos esperados para o dia atual, cada item como texto simples em formato de checklist. Cada item tambem deve ter, na lateral direita, um quadrado pequeno com bordas arredondadas e contador central de dias consecutivos aplicando aquele habito. Ao marcar o habito do dia como feito, o contador visual deve aumentar em 1; ao desmarcar, volta ao valor base. O contador superior do bloco deve mostrar quantos habitos ainda estao abertos, nao "feitos de total". Nao deve haver botao para adicionar habito nessa tela; no lugar dele existe um botao "BLOCO DE NOTAS" destacado visualmente, que abre um campo de texto com botao de envio. Cada envio deve virar uma entrada separada na tabela/lista de notas daquele dia, com horario, para permitir varios registros ao longo do dia.
 - A tela Hoje tambem deve trazer, abaixo da construcao de habitos, uma leitura de semana compacta. O bloco "FOCO DA SEMANA" nao deve ser checklist e o container externo deve ser verde como o header do topo, por ser uma area de destaque. Dentro dele, os marcos importantes da semana aparecem em cartoes horizontais/linhas empilhadas. Cada card deve usar o mesmo efeito de brilho/gradiente da pilula da meta do dia, com o dia curto como marcador discreto a esquerda e o marco em texto claro. O texto do marco nao deve truncar; o card cresce verticalmente para caber o conteudo. Ao clicar, a linha expande e mostra o detalhamento; abaixo da descricao deve aparecer um botao para marcar/desmarcar o marco, persistindo localmente. Antes de concluir, o botao deve dizer "CONCLUIR" e ter maior destaque; depois de concluido, deve dizer "CONCLUÍDO", ficar visualmente mais discreto, riscar o texto do marco como nas tasks e fechar automaticamente a pilula expandida ao clicar. Abaixo dele entra "VISÃO DOS DIAS", reaproveitando a leitura de agenda semanal com rolagem funcional sem barra visual.
 
 ## Stack Atual
@@ -189,6 +198,18 @@ No futuro, os mocks poderao ser substituidos por uma API, Google Sheets, Google 
 
 Dados mockados especificos para desenvolvimento local podem ficar em `src/data/mock/`. Esses mocks existem para facilitar trabalho visual e funcional no Codex quando uma API externa estiver indisponivel localmente. Em producao, a aplicacao deve priorizar dados reais vindos das rotas server-side, APIs e futuramente planilhas; mocks locais nao devem mascarar falhas de integracao no deploy.
 
+Estrutura base de tarefas:
+
+- Toda task, independentemente de ter sido criada no card de uma atividade, em Projetos ou futuramente por planilha/API, deve convergir para o mesmo contrato simples: `id`, `title`, `fatherId`, `quick`, `visibleFrom`, `recurrence` e `dueDate`.
+- `id` identifica a task em si e deve permanecer simples/unico, sem carregar a hierarquia inteira.
+- `fatherId` representa onde a task mora. Ele concatena os ids da hierarquia em formato de caminho, por exemplo `michelin.michelin-data-driven.dashboard-rqe`, `miray.miray-conteudo.robo-instagram`, `estudos.estudos-produto.curso-produto` ou apenas `pessoal` quando for uma task solta sem projeto.
+- `quick` substitui a ideia antiga de prioridade numerica para tarefas globais: quando `true`, significa tarefa rapida de menos de 5 minutos.
+- `visibleFrom` define a partir de quando a tarefa pode aparecer na experiencia operacional.
+- `recurrence` guarda a recorrencia quando existir.
+- `dueDate` significa exclusivamente data de conclusao/completude. Se estiver vazio, a tarefa ainda esta aberta. Se estiver preenchido, a tarefa foi realizada naquela data. `dueDate` nao deve ser usado como prazo, data de execucao ou data de vencimento.
+- Regra geral de visibilidade: uma task concluida so desaparece das telas operacionais quando `dueDate` for diferente de hoje. Se `dueDate` for igual a hoje, ela continua aparecendo na tela, marcada/riscada. Isso vale para todas as telas e comportamentos que listam tasks ou proximas acoes.
+- A task base nao deve ter `deadline`. Prazos podem existir no nivel de projeto/marco/entrega, mas nao entram na estrutura simples da task no MVP.
+
 ## Integracoes Externas
 
 - Intervals.icu foi iniciado como integracao server-side para leitura de dados de saude vindos do fluxo Huawei Watch -> Huawei Health -> Health Sync -> Intervals.icu -> Yuri OS.
@@ -236,6 +257,8 @@ Atualmente sao persistidos:
 - resultados-chave concluidos;
 - configuracao do modo demonstracao.
 
+Em tarefas e proximas acoes de projeto, a conclusao deve ser derivada da presenca de `dueDate`: vazio significa aberta, preenchido significa concluida na data informada. A lista local `doneTasks` permanece apenas como mecanismo legado/local para alternar visualmente a conclusao dos mocks, mas o contrato de dados deve continuar sendo `dueDate`.
+
 Nao existe backend, banco, login, autenticacao ou sincronizacao remota neste momento.
 
 ## Rotas Atuais
@@ -244,6 +267,7 @@ Nao existe backend, banco, login, autenticacao ou sincronizacao remota neste mom
 - `/hoje`: rota legada da timeline do dia, mantida temporariamente ate decidirmos remover ou redirecionar
 - `/semana`: rota/tela antiga de semana, removida da navegacao principal porque o foco semanal foi absorvido pela tela Hoje
 - `/projetos`: lista de projetos
+- `/projetos/frentes/$frontId`: detalhe/aprofundamento de uma frente, com descricao, tarefas da frente e projetos ligados
 - `/projetos/$projectId`: detalhe de projeto
 - `/mais`: hub secundario
 - `/objetivos`: objetivos maiores
@@ -297,7 +321,7 @@ Hoje deve usar um icone que represente gestao e execucao do dia, nao apenas pass
 - A pasta local investigada nao estava inicializada como repositorio Git.
 - Nao havia `node_modules` instalado na investigacao inicial.
 - Semana, mes e alguns textos temporais estao fixos nos mocks.
-- `dueDate` de tarefas e texto livre, como `"hoje"`.
+- Alguns estados locais ainda usam nomes legados como `doneTasks`, mesmo que a semantica nova de tarefas seja baseada em `dueDate` como data de conclusao.
 - Progresso semanal e mensal ainda nao deriva totalmente das interacoes reais.
 - A agenda nao trata blocos que cruzam meia-noite.
 - Algumas rotas consomem mocks diretamente em vez de passar sempre pelo store.
