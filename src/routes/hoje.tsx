@@ -31,7 +31,7 @@ function HojePage() {
   const { context, nowMinutes, dayOfWeek, realNow, tasks, toggleTask, addTask, todayKey } = useStore();
   const [draft, setDraft] = useState("");
 
-  const visibleTasks = tasks.filter((t) => taskIsVisibleToday(t, todayKey));
+  const visibleTasks = orderTasksByDoneLast(tasks.filter((t) => taskIsVisibleToday(t, todayKey)));
   const openTasks = visibleTasks.filter((t) => !t.dueDate).length;
 
   return (
@@ -105,4 +105,8 @@ function taskIsVisibleToday(task: { dueDate?: string; visibleFrom?: string }, to
   const visibleByStart = !task.visibleFrom || task.visibleFrom <= todayKey;
   const visibleByCompletion = !task.dueDate || task.dueDate === todayKey;
   return visibleByStart && visibleByCompletion;
+}
+
+function orderTasksByDoneLast<T extends { dueDate?: string }>(tasks: T[]) {
+  return [...tasks].sort((a, b) => Number(Boolean(a.dueDate)) - Number(Boolean(b.dueDate)));
 }

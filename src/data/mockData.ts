@@ -65,13 +65,15 @@ export interface Project {
   frontTitle: string;
   objective: string;
   progress: number;
-  status: "Em andamento" | "Planejado" | "Em pausa";
+  status: ProjectStatus;
   health: "No prazo" | "Atenção" | "Atrasado";
   nextMilestone: string;
   nextAction: string;
   deadline: string;
   actions: ProjectAction[];
 }
+
+export type ProjectStatus = "Em andamento" | "Concluído" | "Arquivado";
 
 export interface Goal {
   id: string;

@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -7,7 +8,7 @@ import {
   type RefObject,
   type PointerEvent,
 } from "react";
-import { Check, ChevronDown, Flag, Plus } from "lucide-react";
+import { Check, Flag, Mic, Plus, Send } from "lucide-react";
 
 import { ProgressBar } from "./ProgressBar";
 import { StatusBadge } from "./StatusBadge";
@@ -26,6 +27,7 @@ interface Props {
   project?: Project | undefined;
   projects?: Project[];
   nowMinutes: number;
+  todayKey: string;
   done: boolean;
   blockDoneById?: (id: string) => boolean;
   activityIndicators?: ActivityIndicator[];
@@ -36,6 +38,8 @@ interface Props {
   routineRatings?: Record<string, number>;
   onToggleChecklistItem: (id: string) => void;
   onAddChecklistItem: (title: string, priority: boolean) => void;
+  onAddLearningNote?: (text: string) => void;
+  onAddLearningAudio?: (audioDataUrl: string, mimeType: string) => void;
   onSetRoutineRating?: (id: string, rating: number) => void;
   viewMode?: "current" | "past" | "future";
   previousSlide?: ActivitySlide | null;
@@ -51,6 +55,7 @@ export function CurrentActivityCard({
   project,
   projects = [],
   nowMinutes,
+  todayKey,
   done,
   blockDoneById,
   activityIndicators = [],
@@ -61,6 +66,8 @@ export function CurrentActivityCard({
   routineRatings = {},
   onToggleChecklistItem,
   onAddChecklistItem,
+  onAddLearningNote,
+  onAddLearningAudio,
   onSetRoutineRating,
   viewMode = "current",
   previousSlide = null,
@@ -70,9 +77,9 @@ export function CurrentActivityCard({
   onNavigatePrevious,
   onNavigateNext,
 }: Props) {
-  const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [draftPriority, setDraftPriority] = useState(false);
+  const [learningDraft, setLearningDraft] = useState("");
   const [dragX, setDragX] = useState(0);
   const [isSettling, setIsSettling] = useState(false);
   const [isResettingTrack, setIsResettingTrack] = useState(false);
@@ -85,12 +92,17 @@ export function CurrentActivityCard({
   const edgeFeedbackTimeoutRef = useRef<number | null>(null);
   const slideTransitionTimeoutRef = useRef<number | null>(null);
   const resetFrameRef = useRef<number | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<BlobPart[]>([]);
+  const recordingStreamRef = useRef<MediaStream | null>(null);
+  const [isRecordingLearningAudio, setIsRecordingLearningAudio] = useState(false);
   const { current } = context;
   const checklist = current
     ? orderChecklistItems(
         [...getActivityChecklist(current), ...extraChecklistItems],
         checklistItemDone,
         checklistItemCompletedAt,
+        todayKey,
       )
     : [];
   const firstPendingId = checklist.find((item) => !checklistItemDone(item.id))?.id;
@@ -138,9 +150,71 @@ export function CurrentActivityCard({
       if (resetFrameRef.current) {
         window.cancelAnimationFrame(resetFrameRef.current);
       }
+      const recorder = mediaRecorderRef.current;
+      if (recorder && recorder.state !== "inactive") {
+        recorder.onstop = null;
+        recorder.stop();
+      }
+      recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
     },
     [],
   );
+
+  const handleToggleLearningAudioRecording = useCallback(async () => {
+    const activeRecorder = mediaRecorderRef.current;
+    if (activeRecorder?.state === "recording") {
+      activeRecorder.stop();
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      recordingStreamRef.current = stream;
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const mimeType = recorder.mimeType || "audio/webm";
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        const reader = new FileReader();
+
+        reader.onloadend = () => {
+          if (typeof reader.result === "string") {
+            onAddLearningAudio?.(reader.result, mimeType);
+          }
+        };
+
+        reader.readAsDataURL(blob);
+        stream.getTracks().forEach((track) => track.stop());
+        if (recordingStreamRef.current === stream) {
+          recordingStreamRef.current = null;
+        }
+        mediaRecorderRef.current = null;
+        audioChunksRef.current = [];
+        setIsRecordingLearningAudio(false);
+      };
+
+      mediaRecorderRef.current = recorder;
+      setIsRecordingLearningAudio(true);
+      recorder.start();
+    } catch {
+      setIsRecordingLearningAudio(false);
+      recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
+      recordingStreamRef.current = null;
+      mediaRecorderRef.current = null;
+      audioChunksRef.current = [];
+    }
+  }, [onAddLearningAudio]);
 
   const handlePointerDown = (event: PointerEvent<HTMLElement>) => {
     if (isInteractiveElement(event.target)) return;
@@ -160,7 +234,6 @@ export function CurrentActivityCard({
 
     if (!isHorizontalDragRef.current && Math.abs(deltaX) > 12) {
       isHorizontalDragRef.current = Math.abs(deltaX) > Math.abs(deltaY) * 1.25;
-      if (isHorizontalDragRef.current && open) setOpen(false);
     }
 
     if (!isHorizontalDragRef.current) return;
@@ -253,10 +326,7 @@ export function CurrentActivityCard({
   return (
     <section
       ref={stageRef}
-      className={cn(
-        "rise relative touch-pan-y cursor-grab overflow-hidden transition-[height] duration-300 ease-out active:cursor-grabbing",
-        open ? "h-[710px]" : "h-[600px]",
-      )}
+      className="rise relative h-[600px] touch-pan-y cursor-grab overflow-hidden active:cursor-grabbing"
       style={slideStyle}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -290,10 +360,12 @@ export function CurrentActivityCard({
             activityIndicators={previousIndicators}
             checklistItemDone={checklistItemDone}
             checklistItemCompletedAt={checklistItemCompletedAt}
+            todayKey={todayKey}
             extraChecklistItems={extraChecklistItemsByActivity[previousSlide.id] ?? []}
             routineRatings={routineRatings}
             onToggleChecklistItem={onToggleChecklistItem}
             onAddChecklistItem={onAddChecklistItem}
+            onAddLearningNote={onAddLearningNote}
             onSetRoutineRating={onSetRoutineRating}
             className="pointer-events-none h-full w-full shrink-0"
           />
@@ -306,19 +378,23 @@ export function CurrentActivityCard({
           project={project}
           done={done}
           viewMode={viewMode}
-          open={open}
-          setOpen={setOpen}
           draft={draft}
           setDraft={setDraft}
           draftPriority={draftPriority}
           setDraftPriority={setDraftPriority}
+          learningDraft={learningDraft}
+          setLearningDraft={setLearningDraft}
           activityIndicators={activityIndicators}
           checklistItemDone={checklistItemDone}
           checklistItemCompletedAt={checklistItemCompletedAt}
+          todayKey={todayKey}
           extraChecklistItems={extraChecklistItems}
           routineRatings={routineRatings}
           onToggleChecklistItem={onToggleChecklistItem}
           onAddChecklistItem={onAddChecklistItem}
+          onAddLearningNote={onAddLearningNote}
+          onToggleLearningAudioRecording={handleToggleLearningAudioRecording}
+          isRecordingLearningAudio={isRecordingLearningAudio}
           onSetRoutineRating={onSetRoutineRating}
           checklistScrollRef={checklistScrollRef}
           firstPendingRef={firstPendingRef}
@@ -335,10 +411,12 @@ export function CurrentActivityCard({
             activityIndicators={nextIndicators}
             checklistItemDone={checklistItemDone}
             checklistItemCompletedAt={checklistItemCompletedAt}
+            todayKey={todayKey}
             extraChecklistItems={extraChecklistItemsByActivity[nextSlide.id] ?? []}
             routineRatings={routineRatings}
             onToggleChecklistItem={onToggleChecklistItem}
             onAddChecklistItem={onAddChecklistItem}
+            onAddLearningNote={onAddLearningNote}
             onSetRoutineRating={onSetRoutineRating}
             className="pointer-events-none h-full w-full shrink-0"
           />
@@ -355,19 +433,23 @@ function ActivityCardPanel({
   project,
   done,
   viewMode,
-  open = false,
-  setOpen,
   draft = "",
   setDraft,
   draftPriority = false,
   setDraftPriority,
+  learningDraft = "",
+  setLearningDraft,
   activityIndicators = [],
   checklistItemDone,
   checklistItemCompletedAt,
+  todayKey,
   extraChecklistItems,
   routineRatings,
   onToggleChecklistItem,
   onAddChecklistItem,
+  onAddLearningNote,
+  onToggleLearningAudioRecording,
+  isRecordingLearningAudio = false,
   onSetRoutineRating,
   checklistScrollRef,
   firstPendingRef,
@@ -378,19 +460,23 @@ function ActivityCardPanel({
   project?: Project | undefined;
   done: boolean;
   viewMode: "current" | "past" | "future";
-  open?: boolean;
-  setOpen?: (open: boolean | ((open: boolean) => boolean)) => void;
   draft?: string;
   setDraft?: (draft: string) => void;
   draftPriority?: boolean;
   setDraftPriority?: (priority: boolean | ((priority: boolean) => boolean)) => void;
+  learningDraft?: string;
+  setLearningDraft?: (draft: string) => void;
   activityIndicators?: ActivityIndicator[];
   checklistItemDone: (id: string) => boolean;
   checklistItemCompletedAt?: (id: string) => string | undefined;
+  todayKey: string;
   extraChecklistItems: ActivityChecklistItem[];
   routineRatings: Record<string, number>;
   onToggleChecklistItem: (id: string) => void;
   onAddChecklistItem: (title: string, priority: boolean) => void;
+  onAddLearningNote?: (text: string) => void;
+  onToggleLearningAudioRecording?: () => void;
+  isRecordingLearningAudio?: boolean;
   onSetRoutineRating?: (id: string, rating: number) => void;
   checklistScrollRef?: RefObject<HTMLDivElement | null>;
   firstPendingRef?: RefObject<HTMLButtonElement | null>;
@@ -404,6 +490,7 @@ function ActivityCardPanel({
 
   const activityTitle = current.subtitle ?? current.title;
   const isRoutine = current.cardType === "routine";
+  const isStudy = current.category === "Estudos";
   const checklistTitle = getOperationalBoxTitle(current);
   const routineRating = routineRatings[current.id];
   const titleFontSize = useFitText(titleRef, activityTitle, 28, 18);
@@ -411,6 +498,7 @@ function ActivityCardPanel({
     orderChecklistItems([...getActivityChecklist(current), ...extraChecklistItems], checklistItemDone),
     checklistItemDone,
     checklistItemCompletedAt,
+    todayKey,
   );
   const openChecklistItems = checklist.filter((item) => !checklistItemDone(item.id)).length;
   const viewLabel = viewMode === "past" ? "ANTERIOR" : viewMode === "future" ? "PRÓXIMA" : "AGORA";
@@ -428,12 +516,7 @@ function ActivityCardPanel({
       : viewMode === "future"
         ? `Duração ${formatDuration(duration)}`
         : "Finalizada";
-  const detailObjective = [project?.objective, current.expectedResult, current.description].find(
-    (value) => typeof value === "string" && value.trim().length > 0,
-  );
   const hasDeliveryDetail = Boolean(project?.deadline);
-  const hasObjectiveDetail = Boolean(detailObjective);
-  const hasDetails = hasDeliveryDetail || hasObjectiveDetail;
   const isCurrentLiveCard = viewMode === "current" && !done;
 
   return (
@@ -477,7 +560,20 @@ function ActivityCardPanel({
         {activityTitle}
       </h2>
 
-      <div className="tabular mt-5 flex items-baseline justify-between text-sm">
+      {hasDeliveryDetail ? (
+        <div className="mt-4 flex">
+          <StatusBadge tone="active" className="shrink-0">
+            {formatDeadlineDistance(project.deadline)}
+          </StatusBadge>
+        </div>
+      ) : null}
+
+      <div
+        className={cn(
+          "tabular flex items-baseline justify-between text-sm",
+          hasDeliveryDetail ? "mt-4" : "mt-5",
+        )}
+      >
         <span className="shrink-0 whitespace-nowrap text-muted-foreground">
           {current.startTime} — {current.endTime}
         </span>
@@ -491,11 +587,10 @@ function ActivityCardPanel({
         <RoutineReviewBox
           current={current}
           rating={routineRating}
-          hasDetails={hasDetails}
           onSetRating={(rating) => onSetRoutineRating?.(current.id, rating)}
         />
       ) : (
-        <div className="mt-5 rounded-2xl bg-elevated/60 p-4">
+        <div className="mt-5 flex min-h-0 flex-1 flex-col rounded-2xl bg-elevated/60 p-4">
           <div className="flex items-center justify-between gap-3">
             <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
               {checklistTitle}
@@ -506,10 +601,7 @@ function ActivityCardPanel({
           </div>
           <div
             ref={checklistScrollRef}
-            className={cn(
-              "app-scrollbar relative mt-3 space-y-2 overflow-y-auto pr-1",
-              hasDetails ? "h-[190px]" : "h-[235px]",
-            )}
+            className="app-scrollbar relative mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1"
           >
             {checklist.length > 0 ? (
               checklist.map((item) => {
@@ -552,99 +644,83 @@ function ActivityCardPanel({
               </div>
             )}
           </div>
-          <form
-            className="mt-2 flex gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!draft.trim()) return;
-              onAddChecklistItem(draft.trim(), draftPriority);
-              setDraft?.("");
-              setDraftPriority?.(false);
-            }}
-          >
-            <input
-              value={draft}
-              onChange={(event) => setDraft?.(event.target.value)}
-              placeholder="Adicionar item"
-              className="h-11 min-w-0 flex-1 rounded-2xl bg-card/70 px-3.5 text-[13px] outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
-            />
-            <button
-              type="button"
-              onClick={() => setDraftPriority?.((value) => !value)}
-              className={cn(
-                "press grid size-11 shrink-0 place-items-center rounded-2xl border",
-                draftPriority ? "border-primary text-primary" : "border-border text-muted-foreground",
-              )}
-              aria-label="Marcar novo item como prioridade"
+          {isStudy ? (
+            <form
+              className="mt-2 flex gap-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!learningDraft.trim()) return;
+                onAddLearningNote?.(learningDraft.trim());
+                setLearningDraft?.("");
+              }}
             >
-              <Flag className="size-4" />
-            </button>
-            <button
-              type="submit"
-              className="press grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground"
-              aria-label="Adicionar item ao checklist"
+              <input
+                value={learningDraft}
+                onChange={(event) => setLearningDraft?.(event.target.value)}
+                placeholder="Comentar aprendizado"
+                className="h-11 min-w-0 flex-1 rounded-2xl bg-card/70 px-3.5 text-[13px] outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+              />
+              <button
+                type="button"
+                onClick={onToggleLearningAudioRecording}
+                className={cn(
+                  "press grid size-11 shrink-0 place-items-center rounded-2xl border transition-colors duration-300",
+                  isRecordingLearningAudio
+                    ? "border-primary bg-primary text-primary-foreground shadow-[0_0_22px_rgba(55,220,184,0.34)]"
+                    : "border-border bg-card/70 text-muted-foreground",
+                )}
+                aria-label={isRecordingLearningAudio ? "Parar gravação" : "Gravar áudio"}
+              >
+                <Mic className={cn("size-4", isRecordingLearningAudio && "live-dot")} />
+              </button>
+              <button
+                type="submit"
+                disabled={!learningDraft.trim()}
+                className="press grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+                aria-label="Enviar aprendizado"
+              >
+                <Send className="size-4" />
+              </button>
+            </form>
+          ) : (
+            <form
+              className="mt-2 flex gap-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!draft.trim()) return;
+                onAddChecklistItem(draft.trim(), draftPriority);
+                setDraft?.("");
+                setDraftPriority?.(false);
+              }}
             >
-              <Plus className="size-4" />
-            </button>
-          </form>
+              <input
+                value={draft}
+                onChange={(event) => setDraft?.(event.target.value)}
+                placeholder="Adicionar item"
+                className="h-11 min-w-0 flex-1 rounded-2xl bg-card/70 px-3.5 text-[13px] outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+              />
+              <button
+                type="button"
+                onClick={() => setDraftPriority?.((value) => !value)}
+                className={cn(
+                  "press grid size-11 shrink-0 place-items-center rounded-2xl border",
+                  draftPriority ? "border-primary text-primary" : "border-border text-muted-foreground",
+                )}
+                aria-label="Marcar novo item como prioridade"
+              >
+                <Flag className="size-4" />
+              </button>
+              <button
+                type="submit"
+                className="press grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground"
+                aria-label="Adicionar item ao checklist"
+              >
+                <Plus className="size-4" />
+              </button>
+            </form>
+          )}
         </div>
       )}
-
-      {hasDetails ? (
-        <div className="mt-3 rounded-2xl bg-elevated/60 p-4">
-          <button
-            type="button"
-            onClick={() => setOpen?.((o) => !o)}
-            className="press flex w-full items-center justify-between gap-3 text-left"
-          >
-            <span className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
-              VER DETALHES
-            </span>
-            <ChevronDown
-              className={cn(
-                "size-4 shrink-0 text-muted-foreground transition-transform duration-300",
-                open && "rotate-180",
-              )}
-            />
-          </button>
-
-          {open ? (
-            <div className="rise mt-4 text-sm">
-              {hasDeliveryDetail ? (
-                <>
-                  <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
-                    ENTREGA
-                  </p>
-                  <div className="mt-2 flex items-center justify-between gap-3">
-                    <span className="tabular whitespace-nowrap text-sm font-medium text-foreground">
-                      {project.deadline}
-                    </span>
-                    <StatusBadge tone="active" className="shrink-0">
-                      {formatDeadlineDistance(project.deadline)}
-                    </StatusBadge>
-                  </div>
-                </>
-              ) : null}
-
-              {hasObjectiveDetail ? (
-                <div
-                  className={cn(
-                    "app-scrollbar max-h-[96px] overflow-y-auto pr-1",
-                    hasDeliveryDetail ? "mt-4" : "mt-0",
-                  )}
-                >
-                  <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
-                    OBJETIVO
-                  </p>
-                  <p className="mt-2 text-sm leading-relaxed text-foreground/90">
-                    {detailObjective}
-                  </p>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
 
       {activityIndicators.length > 0 ? (
         <ActivityPositionDots indicators={activityIndicators} />
@@ -662,19 +738,17 @@ function isInteractiveElement(target: EventTarget | null) {
 function RoutineReviewBox({
   current,
   rating,
-  hasDetails,
   onSetRating,
 }: {
   current: NonNullable<CurrentActivity["current"]>;
   rating: number | undefined;
-  hasDetails: boolean;
   onSetRating: (rating: number) => void;
 }) {
   const items = current.routineItems ?? [];
   const ratingOptions = [0, 1, 2, 3, 4, 5];
 
   return (
-    <div className="mt-5 rounded-2xl bg-elevated/60 p-4">
+    <div className="mt-5 flex min-h-0 flex-1 flex-col rounded-2xl bg-elevated/60 p-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
           {getOperationalBoxTitle(current)}
@@ -686,12 +760,7 @@ function RoutineReviewBox({
         ) : null}
       </div>
 
-      <div
-        className={cn(
-          "app-scrollbar mt-3 space-y-2 overflow-y-auto pr-1",
-          hasDetails ? "h-[190px]" : "h-[235px]",
-        )}
-      >
+      <div className="app-scrollbar mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
         {items.length > 0 ? (
           items.map((item) => (
             <div
@@ -845,7 +914,7 @@ interface ActivityIndicator {
 
 function ActivityPositionDots({ indicators }: { indicators: ActivityIndicator[] }) {
   return (
-    <div className="mt-3 flex items-center justify-center gap-1.5">
+    <div className="mt-3 flex h-3 shrink-0 items-center justify-center gap-1.5">
       {indicators.map((indicator) => (
         <span
           key={indicator.id}
@@ -889,7 +958,7 @@ function orderChecklistItems(
   return [...items].sort((a, b) => {
     const aDone = checklistItemDone(a.id);
     const bDone = checklistItemDone(b.id);
-    if (aDone !== bDone) return aDone ? -1 : 1;
+    if (aDone !== bDone) return aDone ? 1 : -1;
     if (aDone && bDone) return 0;
     return Number(Boolean(b.priority)) - Number(Boolean(a.priority));
   });
@@ -899,25 +968,22 @@ function getVisibleChecklistItems(
   items: ActivityChecklistItem[],
   checklistItemDone: (id: string) => boolean,
   checklistItemCompletedAt?: (id: string) => string | undefined,
+  todayKey?: string,
 ) {
   return items.filter((item) => {
     if (!checklistItemDone(item.id)) return true;
     const completedAt = checklistItemCompletedAt?.(item.id);
     if (!completedAt) return true;
 
-    return Date.now() - new Date(completedAt).getTime() < 86_400_000;
+    return toDateKey(new Date(completedAt)) === todayKey;
   });
 }
 
-function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
-        {label.toUpperCase()}
-      </p>
-      <p className="mt-1 leading-snug">{value}</p>
-    </div>
-  );
+function toDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function formatDeadlineDistance(deadline: string) {

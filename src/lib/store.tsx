@@ -24,6 +24,7 @@ import {
   weekMilestones,
   type DailyHabit,
   type Project,
+  type ProjectStatus,
   type Task,
 } from "@/data/mockData";
 import { getCurrentActivity, toMinutes } from "@/lib/schedule";
@@ -42,7 +43,10 @@ interface PersistedState {
   doneActivityChecklistItems: string[];
   doneActivityChecklistItemAt: Record<string, string>;
   extraActivityChecklistItems: Record<string, { id: string; title: string; priority?: boolean }[]>;
+  activityLearningEntries: Record<string, ActivityLearningEntry[]>;
   routineRatings: Record<string, Record<string, number>>;
+  projectStatuses: Record<string, ProjectStatus>;
+  frontStatuses: Record<string, ProjectStatus>;
   projectActions: Record<string, string[]>; // projectId -> action ids toggled
   extraActions: Record<
     string,
@@ -65,6 +69,20 @@ interface DailyJournalEntry {
   id: string;
   time: string;
   text: string;
+  type?: "text" | "audio";
+  audioDataUrl?: string;
+  mimeType?: string;
+  createdAt: string;
+}
+
+interface ActivityLearningEntry {
+  id: string;
+  activityId: string;
+  time: string;
+  text: string;
+  type?: "text" | "audio";
+  audioDataUrl?: string;
+  mimeType?: string;
   createdAt: string;
 }
 
@@ -79,7 +97,10 @@ const initialState: PersistedState = {
   doneActivityChecklistItems: [],
   doneActivityChecklistItemAt: {},
   extraActivityChecklistItems: {},
+  activityLearningEntries: {},
   routineRatings: {},
+  projectStatuses: {},
+  frontStatuses: {},
   projectActions: {},
   extraActions: {},
   doneKeyResults: weekFocus.keyResults.filter((k) => k.done).map((k) => k.id),
@@ -195,9 +216,9 @@ function useStoreValue() {
           0,
           Math.min(100, Math.round(p.progress + (done - seedDone) * step)),
         );
-        return { ...p, actions, progress };
+        return { ...p, actions, progress, status: state.projectStatuses[p.id] ?? p.status };
       }),
-    [state.projectActions, state.extraActions, todayKey],
+    [state.projectActions, state.extraActions, state.projectStatuses, todayKey],
   );
 
   const keyResults = useMemo(
@@ -261,6 +282,32 @@ function useStoreValue() {
               id: `journal-${Date.now()}`,
               time,
               text: trimmed,
+              type: "text",
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+      }));
+    },
+    [todayKey],
+  );
+
+  const addDailyJournalAudioEntry = useCallback(
+    (audioDataUrl: string, mimeType: string, time: string) => {
+      if (!audioDataUrl) return;
+      setState((s) => ({
+        ...s,
+        dailyJournalEntries: {
+          ...(s.dailyJournalEntries ?? {}),
+          [todayKey]: [
+            ...(s.dailyJournalEntries?.[todayKey] ?? []),
+            {
+              id: `journal-audio-${Date.now()}`,
+              time,
+              text: "Audio do bloco de notas",
+              type: "audio",
+              audioDataUrl,
+              mimeType,
               createdAt: new Date().toISOString(),
             },
           ],
@@ -312,6 +359,57 @@ function useStoreValue() {
     [],
   );
 
+  const addActivityLearningEntry = useCallback(
+    (activityId: string, text: string, time: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      setState((s) => ({
+        ...s,
+        activityLearningEntries: {
+          ...(s.activityLearningEntries ?? {}),
+          [activityId]: [
+            ...(s.activityLearningEntries?.[activityId] ?? []),
+            {
+              id: `${activityId}:learning:${Date.now()}`,
+              activityId,
+              time,
+              text: trimmed,
+              type: "text",
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+      }));
+    },
+    [],
+  );
+
+  const addActivityLearningAudioEntry = useCallback(
+    (activityId: string, audioDataUrl: string, mimeType: string, time: string) => {
+      if (!audioDataUrl) return;
+      setState((s) => ({
+        ...s,
+        activityLearningEntries: {
+          ...(s.activityLearningEntries ?? {}),
+          [activityId]: [
+            ...(s.activityLearningEntries?.[activityId] ?? []),
+            {
+              id: `${activityId}:learning-audio:${Date.now()}`,
+              activityId,
+              time,
+              text: "Audio de aprendizado",
+              type: "audio",
+              audioDataUrl,
+              mimeType,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+      }));
+    },
+    [],
+  );
+
   const setRoutineRating = useCallback(
     (activityId: string, rating: number) =>
       setState((s) => ({
@@ -352,6 +450,30 @@ function useStoreValue() {
         projectActions: {
           ...s.projectActions,
           [projectId]: toggleId(s.projectActions[projectId] ?? [], actionId),
+        },
+      })),
+    [],
+  );
+
+  const setProjectStatus = useCallback(
+    (projectId: string, status: ProjectStatus) =>
+      setState((s) => ({
+        ...s,
+        projectStatuses: {
+          ...(s.projectStatuses ?? {}),
+          [projectId]: status,
+        },
+      })),
+    [],
+  );
+
+  const setFrontStatus = useCallback(
+    (frontId: string, status: ProjectStatus) =>
+      setState((s) => ({
+        ...s,
+        frontStatuses: {
+          ...(s.frontStatuses ?? {}),
+          [frontId]: status,
         },
       })),
     [],
@@ -465,6 +587,7 @@ function useStoreValue() {
     weekFocus,
     weekMilestones,
     simulation: state.simulation,
+    frontStatuses: state.frontStatuses ?? {},
     blockDone,
     activityChecklistItemDone,
     activityChecklistItemCompletedAt,
@@ -477,13 +600,18 @@ function useStoreValue() {
     toggleBlock,
     toggleActivityChecklistItem,
     addActivityChecklistItem,
+    addActivityLearningEntry,
+    addActivityLearningAudioEntry,
     setRoutineRating,
     toggleKeyResult,
     toggleWeekMilestone,
     toggleProjectAction,
+    setProjectStatus,
+    setFrontStatus,
     addProjectAction,
     addTask,
     addDailyJournalEntry,
+    addDailyJournalAudioEntry,
     setSimulation,
     resetState,
   };

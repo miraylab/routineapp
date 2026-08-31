@@ -1,9 +1,17 @@
 import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { Check, Flag, Plus } from "lucide-react";
+import { Link, createFileRoute } from "@tanstack/react-router";
+import { Check, ChevronDown, Flag, Plus, X } from "lucide-react";
 
 import { PageHeader } from "@/components/yuri/PageHeader";
-import type { Category, Project, Task } from "@/data/mockData";
+import { StatusBadge } from "@/components/yuri/StatusBadge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import type { Category, Project, ProjectStatus, Task } from "@/data/mockData";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -22,11 +30,17 @@ export const Route = createFileRoute("/projetos/frentes/$frontId")({
 
 function FrenteDetalhe() {
   const { frontId } = Route.useParams();
-  const { projects, tasks, todayKey, toggleTask, addTask } = useStore();
-  const front = useMemo(() => buildFrontDetail(frontId, projects, tasks), [frontId, projects, tasks]);
+  const { projects, tasks, todayKey, frontStatuses, toggleTask, addTask, setFrontStatus } = useStore();
+  const front = useMemo(
+    () => buildFrontDetail(frontId, projects, tasks, frontStatuses),
+    [frontId, frontStatuses, projects, tasks],
+  );
   const [draft, setDraft] = useState("");
   const [quick, setQuick] = useState(false);
   const [visibleFrom, setVisibleFrom] = useState("");
+  const [tasksDismissed, setTasksDismissed] = useState(false);
+  const [addTaskOpen, setAddTaskOpen] = useState(false);
+  const [statusOpen, setStatusOpen] = useState(false);
   const [recurrence, setRecurrence] =
     useState<NonNullable<Task["recurrence"]>>("none");
 
@@ -41,16 +55,55 @@ function FrenteDetalhe() {
     );
   }
 
-  const visibleTasks = front.tasks.filter((task) => taskIsVisibleToday(task, todayKey));
+  const visibleTasks = orderTasksByDoneLast(front.tasks);
   const openTasks = visibleTasks.filter((task) => !task.dueDate);
+  const showTasks = visibleTasks.length > 0 && !(tasksDismissed && openTasks.length === 0);
 
   return (
     <div className="space-y-3">
       <PageHeader title={front.title} subtitle={front.area} back />
 
+      <div className="flex justify-end">
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setStatusOpen((open) => !open)}
+            className={cn(
+              "press inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium tracking-wide",
+              statusToneClass(front.status),
+            )}
+            aria-expanded={statusOpen}
+          >
+            {front.status}
+            <ChevronDown className={cn("size-3.5 transition-transform", statusOpen && "rotate-180")} />
+          </button>
+          {statusOpen ? (
+            <div className="absolute right-0 top-[calc(100%+6px)] z-20 w-40 overflow-hidden rounded-2xl border border-border/60 bg-card p-1.5 shadow-[0_18px_42px_rgba(0,0,0,0.36)]">
+              {PROJECT_STATUSES.map((status) => (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => {
+                    setFrontStatus(front.id, status);
+                    setStatusOpen(false);
+                  }}
+                  className={cn(
+                    "press flex h-9 w-full items-center justify-between rounded-xl px-2.5 text-left text-xs text-muted-foreground",
+                    front.status === status && "bg-primary/10 text-primary",
+                  )}
+                >
+                  {status}
+                  {front.status === status ? <Check className="size-3.5" /> : null}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
       <section className="rounded-3xl border border-border/60 bg-card p-5">
         <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
-          DESCRIÇÃO
+          OBJETIVO
         </p>
         <p className="mt-2 text-[15px] leading-snug text-foreground">
           {front.description}
@@ -60,105 +113,136 @@ function FrenteDetalhe() {
       <section className="rounded-3xl border border-border/60 bg-card p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
-            TAREFAS DA FRENTE
+            HISTÓRICO DE TAREFAS
           </p>
-          <p className="tabular text-xs text-muted-foreground">{openTasks.length} abertas</p>
+          {showTasks && openTasks.length === 0 ? (
+            <button
+              type="button"
+              onClick={() => setTasksDismissed(true)}
+              className="press grid size-7 shrink-0 place-items-center rounded-xl bg-elevated/60 text-muted-foreground"
+              aria-label="Fechar tarefas concluídas"
+            >
+              <X className="size-3.5" />
+            </button>
+          ) : showTasks || visibleTasks.length === 0 ? (
+            <p className="tabular text-xs text-muted-foreground">{openTasks.length} abertas</p>
+          ) : null}
         </div>
 
-        {visibleTasks.length > 0 ? (
-          <ul className="app-scrollbar mt-3 max-h-[156px] space-y-2 overflow-y-auto pr-1">
-            {visibleTasks.map((task) => {
-              const done = Boolean(task.dueDate);
-              return (
-                <li key={task.id}>
-                  <button
-                    type="button"
-                    onClick={() => toggleTask(task.id)}
-                    className="press relative flex w-full items-start gap-3 rounded-2xl bg-elevated/55 px-3.5 py-3 pr-8 text-left text-sm text-foreground"
-                  >
-                    {task.quick && !done ? (
-                      <span className="absolute right-3 top-1/2 size-2 -translate-y-1/2 rounded-full bg-primary" />
-                    ) : null}
-                    <span
-                      className={cn(
-                        "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border transition-colors duration-200",
-                        done
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border text-transparent",
-                      )}
+        {showTasks ? (
+          <div className="mt-3 rounded-2xl bg-elevated/45 p-2">
+            <ul className="app-scrollbar max-h-[190px] space-y-2 overflow-y-auto pr-1">
+              {visibleTasks.map((task) => {
+                const done = Boolean(task.dueDate);
+                return (
+                  <li key={task.id}>
+                    <button
+                      type="button"
+                      onClick={() => toggleTask(task.id)}
+                      className="press relative flex w-full items-start gap-3 rounded-2xl bg-card/70 px-3.5 py-3 pr-8 text-left text-sm text-foreground"
                     >
-                      <Check className="size-3.5" strokeWidth={3} />
-                    </span>
-                    <span
-                      className={cn(
-                        "min-w-0 flex-1 leading-snug",
-                        done && "text-muted-foreground line-through",
-                      )}
-                    >
-                      {task.title}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
+                      {task.quick && !done ? (
+                        <span className="absolute right-3 top-1/2 size-2 -translate-y-1/2 rounded-full bg-primary" />
+                      ) : null}
+                      <span
+                        className={cn(
+                          "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border transition-colors duration-200",
+                          done
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border text-transparent",
+                        )}
+                      >
+                        <Check className="size-3.5" strokeWidth={3} />
+                      </span>
+                      <span
+                        className={cn(
+                          "min-w-0 flex-1 leading-snug",
+                          done && "text-muted-foreground line-through",
+                        )}
+                      >
+                        {task.title}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : visibleTasks.length === 0 ? (
           <p className="mt-3 text-sm leading-snug text-muted-foreground">
             Nenhuma tarefa aberta nesta frente.
           </p>
-        )}
+        ) : null}
 
-        <form
-          className="mt-3 space-y-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const title = draft.trim();
-            if (!title) return;
-            addTask(title, front.fatherId, {
-              quick,
-              visibleFrom: visibleFrom || undefined,
-              recurrence,
-            });
-            setDraft("");
-            setQuick(false);
-            setVisibleFrom("");
-            setRecurrence("none");
-          }}
+        <button
+          type="button"
+          onClick={() => setAddTaskOpen(true)}
+          className="press mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground"
         >
-          <div className="flex gap-2">
-            <input
+          <Plus className="size-4" />
+          Adicionar tarefa
+        </button>
+      </section>
+
+      <Dialog open={addTaskOpen} onOpenChange={setAddTaskOpen}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-[430px] rounded-3xl border-border/60 bg-card p-5">
+          <DialogHeader className="space-y-1 text-left">
+            <DialogTitle className="text-base">Adicionar tarefa</DialogTitle>
+            <DialogDescription>
+              Nova tarefa dentro de {front.title}.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-2.5"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const title = draft.trim();
+              if (!title) return;
+              addTask(title, front.fatherId, {
+                quick,
+                visibleFrom: visibleFrom || undefined,
+                recurrence,
+              });
+              setDraft("");
+              setQuick(false);
+              setVisibleFrom("");
+              setRecurrence("none");
+              setAddTaskOpen(false);
+            }}
+          >
+            <textarea
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              placeholder="Adicionar tarefa"
-              className="h-12 min-w-0 flex-1 rounded-2xl bg-elevated/50 px-4 text-[15px] outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+              placeholder="Descreva a tarefa"
+              className="app-scrollbar h-28 w-full resize-none rounded-2xl bg-elevated/50 px-4 py-3 text-[15px] leading-snug outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
             />
-            <button
-              type="button"
-              onClick={() => setQuick((value) => !value)}
-              className={cn(
-                "press grid size-12 shrink-0 place-items-center rounded-2xl border",
-                quick ? "border-primary text-primary" : "border-border text-muted-foreground",
-              )}
-              aria-label="Marcar como tarefa rápida"
-              title="Menos de 5 minutos"
-            >
-              <Flag className="size-4" />
-            </button>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              type="date"
-              value={visibleFrom}
-              onChange={(event) => setVisibleFrom(event.target.value)}
-              className="h-11 min-w-0 rounded-2xl bg-elevated/50 px-3.5 text-[13px] text-foreground outline-none focus:ring-1 focus:ring-ring"
-              aria-label="Data de aparição"
-            />
+            <div className="grid grid-cols-[48px_1fr] gap-2">
+              <button
+                type="button"
+                onClick={() => setQuick((value) => !value)}
+                className={cn(
+                  "press grid size-12 shrink-0 place-items-center rounded-2xl border",
+                  quick ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground",
+                )}
+                aria-label="Marcar como tarefa rápida"
+                title="Menos de 5 minutos"
+              >
+                <Flag className="size-4" />
+              </button>
+              <input
+                type="date"
+                value={visibleFrom}
+                onChange={(event) => setVisibleFrom(event.target.value)}
+                className="h-12 min-w-0 rounded-2xl bg-elevated/50 px-3.5 text-[13px] text-foreground outline-none focus:ring-1 focus:ring-ring"
+                aria-label="Data de aparição"
+              />
+            </div>
             <select
               value={recurrence}
               onChange={(event) =>
                 setRecurrence(event.target.value as NonNullable<Task["recurrence"]>)
               }
-              className="h-11 min-w-0 rounded-2xl bg-elevated/50 px-3.5 text-[13px] text-foreground outline-none focus:ring-1 focus:ring-ring"
+              className="h-12 w-full min-w-0 rounded-2xl bg-elevated/50 px-3.5 text-[13px] text-foreground outline-none focus:ring-1 focus:ring-ring"
               aria-label="Recorrência"
             >
               <option value="none">Sem recorrência</option>
@@ -166,17 +250,17 @@ function FrenteDetalhe() {
               <option value="weekly">Semanal</option>
               <option value="monthly">Mensal</option>
             </select>
-          </div>
-          <button
-            type="submit"
-            disabled={!draft.trim()}
-            className="press flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
-          >
-            <Plus className="size-4" />
-            Adicionar tarefa
-          </button>
-        </form>
-      </section>
+            <button
+              type="submit"
+              disabled={!draft.trim()}
+              className="press flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+            >
+              <Plus className="size-4" />
+              Adicionar tarefa
+            </button>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {front.projects.length > 0 ? (
         <section className="rounded-3xl border border-border/60 bg-card p-5">
@@ -185,10 +269,7 @@ function FrenteDetalhe() {
           </p>
           <div className="mt-3 space-y-2">
             {front.projects.map((project) => (
-              <div key={project.id} className="rounded-2xl bg-elevated/45 px-3.5 py-3">
-                <p className="truncate text-sm font-semibold">{project.title}</p>
-                <p className="mt-1 truncate text-xs text-muted-foreground">{project.nextAction}</p>
-              </div>
+              <ProjectRow key={project.id} project={project} todayKey={todayKey} />
             ))}
           </div>
         </section>
@@ -197,19 +278,62 @@ function FrenteDetalhe() {
   );
 }
 
+function ProjectRow({ project, todayKey }: { project: Project; todayKey: string }) {
+  const openActions = project.actions.filter(
+    (action) => !action.dueDate && (!action.visibleFrom || action.visibleFrom <= todayKey),
+  ).length;
+
+  return (
+    <Link
+      to="/projetos/$projectId"
+      params={{ projectId: project.id }}
+      className="press flex items-stretch gap-3 rounded-2xl border border-border/60 bg-elevated/45 px-3.5 py-3"
+    >
+      <div className="min-w-0 flex-1 py-0.5">
+        <h4 className="min-w-0 truncate text-base font-semibold leading-tight">{project.title}</h4>
+        <div className="mt-1.5 flex items-center">
+          <StatusBadge tone="active" className="px-2 py-0.5 text-[10px]">
+            {formatDeadlineDistance(project.deadline)}
+          </StatusBadge>
+        </div>
+      </div>
+      <span
+        className={cn(
+          "tabular grid w-12 shrink-0 place-items-center rounded-xl bg-card/65 text-base font-semibold text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]",
+          openActions === 0 && "text-muted-foreground",
+        )}
+        aria-label={`${openActions} tarefas em aberto`}
+        title={openActions === 0 ? "Nenhuma tarefa em aberto" : `${openActions} tarefas em aberto`}
+      >
+        {openActions}
+      </span>
+      <span className="sr-only">
+        {openActions === 0 ? "Nenhuma tarefa em aberto" : `${openActions} tarefas em aberto`}
+      </span>
+    </Link>
+  );
+}
+
 interface FrontDetail {
   id: string;
   title: string;
   area: Category;
   fatherId: string;
+  status: ProjectStatus;
   description: string;
   tasks: Task[];
   projects: Project[];
 }
 
-function buildFrontDetail(frontId: string, projects: Project[], tasks: Task[]): FrontDetail | null {
+function buildFrontDetail(
+  frontId: string,
+  projects: Project[],
+  tasks: Task[],
+  frontStatuses: Record<string, ProjectStatus>,
+): FrontDetail | null {
   const frontProjects = projects.filter((project) => project.frontId === frontId);
   const firstProject = frontProjects[0];
+  const status = frontStatuses[frontId] ?? "Em andamento";
   const directTasks = tasks.filter((task) => {
     const father = parseFatherId(task.fatherId);
     return father.frontId === frontId && !father.projectId;
@@ -221,6 +345,7 @@ function buildFrontDetail(frontId: string, projects: Project[], tasks: Task[]): 
       title: firstProject.frontTitle,
       area: firstProject.category,
       fatherId: `${toFatherSegment(firstProject.category)}.${frontId}`,
+      status,
       description: `Frente para organizar iniciativas, tarefas soltas e projetos ligados a ${firstProject.frontTitle}.`,
       tasks: directTasks,
       projects: frontProjects,
@@ -233,6 +358,7 @@ function buildFrontDetail(frontId: string, projects: Project[], tasks: Task[]): 
       title: "Notas de alívio",
       area: "Pessoal",
       fatherId: "pessoal.pessoal-notas-de-alivio",
+      status,
       description: "Espaço para capturar pendências pessoais e notas de alívio fora das frentes de trabalho.",
       tasks: directTasks,
       projects: [],
@@ -246,6 +372,7 @@ function buildFrontDetail(frontId: string, projects: Project[], tasks: Task[]): 
       title: formatFatherSegment(frontId),
       area: father.areaId ? (formatArea(father.areaId) as Category) : "Pessoal",
       fatherId: `${father.areaId ?? "pessoal"}.${frontId}`,
+      status,
       description: "Frente operacional para agrupar tarefas soltas e próximos movimentos.",
       tasks: directTasks,
       projects: [],
@@ -260,11 +387,64 @@ function parseFatherId(fatherId: string) {
   return { areaId, frontId, projectId };
 }
 
-function taskIsVisibleToday(task: Task, todayKey: string) {
-  const visibleByStart = !task.visibleFrom || task.visibleFrom <= todayKey;
-  const visibleByCompletion = !task.dueDate || task.dueDate === todayKey;
-  return visibleByStart && visibleByCompletion;
+function orderTasksByDoneLast(tasks: Task[]) {
+  return [...tasks].sort((a, b) => Number(Boolean(a.dueDate)) - Number(Boolean(b.dueDate)));
 }
+
+const PROJECT_STATUSES: ProjectStatus[] = ["Em andamento", "Concluído", "Arquivado"];
+
+function statusToneClass(status: ProjectStatus) {
+  if (status === "Concluído") return "bg-primary/12 text-primary";
+  if (status === "Arquivado") return "bg-elevated text-muted-foreground";
+  return "bg-warning/12 text-warning";
+}
+
+function formatDeadlineDistance(deadline: string) {
+  const parsed = parseShortPortugueseDate(deadline);
+  if (!parsed) return "A definir";
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diffInDays = Math.ceil((parsed.getTime() - today.getTime()) / 86_400_000);
+
+  if (diffInDays < 0) return `Atrasada há ${Math.abs(diffInDays)} dias`;
+  if (diffInDays === 0) return "Entrega hoje";
+  if (diffInDays === 1) return "Falta 1 dia";
+  return `Faltam ${diffInDays} dias`;
+}
+
+function parseShortPortugueseDate(value: string) {
+  const match = value
+    .trim()
+    .toLowerCase()
+    .match(/^(\d{1,2})\s+([a-zç.]+)$/);
+  if (!match) return null;
+
+  const day = Number(match[1]);
+  const month = SHORT_MONTHS[match[2].replace(".", "")];
+  if (!day || month === undefined) return null;
+
+  const today = new Date();
+  const parsed = new Date(today.getFullYear(), month, day);
+  parsed.setHours(0, 0, 0, 0);
+
+  return parsed;
+}
+
+const SHORT_MONTHS: Record<string, number> = {
+  jan: 0,
+  fev: 1,
+  mar: 2,
+  abr: 3,
+  mai: 4,
+  jun: 5,
+  jul: 6,
+  ago: 7,
+  set: 8,
+  out: 9,
+  nov: 10,
+  dez: 11,
+};
 
 function toFatherSegment(value: string) {
   return value

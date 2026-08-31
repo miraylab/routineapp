@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { BookOpen, Check, ChevronDown, Plus, Send } from "lucide-react";
+import { BookOpen, Check, ChevronDown, Flag, Mic, Plus, Send, X } from "lucide-react";
 
 import {
   CurrentActivityCard,
@@ -23,6 +23,7 @@ import { schedule, type ScheduleBlock, type Task } from "@/data/mockData";
 
 const BEDTIME_MINUTES = toMinutes("21:30");
 const FREE_TIME_ID_PREFIX = "tempo-livre";
+const RELIEF_NOTES_ACTIVITY_ID = "pessoal-notas-de-alivio";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -71,15 +72,24 @@ function HojePage() {
     toggleActivityChecklistItem,
     toggleTask,
     addActivityChecklistItem,
+    addActivityLearningEntry,
+    addActivityLearningAudioEntry,
     setRoutineRating,
     addDailyJournalEntry,
+    addDailyJournalAudioEntry,
   } = useStore();
   const [journalOpen, setJournalOpen] = useState(false);
   const [journalDraft, setJournalDraft] = useState("");
   const [reliefNoteComposerOpen, setReliefNoteComposerOpen] = useState(false);
   const [reliefNoteDraft, setReliefNoteDraft] = useState("");
+  const [reliefNoteQuick, setReliefNoteQuick] = useState(false);
   const [openMilestoneId, setOpenMilestoneId] = useState<string | null>(null);
   const [selectedWeekDay, setSelectedWeekDay] = useState(dayOfWeek);
+  const [fastTasksDismissed, setFastTasksDismissed] = useState(false);
+  const [isRecordingJournalAudio, setIsRecordingJournalAudio] = useState(false);
+  const journalMediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const journalAudioChunksRef = useRef<BlobPart[]>([]);
+  const journalRecordingStreamRef = useRef<MediaStream | null>(null);
 
   const { current, dayBlocks } = context;
   const activeFreeTimeBlock = useMemo(
@@ -142,6 +152,21 @@ function HojePage() {
     () => buildActivityIndicators(carouselBlocks, current, focusedBlock, activeFreeTimeBlock),
     [activeFreeTimeBlock, carouselBlocks, current, focusedBlock],
   );
+  const carouselExtraChecklistItems = useMemo(
+    () => mergeReliefNotesIntoFreeTimeBlocks(carouselBlocks, extraActivityChecklistItems),
+    [carouselBlocks, extraActivityChecklistItems],
+  );
+  const focusedExtraChecklistItems = useMemo(() => {
+    if (!focusedCurrent) return [];
+
+    const currentItems = extraActivityChecklistItems[focusedCurrent.id] ?? [];
+    if (!isFreeTimeBlock(focusedCurrent)) return currentItems;
+
+    return [
+      ...(extraActivityChecklistItems[RELIEF_NOTES_ACTIVITY_ID] ?? []),
+      ...currentItems,
+    ];
+  }, [extraActivityChecklistItems, focusedCurrent]);
   const fastTasks = useMemo(
     () =>
       buildFastTasks(
@@ -149,21 +174,50 @@ function HojePage() {
         extraActivityChecklistItems,
         tasks,
         activityChecklistItemDone,
+        activityChecklistItemCompletedAt,
         todayKey,
       ),
-    [activityChecklistItemDone, carouselBlocks, extraActivityChecklistItems, tasks, todayKey],
+    [
+      activityChecklistItemCompletedAt,
+      activityChecklistItemDone,
+      carouselBlocks,
+      extraActivityChecklistItems,
+      tasks,
+      todayKey,
+    ],
   );
   const openFastTasks = fastTasks.filter((task) => !task.done).length;
+  const showFastTasks = fastTasks.length > 0 && !(fastTasksDismissed && openFastTasks === 0);
 
   useEffect(() => {
     setFocusedBlockId(current?.id ?? activeFreeTimeBlock?.id ?? null);
   }, [activeFreeTimeBlock?.id, current?.id]);
 
   useEffect(() => {
+    if (openFastTasks > 0) setFastTasksDismissed(false);
+  }, [openFastTasks]);
+
+  useEffect(() => {
     setSelectedWeekDay(dayOfWeek);
   }, [dayOfWeek]);
 
-  const openDailyHabits = dailyHabits.filter((habit) => !dailyHabitDone(habit.id)).length;
+  useEffect(
+    () => () => {
+      const recorder = journalMediaRecorderRef.current;
+      if (recorder && recorder.state !== "inactive") {
+        recorder.onstop = null;
+        recorder.stop();
+      }
+      journalRecordingStreamRef.current?.getTracks().forEach((track) => track.stop());
+    },
+    [],
+  );
+
+  const orderedDailyHabits = useMemo(
+    () => orderItemsByDoneLast(dailyHabits, (habit) => dailyHabitDone(habit.id)),
+    [dailyHabitDone, dailyHabits],
+  );
+  const openDailyHabits = orderedDailyHabits.filter((habit) => !dailyHabitDone(habit.id)).length;
   const selectedDayBlocks = useMemo(
     () => blocksForDay(schedule, selectedWeekDay),
     [selectedWeekDay],
@@ -172,11 +226,67 @@ function HojePage() {
   const weekdayLabel = WEEKDAYS[dayOfWeek];
   const fullDateLabel = `${realNow.getDate()} de ${MONTHS[realNow.getMonth()]}`;
   const handleAddReliefNote = () => {
-    if (!freeTimeBlock || !reliefNoteDraft.trim()) return;
-    addActivityChecklistItem(freeTimeBlock.id, reliefNoteDraft.trim(), false);
+    if (!reliefNoteDraft.trim()) return;
+    addActivityChecklistItem(RELIEF_NOTES_ACTIVITY_ID, reliefNoteDraft.trim(), reliefNoteQuick);
     setReliefNoteDraft("");
+    setReliefNoteQuick(false);
     setReliefNoteComposerOpen(false);
   };
+  const handleToggleJournalAudioRecording = useCallback(async () => {
+    const activeRecorder = journalMediaRecorderRef.current;
+    if (activeRecorder?.state === "recording") {
+      activeRecorder.stop();
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      journalRecordingStreamRef.current = stream;
+      journalAudioChunksRef.current = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          journalAudioChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const mimeType = recorder.mimeType || "audio/webm";
+        const blob = new Blob(journalAudioChunksRef.current, { type: mimeType });
+        const reader = new FileReader();
+
+        reader.onloadend = () => {
+          if (typeof reader.result === "string") {
+            addDailyJournalAudioEntry(reader.result, mimeType, formatMinutes(nowMinutes));
+          }
+        };
+
+        reader.readAsDataURL(blob);
+        stream.getTracks().forEach((track) => track.stop());
+        if (journalRecordingStreamRef.current === stream) {
+          journalRecordingStreamRef.current = null;
+        }
+        journalMediaRecorderRef.current = null;
+        journalAudioChunksRef.current = [];
+        setIsRecordingJournalAudio(false);
+      };
+
+      journalMediaRecorderRef.current = recorder;
+      setIsRecordingJournalAudio(true);
+      recorder.start();
+    } catch {
+      setIsRecordingJournalAudio(false);
+      journalRecordingStreamRef.current?.getTracks().forEach((track) => track.stop());
+      journalRecordingStreamRef.current = null;
+      journalMediaRecorderRef.current = null;
+      journalAudioChunksRef.current = [];
+    }
+  }, [addDailyJournalAudioEntry, nowMinutes]);
   if (!hydrated) {
     return (
       <div className="space-y-3">
@@ -233,16 +343,27 @@ function HojePage() {
         </button>
       </header>
 
-      {fastTasks.length > 0 ? (
+      {showFastTasks ? (
         <section className="rounded-3xl border border-primary/25 bg-card p-5 shadow-[0_18px_40px_rgba(0,0,0,0.16)]">
-          <div className="flex items-baseline justify-between gap-3">
+          <div className="flex items-center justify-between gap-3">
             <p className="text-[11px] font-medium tracking-[0.18em] text-primary">
               TAREFAS RÁPIDAS
             </p>
-            <p className="tabular text-sm text-muted-foreground">{openFastTasks} abertas</p>
+            {openFastTasks === 0 ? (
+              <button
+                type="button"
+                onClick={() => setFastTasksDismissed(true)}
+                className="press grid size-8 shrink-0 place-items-center rounded-xl bg-elevated/60 text-muted-foreground"
+                aria-label="Fechar tarefas rápidas concluídas"
+              >
+                <X className="size-4" />
+              </button>
+            ) : (
+              <p className="tabular text-sm text-muted-foreground">{openFastTasks} abertas</p>
+            )}
           </div>
 
-          <div className="mt-4 space-y-2">
+          <div className="app-scrollbar mt-4 max-h-[218px] space-y-2 overflow-y-auto pr-1">
             {fastTasks.map((task) => (
               <button
                 key={task.id}
@@ -287,18 +408,29 @@ function HojePage() {
         done={focusedCurrent ? blockDone(focusedCurrent.id) : false}
         activityIndicators={activityIndicators}
         nowMinutes={nowMinutes}
+        todayKey={todayKey}
         projects={projects}
         blockDoneById={blockDone}
         checklistItemDone={activityChecklistItemDone}
         checklistItemCompletedAt={activityChecklistItemCompletedAt}
         routineRatings={routineRatingsToday}
-        extraChecklistItemsByActivity={extraActivityChecklistItems}
-        extraChecklistItems={
-          focusedCurrent ? (extraActivityChecklistItems[focusedCurrent.id] ?? []) : []
-        }
+        extraChecklistItemsByActivity={carouselExtraChecklistItems}
+        extraChecklistItems={focusedExtraChecklistItems}
         onToggleChecklistItem={toggleActivityChecklistItem}
         onAddChecklistItem={(title, priority) =>
           focusedCurrent && addActivityChecklistItem(focusedCurrent.id, title, priority)
+        }
+        onAddLearningNote={(text) =>
+          focusedCurrent && addActivityLearningEntry(focusedCurrent.id, text, formatMinutes(nowMinutes))
+        }
+        onAddLearningAudio={(audioDataUrl, mimeType) =>
+          focusedCurrent &&
+          addActivityLearningAudioEntry(
+            focusedCurrent.id,
+            audioDataUrl,
+            mimeType,
+            formatMinutes(nowMinutes),
+          )
         }
         onSetRoutineRating={setRoutineRating}
         viewMode={focusedMode}
@@ -325,7 +457,7 @@ function HojePage() {
         </div>
 
         <div className="mt-4 space-y-2">
-          {dailyHabits.map((habit) => {
+          {orderedDailyHabits.map((habit) => {
             const done = dailyHabitDone(habit.id);
             const streakDays = (habit.streakDays ?? 0) + (done ? 1 : 0);
             return (
@@ -409,15 +541,30 @@ function HojePage() {
                   placeholder="Como foi seu dia?"
                   className="app-scrollbar h-24 w-full resize-none rounded-2xl bg-card/70 px-3.5 py-3 text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
                 />
-                <button
-                  type="submit"
-                  disabled={!journalDraft.trim()}
-                  className="press flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
-                  aria-label="Enviar registro do diário"
-                >
-                  <Send className="size-4" />
-                  Enviar
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleToggleJournalAudioRecording}
+                    className={cn(
+                      "press grid size-11 shrink-0 place-items-center rounded-2xl border transition-colors duration-300",
+                      isRecordingJournalAudio
+                        ? "border-primary bg-primary text-primary-foreground shadow-[0_0_22px_rgba(55,220,184,0.34)]"
+                        : "border-border bg-card/70 text-muted-foreground",
+                    )}
+                    aria-label={isRecordingJournalAudio ? "Parar gravação" : "Gravar áudio"}
+                  >
+                    <Mic className={cn("size-4", isRecordingJournalAudio && "live-dot")} />
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!journalDraft.trim()}
+                    className="press flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+                    aria-label="Enviar registro do bloco de notas"
+                  >
+                    <Send className="size-4" />
+                    Enviar
+                  </button>
+                </div>
               </form>
 
               {dailyJournalEntries.length > 0 && (
@@ -433,7 +580,20 @@ function HojePage() {
                         <span className="tabular text-xs font-medium text-primary">
                           {entry.time}
                         </span>
-                        <p className="text-sm leading-snug text-foreground">{entry.text}</p>
+                        {entry.type === "audio" && entry.audioDataUrl ? (
+                          <div className="min-w-0">
+                            <p className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                              Áudio
+                            </p>
+                            <audio
+                              controls
+                              src={entry.audioDataUrl}
+                              className="h-9 w-full min-w-0"
+                            />
+                          </div>
+                        ) : (
+                          <p className="text-sm leading-snug text-foreground">{entry.text}</p>
+                        )}
                       </div>
                     ))}
                 </div>
@@ -549,8 +709,7 @@ function HojePage() {
         </ul>
       </section>
 
-      {freeTimeBlock ? (
-        <div className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+86px)] right-[max(1rem,calc((100vw-430px)/2+1rem))] z-40 flex flex-col items-end gap-2">
+      <div className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+86px)] right-[max(1rem,calc((100vw-430px)/2+1rem))] z-40 flex flex-col items-end gap-2">
           {reliefNoteComposerOpen ? (
             <form
               className="rise w-[min(320px,calc(100vw-2rem))] rounded-3xl border border-border/60 bg-card p-3 shadow-[0_18px_46px_rgba(0,0,0,0.42)]"
@@ -565,13 +724,29 @@ function HojePage() {
                 placeholder="Nova nota de alívio"
                 className="app-scrollbar h-24 w-full resize-none rounded-2xl bg-elevated/60 px-3.5 py-3 text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
               />
-              <button
-                type="submit"
-                disabled={!reliefNoteDraft.trim()}
-                className="press mt-2 flex h-10 w-full items-center justify-center rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
-              >
-                Adicionar
-              </button>
+              <div className="mt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setReliefNoteQuick((quick) => !quick)}
+                  className={cn(
+                    "press grid size-10 shrink-0 place-items-center rounded-2xl transition-colors duration-200",
+                    reliefNoteQuick
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-elevated/60 text-muted-foreground",
+                  )}
+                  aria-label="Marcar como tarefa rápida"
+                  aria-pressed={reliefNoteQuick}
+                >
+                  <Flag className="size-4" />
+                </button>
+                <button
+                  type="submit"
+                  disabled={!reliefNoteDraft.trim()}
+                  className="press flex h-10 flex-1 items-center justify-center rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+                >
+                  Adicionar
+                </button>
+              </div>
             </form>
           ) : null}
           <button
@@ -588,8 +763,7 @@ function HojePage() {
               )}
             />
           </button>
-        </div>
-      ) : null}
+      </div>
     </div>
   );
 }
@@ -625,17 +799,45 @@ function buildFastTasks(
   extraItemsByActivity: Record<string, ActivityChecklistItem[]>,
   tasks: Task[],
   checklistItemDone: (id: string) => boolean,
+  checklistItemCompletedAt: (id: string) => string | undefined,
   todayKey: string,
 ): FastTask[] {
+  const reliefFastTasks = (extraItemsByActivity[RELIEF_NOTES_ACTIVITY_ID] ?? [])
+    .filter((item) =>
+      item.priority
+        && checklistFastTaskIsVisibleToday(
+          item,
+          checklistItemDone,
+          checklistItemCompletedAt,
+          todayKey,
+        ),
+    )
+    .map((item) => ({
+      ...item,
+      priority: true,
+      context: "Pessoal · Notas de Alívio",
+      source: "checklist" as const,
+      done: checklistItemDone(item.id),
+    }));
+
   const checklistFastTasks = dayBlocks.flatMap((block) => {
     const items = [...getActivityChecklist(block), ...(extraItemsByActivity[block.id] ?? [])];
 
     return items
-      .filter((item) => item.priority && !checklistItemDone(item.id))
+      .filter((item) =>
+        item.priority
+          && checklistFastTaskIsVisibleToday(
+            item,
+            checklistItemDone,
+            checklistItemCompletedAt,
+            todayKey,
+          ),
+      )
       .map((item) => ({
         ...item,
         context: `${block.category} · ${block.subtitle ?? block.title}`,
         source: "checklist" as const,
+        done: checklistItemDone(item.id),
       }));
   });
 
@@ -650,7 +852,10 @@ function buildFastTasks(
       done: Boolean(task.dueDate),
     }));
 
-  return [...globalFastTasks, ...checklistFastTasks];
+  return orderItemsByDoneLast(
+    [...globalFastTasks, ...reliefFastTasks, ...checklistFastTasks],
+    (task) => Boolean(task.done),
+  );
 }
 
 function formatFatherId(fatherId: string) {
@@ -671,6 +876,28 @@ function taskIsVisibleToday(task: Task, todayKey: string) {
   const visibleByStart = !task.visibleFrom || task.visibleFrom <= todayKey;
   const visibleByCompletion = !task.dueDate || task.dueDate === todayKey;
   return visibleByStart && visibleByCompletion;
+}
+
+function checklistFastTaskIsVisibleToday(
+  item: ActivityChecklistItem,
+  checklistItemDone: (id: string) => boolean,
+  checklistItemCompletedAt: (id: string) => string | undefined,
+  todayKey: string,
+) {
+  if (!checklistItemDone(item.id)) return true;
+  const completedAt = checklistItemCompletedAt(item.id);
+  return completedAt ? toDateKey(new Date(completedAt)) === todayKey : true;
+}
+
+function toDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function orderItemsByDoneLast<T>(items: T[], isDone: (item: T) => boolean) {
+  return [...items].sort((a, b) => Number(isDone(a)) - Number(isDone(b)));
 }
 
 function buildActiveFreeTimeBlock(
@@ -755,6 +982,27 @@ function buildCarouselBlocks(
 
 function isFreeTimeBlock(block: ScheduleBlock | null) {
   return Boolean(block?.id.startsWith(FREE_TIME_ID_PREFIX));
+}
+
+function mergeReliefNotesIntoFreeTimeBlocks(
+  carouselBlocks: ScheduleBlock[],
+  extraItemsByActivity: Record<string, ActivityChecklistItem[]>,
+) {
+  const reliefNotes = extraItemsByActivity[RELIEF_NOTES_ACTIVITY_ID] ?? [];
+  if (reliefNotes.length === 0) return extraItemsByActivity;
+
+  return carouselBlocks.reduce(
+    (itemsByActivity, block) => {
+      if (!isFreeTimeBlock(block)) return itemsByActivity;
+
+      itemsByActivity[block.id] = [
+        ...reliefNotes,
+        ...(itemsByActivity[block.id] ?? []),
+      ];
+      return itemsByActivity;
+    },
+    { ...extraItemsByActivity },
+  );
 }
 
 function buildActivityIndicators(
