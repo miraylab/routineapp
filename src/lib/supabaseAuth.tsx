@@ -155,8 +155,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
     try {
       await signIn(email, password);
-    } catch {
-      setError("Não consegui entrar. Confere e-mail e senha.");
+    } catch (loginError) {
+      setError(
+        loginError instanceof Error
+          ? loginError.message
+          : "Não consegui entrar. Confere e-mail e senha.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -227,6 +231,12 @@ async function refreshSession(refreshToken: string) {
 }
 
 async function authFetch(path: string, body: Record<string, string>): Promise<AuthResponse> {
+  if (!SUPABASE_REST_URL || !SUPABASE_ANON_KEY) {
+    throw new Error(
+      "Supabase não configurado nesta versão. Confira as variáveis da Vercel e faça redeploy.",
+    );
+  }
+
   const response = await fetch(`${normalizeAuthUrl(SUPABASE_REST_URL)}/${path}`, {
     method: "POST",
     headers: {
@@ -237,7 +247,8 @@ async function authFetch(path: string, body: Record<string, string>): Promise<Au
   });
 
   if (!response.ok) {
-    throw new Error(`Supabase auth: ${response.status} ${response.statusText}`);
+    const message = await readSupabaseError(response);
+    throw new Error(message);
   }
 
   return (await response.json()) as AuthResponse;
@@ -254,4 +265,24 @@ function mapAuthResponse(response: AuthResponse): SupabaseSession {
 
 function normalizeAuthUrl(value: string | undefined) {
   return value?.trim().replace(/\/rest\/v1\/?$/, "").replace(/\/$/, "") + "/auth/v1";
+}
+
+async function readSupabaseError(response: Response) {
+  try {
+    const payload = (await response.json()) as {
+      error?: string;
+      error_description?: string;
+      msg?: string;
+      message?: string;
+    };
+    return (
+      payload.error_description ??
+      payload.msg ??
+      payload.message ??
+      payload.error ??
+      `Supabase auth: ${response.status} ${response.statusText}`
+    );
+  } catch {
+    return `Supabase auth: ${response.status} ${response.statusText}`;
+  }
 }
