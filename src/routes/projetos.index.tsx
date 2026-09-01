@@ -202,6 +202,7 @@ function FrontSection({
   );
   const openDirectTasks = visibleDirectTasks.filter((task) => !task.dueDate);
   const showTaskList = visibleDirectTasks.length > 0 && !(tasksDismissed && openDirectTasks.length === 0);
+  const hasFrontContent = showTaskList || front.projects.length > 0;
   const fatherId = `${toFatherSegment(front.area)}.${front.id}`;
   const openFrontDetail = () => {
     navigate({ to: "/projetos/frentes/$frontId", params: { frontId: front.id } });
@@ -223,10 +224,20 @@ function FrontSection({
           openFrontDetail();
         }
       }}
-      className="press rounded-3xl border border-border/60 bg-card p-5 text-left"
+      className={cn(
+        "press rounded-3xl border border-border/60 bg-card px-5 text-left",
+        hasFrontContent ? "py-5" : "py-4",
+      )}
     >
       <div className="flex items-center justify-between gap-3">
-        <h2 className="min-w-0 truncate text-xl font-semibold tracking-tight">{front.title}</h2>
+        <h2
+          className={cn(
+            "min-w-0 truncate font-semibold tracking-tight",
+            hasFrontContent ? "text-xl" : "text-base",
+          )}
+        >
+          {front.title}
+        </h2>
         <div className="flex shrink-0 items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
