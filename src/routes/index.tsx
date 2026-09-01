@@ -7,7 +7,7 @@ import {
   getActivityChecklist,
   type ActivityChecklistItem,
 } from "@/components/yuri/CurrentActivityCard";
-import { useStore } from "@/lib/store";
+import { useStore, type ManagedFront } from "@/lib/store";
 import {
   MONTHS,
   WEEKDAYS,
@@ -53,6 +53,7 @@ function HojePage() {
     dayOfWeek,
     realNow,
     tasks,
+    fronts,
     projects,
     dailyHabits,
     dailyJournalEntries,
@@ -173,6 +174,8 @@ function HojePage() {
         carouselBlocks,
         extraActivityChecklistItems,
         tasks,
+        fronts,
+        projects,
         activityChecklistItemDone,
         activityChecklistItemCompletedAt,
         todayKey,
@@ -182,6 +185,8 @@ function HojePage() {
       activityChecklistItemDone,
       carouselBlocks,
       extraActivityChecklistItems,
+      fronts,
+      projects,
       tasks,
       todayKey,
     ],
@@ -344,7 +349,7 @@ function HojePage() {
       </header>
 
       {showFastTasks ? (
-        <section className="rounded-3xl border border-primary/25 bg-card p-5 shadow-[0_18px_40px_rgba(0,0,0,0.16)]">
+        <section className="rounded-3xl border-2 border-primary/35 bg-card p-5 shadow-[0_18px_40px_rgba(0,0,0,0.16)]">
           <div className="flex items-center justify-between gap-3">
             <p className="text-[11px] font-medium tracking-[0.18em] text-primary">
               TAREFAS RÁPIDAS
@@ -378,7 +383,7 @@ function HojePage() {
                     "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border transition-colors duration-200",
                     task.done
                       ? "border-primary bg-primary text-primary-foreground"
-                      : "border-primary/55 text-transparent",
+                      : "border-border text-transparent",
                   )}
                 >
                   <Check className="size-3.5" strokeWidth={3} />
@@ -798,6 +803,8 @@ function buildFastTasks(
   dayBlocks: ScheduleBlock[],
   extraItemsByActivity: Record<string, ActivityChecklistItem[]>,
   tasks: Task[],
+  fronts: ManagedFront[],
+  projects: Project[],
   checklistItemDone: (id: string) => boolean,
   checklistItemCompletedAt: (id: string) => string | undefined,
   todayKey: string,
@@ -847,7 +854,7 @@ function buildFastTasks(
       id: task.id,
       title: task.title,
       priority: true,
-      context: formatFatherId(task.fatherId),
+      context: formatFatherId(task.fatherId, fronts, projects),
       source: "task" as const,
       done: Boolean(task.dueDate),
     }));
@@ -858,18 +865,25 @@ function buildFastTasks(
   );
 }
 
-function formatFatherId(fatherId: string) {
-  return fatherId
-    .split(".")
+function formatFatherId(fatherId: string, fronts: ManagedFront[], projects: Project[]) {
+  const [areaId, frontId, projectId] = fatherId.split(".");
+  const area = formatFatherSegment(areaId);
+  const front = frontId ? fronts.find((item) => item.id === frontId) : undefined;
+  const project = projectId ? projects.find((item) => item.id === projectId) : undefined;
+
+  return [area, front?.title ?? formatFatherSegment(frontId), project?.title ?? formatFatherSegment(projectId)]
     .filter(Boolean)
-    .map((part) =>
-      part
-        .split("-")
-        .filter(Boolean)
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" "),
-    )
     .join(" · ");
+}
+
+function formatFatherSegment(segment?: string) {
+  if (!segment) return "";
+
+  return segment
+    .split("-")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 function taskIsVisibleToday(task: Task, todayKey: string) {

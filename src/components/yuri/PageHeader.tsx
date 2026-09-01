@@ -5,10 +5,12 @@ export function PageHeader({
   title,
   subtitle,
   back = false,
+  onBack,
 }: {
   title: string;
   subtitle?: string;
   back?: boolean;
+  onBack?: () => void;
 }) {
   const router = useRouter();
 
@@ -17,7 +19,7 @@ export function PageHeader({
       {back ? (
         <button
           type="button"
-          onClick={() => router.history.back()}
+          onClick={() => (onBack ? onBack() : router.history.back())}
           className="press -ml-2 grid size-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-elevated"
           aria-label="Voltar"
         >

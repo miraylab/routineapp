@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Check, ChevronDown, Flag, Pencil, Plus, X } from "lucide-react";
 
 import { PageHeader } from "@/components/yuri/PageHeader";
@@ -35,6 +35,7 @@ export const Route = createFileRoute("/projetos/$projectId")({
 
 function ProjetoDetalhe() {
   const { projectId } = Route.useParams();
+  const navigate = useNavigate();
   const { projects, toggleProjectAction, addProjectAction, setProjectStatus, updateProjectDetails } = useStore();
   const [draft, setDraft] = useState("");
   const [draftQuick, setDraftQuick] = useState(false);
@@ -65,7 +66,17 @@ function ProjetoDetalhe() {
 
   return (
     <div className="space-y-3">
-      <PageHeader title={project.title} subtitle={`${project.category} · ${project.frontTitle}`} back />
+      <PageHeader
+        title={project.title}
+        subtitle={`${project.category} · ${project.frontTitle}`}
+        back
+        onBack={() =>
+          navigate({
+            to: "/projetos/frentes/$frontId",
+            params: { frontId: project.frontId },
+          })
+        }
+      />
 
       <div className="flex items-center justify-between gap-3">
         <StatusBadge tone="active" className="px-3 py-1.5 text-xs">

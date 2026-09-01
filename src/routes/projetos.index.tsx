@@ -1,6 +1,6 @@
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Check, ChevronRight, Plus, User, X } from "lucide-react";
+import { Check, ChevronRight, Flag, Plus, User, X } from "lucide-react";
 
 import { StatusBadge } from "@/components/yuri/StatusBadge";
 import type { Category, Project, Task } from "@/data/mockData";
@@ -180,7 +180,15 @@ function FrontSection({
   front: ProjectFront;
   todayKey: string;
   onToggleTask: (id: string) => void;
-  onAddTask: (title: string, fatherId?: string) => void;
+  onAddTask: (
+    title: string,
+    fatherId?: string,
+    options?: {
+      quick?: boolean;
+      visibleFrom?: string;
+      recurrence?: NonNullable<Task["recurrence"]>;
+    },
+  ) => void;
   onAddProject: (input: {
     category: Category;
     frontId: string;
@@ -195,8 +203,13 @@ function FrontSection({
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [addProjectOpen, setAddProjectOpen] = useState(false);
   const [taskTitle, setTaskTitle] = useState("");
+  const [taskQuick, setTaskQuick] = useState(false);
+  const [taskVisibleFrom, setTaskVisibleFrom] = useState("");
+  const [taskRecurrence, setTaskRecurrence] =
+    useState<NonNullable<Task["recurrence"]>>("none");
   const [projectTitle, setProjectTitle] = useState("");
   const [projectObjective, setProjectObjective] = useState("");
+  const [projectDeadline, setProjectDeadline] = useState("");
   const visibleDirectTasks = orderTasksByDoneLast(
     front.directTasks.filter((task) => taskIsVisibleToday(task, todayKey)),
   );
@@ -207,13 +220,27 @@ function FrontSection({
   const openFrontDetail = () => {
     navigate({ to: "/projetos/frentes/$frontId", params: { frontId: front.id } });
   };
+  const openAddTask = (event?: Event) => {
+    event?.preventDefault();
+    event?.stopPropagation();
+    setAddTaskOpen(true);
+  };
+  const openAddProject = (event?: Event) => {
+    event?.preventDefault();
+    event?.stopPropagation();
+    setAddProjectOpen(true);
+  };
 
   return (
     <section
       role="button"
       tabIndex={0}
       onClick={(event) => {
-        if ((event.target as HTMLElement).closest("[data-projects-block],button,a,input,textarea")) {
+        if (
+          (event.target as HTMLElement).closest(
+            "[data-front-card-control],[data-projects-block],button,a,input,textarea",
+          )
+        ) {
           return;
         }
         openFrontDetail();
@@ -243,6 +270,9 @@ function FrontSection({
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
+                data-front-card-control
+                onClick={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
                 className="press grid size-8 place-items-center rounded-xl bg-elevated/60 text-muted-foreground"
                 aria-label={`Adicionar em ${front.title}`}
               >
@@ -251,16 +281,23 @@ function FrontSection({
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
+              data-front-card-control
+              onClick={(event) => event.stopPropagation()}
+              onPointerDown={(event) => event.stopPropagation()}
               className="w-48 rounded-2xl border-border/60 bg-card p-1.5 text-foreground"
             >
               <DropdownMenuItem
-                onClick={() => setAddTaskOpen(true)}
+                data-front-card-control
+                onClick={(event) => event.stopPropagation()}
+                onSelect={openAddTask}
                 className="rounded-xl px-3 py-2.5 text-sm"
               >
                 Adicionar tarefa
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => setAddProjectOpen(true)}
+                data-front-card-control
+                onClick={(event) => event.stopPropagation()}
+                onSelect={openAddProject}
                 className="rounded-xl px-3 py-2.5 text-sm"
               >
                 Adicionar projeto
@@ -269,7 +306,10 @@ function FrontSection({
           </DropdownMenu>
           <button
             type="button"
-            onClick={openFrontDetail}
+            onClick={(event) => {
+              event.stopPropagation();
+              openFrontDetail();
+            }}
             className="press grid size-8 place-items-center rounded-xl bg-elevated/60 text-muted-foreground"
             aria-label={`Abrir frente ${front.title}`}
           >
@@ -360,7 +400,10 @@ function FrontSection({
       ) : null}
 
       <Dialog open={addTaskOpen} onOpenChange={setAddTaskOpen}>
-        <DialogContent className="w-[calc(100vw-2rem)] max-w-[430px] rounded-3xl border-border/60 bg-card p-5">
+        <DialogContent
+          onClick={(event) => event.stopPropagation()}
+          className="w-[calc(100vw-2rem)] max-w-[430px] rounded-3xl border-border/60 bg-card p-5"
+        >
           <DialogHeader className="space-y-1 text-left">
             <DialogTitle className="text-base">Adicionar tarefa</DialogTitle>
             <DialogDescription>Nova tarefa em {front.title}.</DialogDescription>
@@ -370,8 +413,15 @@ function FrontSection({
             onSubmit={(event) => {
               event.preventDefault();
               if (!taskTitle.trim()) return;
-              onAddTask(taskTitle, fatherId);
+              onAddTask(taskTitle, fatherId, {
+                quick: taskQuick,
+                visibleFrom: taskVisibleFrom || undefined,
+                recurrence: taskRecurrence,
+              });
               setTaskTitle("");
+              setTaskQuick(false);
+              setTaskVisibleFrom("");
+              setTaskRecurrence("none");
               setAddTaskOpen(false);
               setTasksDismissed(false);
             }}
@@ -382,6 +432,40 @@ function FrontSection({
               placeholder="Nome da tarefa"
               className="h-12 w-full rounded-2xl bg-elevated/50 px-4 text-[15px] outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
             />
+            <div className="grid grid-cols-[48px_1fr] gap-2">
+              <button
+                type="button"
+                onClick={() => setTaskQuick((value) => !value)}
+                className={cn(
+                  "press grid size-12 shrink-0 place-items-center rounded-2xl border",
+                  taskQuick ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground",
+                )}
+                aria-label="Marcar como tarefa rápida"
+                title="Menos de 5 minutos"
+              >
+                <Flag className="size-4" />
+              </button>
+              <input
+                type="date"
+                value={taskVisibleFrom}
+                onChange={(event) => setTaskVisibleFrom(event.target.value)}
+                className="h-12 min-w-0 rounded-2xl bg-elevated/50 px-3.5 text-[13px] text-foreground outline-none focus:ring-1 focus:ring-ring"
+                aria-label="Data de aparição"
+              />
+            </div>
+            <select
+              value={taskRecurrence}
+              onChange={(event) =>
+                setTaskRecurrence(event.target.value as NonNullable<Task["recurrence"]>)
+              }
+              className="h-12 w-full min-w-0 rounded-2xl bg-elevated/50 px-3.5 text-[13px] text-foreground outline-none focus:ring-1 focus:ring-ring"
+              aria-label="Recorrência"
+            >
+              <option value="none">Sem recorrência</option>
+              <option value="daily">Diária</option>
+              <option value="weekly">Semanal</option>
+              <option value="monthly">Mensal</option>
+            </select>
             <button
               type="submit"
               disabled={!taskTitle.trim()}
@@ -395,7 +479,10 @@ function FrontSection({
       </Dialog>
 
       <Dialog open={addProjectOpen} onOpenChange={setAddProjectOpen}>
-        <DialogContent className="w-[calc(100vw-2rem)] max-w-[430px] rounded-3xl border-border/60 bg-card p-5">
+        <DialogContent
+          onClick={(event) => event.stopPropagation()}
+          className="w-[calc(100vw-2rem)] max-w-[430px] rounded-3xl border-border/60 bg-card p-5"
+        >
           <DialogHeader className="space-y-1 text-left">
             <DialogTitle className="text-base">Adicionar projeto</DialogTitle>
             <DialogDescription>Novo projeto em {front.title}.</DialogDescription>
@@ -411,9 +498,11 @@ function FrontSection({
                 frontTitle: front.title,
                 title: projectTitle,
                 objective: projectObjective,
+                deadline: projectDeadline || undefined,
               });
               setProjectTitle("");
               setProjectObjective("");
+              setProjectDeadline("");
               setAddProjectOpen(false);
             }}
           >
@@ -428,6 +517,13 @@ function FrontSection({
               onChange={(event) => setProjectObjective(event.target.value)}
               placeholder="Objetivo"
               className="app-scrollbar h-28 w-full resize-none rounded-2xl bg-elevated/50 px-4 py-3 text-[15px] leading-snug outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+            />
+            <input
+              type="date"
+              value={projectDeadline}
+              onChange={(event) => setProjectDeadline(event.target.value)}
+              className="h-12 w-full rounded-2xl bg-elevated/50 px-3.5 text-[13px] text-foreground outline-none focus:ring-1 focus:ring-ring"
+              aria-label="Deadline do projeto"
             />
             <button
               type="submit"
