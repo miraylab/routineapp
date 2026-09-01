@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { BottomNavigation } from "@/components/yuri/BottomNavigation";
+import { AuthGate, AuthProvider, useAuth } from "@/lib/supabaseAuth";
 import { StoreProvider } from "@/lib/store";
 
 function NotFoundComponent() {
@@ -146,15 +147,27 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <StoreProvider>
-        <div className="min-h-screen bg-background">
-          <main className="safe-top mx-auto w-full max-w-s25 px-5 pb-32">
-            {/* Required: nested routes render here. */}
-            <Outlet />
-          </main>
-          <BottomNavigation />
-        </div>
-      </StoreProvider>
+      <AuthProvider>
+        <AuthGate>
+          <AuthenticatedApp />
+        </AuthGate>
+      </AuthProvider>
     </QueryClientProvider>
+  );
+}
+
+function AuthenticatedApp() {
+  const { session } = useAuth();
+
+  return (
+    <StoreProvider accessToken={session?.accessToken}>
+      <div className="min-h-screen bg-background">
+        <main className="safe-top mx-auto w-full max-w-s25 px-5 pb-32">
+          {/* Required: nested routes render here. */}
+          <Outlet />
+        </main>
+        <BottomNavigation />
+      </div>
+    </StoreProvider>
   );
 }

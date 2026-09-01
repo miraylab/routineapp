@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { Check, ChevronDown, Flag, Plus, X } from "lucide-react";
+import { Check, ChevronDown, Flag, Pencil, Plus, X } from "lucide-react";
 
 import { PageHeader } from "@/components/yuri/PageHeader";
 import { StatusBadge } from "@/components/yuri/StatusBadge";
@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { Category, Project, ProjectStatus, Task } from "@/data/mockData";
-import { useStore } from "@/lib/store";
+import { useStore, type ManagedFront } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/projetos/frentes/$frontId")({
@@ -30,16 +30,33 @@ export const Route = createFileRoute("/projetos/frentes/$frontId")({
 
 function FrenteDetalhe() {
   const { frontId } = Route.useParams();
-  const { projects, tasks, todayKey, frontStatuses, toggleTask, addTask, setFrontStatus } = useStore();
+  const {
+    projects,
+    tasks,
+    fronts,
+    todayKey,
+    frontStatuses,
+    toggleTask,
+    addTask,
+    addProject,
+    setFrontStatus,
+    updateFrontObjective,
+  } = useStore();
   const front = useMemo(
-    () => buildFrontDetail(frontId, projects, tasks, frontStatuses),
-    [frontId, frontStatuses, projects, tasks],
+    () => buildFrontDetail(frontId, fronts, projects, tasks, frontStatuses),
+    [frontId, frontStatuses, fronts, projects, tasks],
   );
   const [draft, setDraft] = useState("");
   const [quick, setQuick] = useState(false);
   const [visibleFrom, setVisibleFrom] = useState("");
+  const [objectiveDraft, setObjectiveDraft] = useState("");
+  const [projectTitle, setProjectTitle] = useState("");
+  const [projectObjective, setProjectObjective] = useState("");
+  const [projectDeadline, setProjectDeadline] = useState("");
   const [tasksDismissed, setTasksDismissed] = useState(false);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
+  const [editObjectiveOpen, setEditObjectiveOpen] = useState(false);
+  const [addProjectOpen, setAddProjectOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
   const [recurrence, setRecurrence] =
     useState<NonNullable<Task["recurrence"]>>("none");
@@ -102,11 +119,24 @@ function FrenteDetalhe() {
       </div>
 
       <section className="rounded-3xl border border-border/60 bg-card p-5">
-        <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
-          OBJETIVO
-        </p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
+            OBJETIVO
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setObjectiveDraft(front.objective);
+              setEditObjectiveOpen(true);
+            }}
+            className="press -mr-1 grid size-6 shrink-0 place-items-center text-muted-foreground/70"
+            aria-label="Editar objetivo da frente"
+          >
+            <Pencil className="size-3.5" />
+          </button>
+        </div>
         <p className="mt-2 text-[15px] leading-snug text-foreground">
-          {front.description}
+          {front.objective}
         </p>
       </section>
 
@@ -262,18 +292,119 @@ function FrenteDetalhe() {
         </DialogContent>
       </Dialog>
 
-      {front.projects.length > 0 ? (
-        <section className="rounded-3xl border border-border/60 bg-card p-5">
-          <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
-            PROJETOS
-          </p>
+      <section className="rounded-3xl border border-border/60 bg-card p-5">
+        <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
+          PROJETOS
+        </p>
+        {front.projects.length > 0 ? (
           <div className="mt-3 space-y-2">
             {front.projects.map((project) => (
               <ProjectRow key={project.id} project={project} todayKey={todayKey} />
             ))}
           </div>
-        </section>
-      ) : null}
+        ) : (
+          <p className="mt-3 text-sm leading-snug text-muted-foreground">
+            Nenhum projeto cadastrado nesta frente.
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={() => setAddProjectOpen(true)}
+          className="press mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-elevated/70 px-4 text-sm font-medium text-muted-foreground"
+        >
+          <Plus className="size-4" />
+          Adicionar Projeto
+        </button>
+      </section>
+
+      <Dialog open={editObjectiveOpen} onOpenChange={setEditObjectiveOpen}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-[430px] rounded-3xl border-border/60 bg-card p-5">
+          <DialogHeader className="space-y-1 text-left">
+            <DialogTitle className="text-base">Editar objetivo</DialogTitle>
+            <DialogDescription>
+              Ajuste o objetivo da frente {front.title}.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-2.5"
+            onSubmit={(event) => {
+              event.preventDefault();
+              updateFrontObjective(front.id, objectiveDraft);
+              setEditObjectiveOpen(false);
+            }}
+          >
+            <textarea
+              value={objectiveDraft}
+              onChange={(event) => setObjectiveDraft(event.target.value)}
+              className="app-scrollbar h-36 w-full resize-none rounded-2xl bg-elevated/50 px-4 py-3 text-[15px] leading-snug outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+            />
+            <button
+              type="submit"
+              className="press flex h-11 w-full items-center justify-center rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground"
+            >
+              Salvar objetivo
+            </button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={addProjectOpen} onOpenChange={setAddProjectOpen}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-[430px] rounded-3xl border-border/60 bg-card p-5">
+          <DialogHeader className="space-y-1 text-left">
+            <DialogTitle className="text-base">Adicionar projeto</DialogTitle>
+            <DialogDescription>
+              Novo projeto dentro de {front.title}.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-2.5"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!projectTitle.trim()) return;
+              addProject({
+                category: front.area,
+                frontId: front.id,
+                frontTitle: front.title,
+                title: projectTitle,
+                objective: projectObjective,
+                deadline: projectDeadline || undefined,
+              });
+              setProjectTitle("");
+              setProjectObjective("");
+              setProjectDeadline("");
+              setAddProjectOpen(false);
+            }}
+          >
+            <input
+              value={projectTitle}
+              onChange={(event) => setProjectTitle(event.target.value)}
+              placeholder="Nome do projeto"
+              className="h-12 w-full rounded-2xl bg-elevated/50 px-4 text-[15px] outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+            />
+            <textarea
+              value={projectObjective}
+              onChange={(event) => setProjectObjective(event.target.value)}
+              placeholder="Objetivo"
+              className="app-scrollbar h-28 w-full resize-none rounded-2xl bg-elevated/50 px-4 py-3 text-[15px] leading-snug outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+            />
+            <input
+              type="date"
+              value={projectDeadline}
+              onChange={(event) => setProjectDeadline(event.target.value)}
+              className="h-12 w-full rounded-2xl bg-elevated/50 px-3.5 text-[13px] text-foreground outline-none focus:ring-1 focus:ring-ring"
+              aria-label="Deadline do projeto"
+            />
+            <button
+              type="submit"
+              disabled={!projectTitle.trim()}
+              className="press flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-elevated/70 px-4 text-sm font-medium text-foreground disabled:cursor-not-allowed disabled:text-muted-foreground"
+            >
+              <Plus className="size-4" />
+              Adicionar Projeto
+            </button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -320,24 +451,39 @@ interface FrontDetail {
   area: Category;
   fatherId: string;
   status: ProjectStatus;
-  description: string;
+  objective: string;
   tasks: Task[];
   projects: Project[];
 }
 
 function buildFrontDetail(
   frontId: string,
+  fronts: ManagedFront[],
   projects: Project[],
   tasks: Task[],
   frontStatuses: Record<string, ProjectStatus>,
 ): FrontDetail | null {
+  const frontRecord = fronts.find((front) => front.id === frontId);
   const frontProjects = projects.filter((project) => project.frontId === frontId);
   const firstProject = frontProjects[0];
-  const status = frontStatuses[frontId] ?? "Em andamento";
+  const status = frontStatuses[frontId] ?? frontRecord?.status ?? "Em andamento";
   const directTasks = tasks.filter((task) => {
     const father = parseFatherId(task.fatherId);
     return father.frontId === frontId && !father.projectId;
   });
+
+  if (frontRecord) {
+    return {
+      id: frontRecord.id,
+      title: frontRecord.title,
+      area: frontRecord.area,
+      fatherId: `${toFatherSegment(frontRecord.area)}.${frontRecord.id}`,
+      status,
+      objective: frontRecord.objective,
+      tasks: directTasks,
+      projects: frontProjects,
+    };
+  }
 
   if (firstProject) {
     return {
@@ -346,7 +492,7 @@ function buildFrontDetail(
       area: firstProject.category,
       fatherId: `${toFatherSegment(firstProject.category)}.${frontId}`,
       status,
-      description: `Frente para organizar iniciativas, tarefas soltas e projetos ligados a ${firstProject.frontTitle}.`,
+      objective: `Frente para organizar iniciativas, tarefas soltas e projetos ligados a ${firstProject.frontTitle}.`,
       tasks: directTasks,
       projects: frontProjects,
     };
@@ -359,7 +505,7 @@ function buildFrontDetail(
       area: "Pessoal",
       fatherId: "pessoal.pessoal-notas-de-alivio",
       status,
-      description: "Espaço para capturar pendências pessoais e notas de alívio fora das frentes de trabalho.",
+      objective: "Espaço para capturar pendências pessoais e notas de alívio fora das frentes de trabalho.",
       tasks: directTasks,
       projects: [],
     };
@@ -373,7 +519,7 @@ function buildFrontDetail(
       area: father.areaId ? (formatArea(father.areaId) as Category) : "Pessoal",
       fatherId: `${father.areaId ?? "pessoal"}.${frontId}`,
       status,
-      description: "Frente operacional para agrupar tarefas soltas e próximos movimentos.",
+      objective: "Frente operacional para agrupar tarefas soltas e próximos movimentos.",
       tasks: directTasks,
       projects: [],
     };

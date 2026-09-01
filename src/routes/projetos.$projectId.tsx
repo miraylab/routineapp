@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Check, ChevronDown, Flag, Plus, X } from "lucide-react";
+import { Check, ChevronDown, Flag, Pencil, Plus, X } from "lucide-react";
 
 import { PageHeader } from "@/components/yuri/PageHeader";
 import { StatusBadge } from "@/components/yuri/StatusBadge";
@@ -35,13 +35,16 @@ export const Route = createFileRoute("/projetos/$projectId")({
 
 function ProjetoDetalhe() {
   const { projectId } = Route.useParams();
-  const { projects, toggleProjectAction, addProjectAction, setProjectStatus } = useStore();
+  const { projects, toggleProjectAction, addProjectAction, setProjectStatus, updateProjectDetails } = useStore();
   const [draft, setDraft] = useState("");
   const [draftQuick, setDraftQuick] = useState(false);
   const [draftVisibleFrom, setDraftVisibleFrom] = useState("");
   const [draftNote, setDraftNote] = useState("");
+  const [objectiveDraft, setObjectiveDraft] = useState("");
+  const [deadlineDraft, setDeadlineDraft] = useState("");
   const [actionsDismissed, setActionsDismissed] = useState(false);
   const [addActionOpen, setAddActionOpen] = useState(false);
+  const [editProjectOpen, setEditProjectOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
 
   const project = projects.find((p) => p.id === projectId);
@@ -106,9 +109,23 @@ function ProjetoDetalhe() {
       </div>
 
       <section className="rounded-3xl border border-border/60 bg-card p-5">
-        <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
-          OBJETIVO
-        </p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
+            OBJETIVO
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setObjectiveDraft(project.objective);
+              setDeadlineDraft(shortDeadlineToInput(project.deadline));
+              setEditProjectOpen(true);
+            }}
+            className="press -mr-1 grid size-6 shrink-0 place-items-center text-muted-foreground/70"
+            aria-label="Editar objetivo e deadline do projeto"
+          >
+            <Pencil className="size-3.5" />
+          </button>
+        </div>
         <p className="mt-2 text-[15px] leading-snug">{project.objective}</p>
       </section>
 
@@ -167,13 +184,6 @@ function ProjetoDetalhe() {
                         </span>
                       ) : null}
                     </span>
-                    {a.visibleFrom && !a.dueDate ? (
-                      <span className="shrink-0">
-                        <StatusBadge className="px-2 py-0.5 text-[10px]">
-                          desde {a.visibleFrom}
-                        </StatusBadge>
-                      </span>
-                    ) : null}
                   </button>
                 </li>
               ))}
@@ -260,6 +270,47 @@ function ProjetoDetalhe() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={editProjectOpen} onOpenChange={setEditProjectOpen}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-[430px] rounded-3xl border-border/60 bg-card p-5">
+          <DialogHeader className="space-y-1 text-left">
+            <DialogTitle className="text-base">Editar projeto</DialogTitle>
+            <DialogDescription>
+              Ajuste o objetivo e o deadline de {project.title}.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-2.5"
+            onSubmit={(event) => {
+              event.preventDefault();
+              updateProjectDetails(project.id, {
+                objective: objectiveDraft,
+                deadline: deadlineDraft,
+              });
+              setEditProjectOpen(false);
+            }}
+          >
+            <textarea
+              value={objectiveDraft}
+              onChange={(event) => setObjectiveDraft(event.target.value)}
+              className="app-scrollbar h-36 w-full resize-none rounded-2xl bg-elevated/50 px-4 py-3 text-[15px] leading-snug outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+            />
+            <input
+              type="date"
+              value={deadlineDraft}
+              onChange={(event) => setDeadlineDraft(event.target.value)}
+              className="h-12 w-full rounded-2xl bg-elevated/50 px-3.5 text-[13px] text-foreground outline-none focus:ring-1 focus:ring-ring"
+              aria-label="Deadline do projeto"
+            />
+            <button
+              type="submit"
+              className="press flex h-11 w-full items-center justify-center rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground"
+            >
+              Salvar projeto
+            </button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -322,3 +373,12 @@ const SHORT_MONTHS: Record<string, number> = {
   nov: 10,
   dez: 11,
 };
+
+function shortDeadlineToInput(value: string) {
+  const parsed = parseShortPortugueseDate(value);
+  if (!parsed) return "";
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}

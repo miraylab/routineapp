@@ -270,7 +270,7 @@ Atualmente sao persistidos:
 
 Em tarefas e proximas acoes de projeto, a conclusao deve ser derivada da presenca de `dueDate`: vazio significa aberta, preenchido significa concluida na data informada. A lista local `doneTasks` permanece apenas como mecanismo legado/local para alternar visualmente a conclusao dos mocks, mas o contrato de dados deve continuar sendo `dueDate`.
 
-Nao existe backend, banco, login, autenticacao ou sincronizacao remota neste momento.
+O app esta em transicao dos mocks para Supabase. Ja existe login simples com Supabase Auth e leitura/escrita inicial das tabelas de projetos, mas os mocks ainda permanecem como apoio de desenvolvimento para partes que nao foram migradas.
 
 ## Rotas Atuais
 
@@ -321,6 +321,12 @@ Hoje deve usar um icone que represente gestao e execucao do dia, nao apenas pass
 - Tarefas rapidas concluidas hoje continuam visiveis riscadas; tarefas concluidas antes de hoje deixam de aparecer nas listas operacionais.
 - Cartoes ligados a Saude/Alimentacao, como musculacao, corrida e refeicoes, nao devem exibir area de Ver Detalhes. Esses cards devem focar na lista operacional/avaliacao daquela rotina.
 - Nas paginas de detalhe de projeto, as pilulas de prazo e status ficam fora do box de objetivo, na mesma linha: prazo a esquerda e status a direita, com tamanho suficiente para leitura mobile. Nas paginas de detalhe de frente, o status tambem fica fora do box de descricao.
+- A primeira conexao com Supabase foi adicionada sem remover os mocks. A camada `src/lib/supabaseProjects.ts` le `areas`, `fronts`, `projects` e `tasks` via REST usando `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`; se nao houver dados suficientes ou se a chamada falhar, o app continua usando os dados mockados.
+- As telas de gerenciamento de projetos ja possuem entradas para evoluir cadastros via app: um botao `+` discreto no card superior da pagina Projetos para adicionar Frente, lapis para editar objetivo da Frente, `+ Adicionar Projeto` dentro da Frente, e lapis no Projeto para editar objetivo e deadline.
+- Na pagina Projetos, cada card de Frente deve manter a leitura limpa: as acoes de criar `tarefa` e `projeto` ficam em um unico botao `+` no header da frente, ao lado da seta de aprofundamento. O box de `TAREFAS` aparece apenas quando houver tarefas visiveis para listar.
+- As acoes principais de gerenciamento agora tentam escrever no Supabase quando o registro possui ID numerico vindo do banco: criar frente, editar objetivo/status da frente, criar projeto, editar objetivo/deadline/status do projeto, criar tarefa de frente/projeto e concluir/reabrir tarefa. Registros legados/mock continuam usando fallback local ate a migracao completa dos mocks.
+- O app agora possui login simples com Supabase Auth em `src/lib/supabaseAuth.tsx`. A sessao fica salva no navegador, e as chamadas REST do modulo de projetos passam a enviar o `access_token` do usuario logado no header `Authorization`, permitindo usar policies RLS com `user_id = auth.uid()`.
+- Com Supabase configurado, a tela Projetos deve aguardar a sessao autenticada para buscar dados remotos e nao deve criar fallback visual de `Notas de alivio` dentro da propria pagina. Isso evita mascarar falhas de RLS/token como se apenas a area Pessoal existisse.
 
 ## Decisoes de Trabalho
 
