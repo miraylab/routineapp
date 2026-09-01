@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Check, ChevronDown, Flag, Pencil, Plus, X } from "lucide-react";
 
 import { PageHeader } from "@/components/yuri/PageHeader";
@@ -30,6 +30,7 @@ export const Route = createFileRoute("/projetos/frentes/$frontId")({
 
 function FrenteDetalhe() {
   const { frontId } = Route.useParams();
+  const navigate = useNavigate();
   const {
     projects,
     tasks,
@@ -78,7 +79,17 @@ function FrenteDetalhe() {
 
   return (
     <div className="space-y-3">
-      <PageHeader title={front.title} subtitle={front.area} back />
+      <PageHeader
+        title={front.title}
+        subtitle={front.area}
+        back
+        onBack={() =>
+          navigate({
+            to: "/projetos/",
+            search: { area: front.area, front: front.id },
+          })
+        }
+      />
 
       <div className="flex justify-end">
         <div className="relative">

@@ -1,5 +1,5 @@
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronRight, Flag, Plus, User, X } from "lucide-react";
 
 import { StatusBadge } from "@/components/yuri/StatusBadge";
@@ -42,12 +42,31 @@ export const Route = createFileRoute("/projetos/")({
 function ProjetosPage() {
   const { projects, tasks, fronts, toggleTask, todayKey, addFront, addProject, addTask } = useStore();
   const hierarchy = useMemo(() => buildProjectHierarchy(projects, tasks, fronts), [fronts, projects, tasks]);
-  const [selectedArea, setSelectedArea] = useState<Category>(hierarchy[0]?.area ?? "Michelin");
+  const [selectedArea, setSelectedArea] = useState<Category>(() => getProjectsFocusFromUrl().area ?? "Michelin");
   const [addFrontOpen, setAddFrontOpen] = useState(false);
   const [frontTitle, setFrontTitle] = useState("");
   const [frontObjective, setFrontObjective] = useState("");
 
   const currentArea = hierarchy.find((area) => area.area === selectedArea) ?? hierarchy[0];
+  const focusedFrontId = getProjectsFocusFromUrl().frontId;
+
+  useEffect(() => {
+    const focus = getProjectsFocusFromUrl();
+    if (!focus.area) return;
+    setSelectedArea(focus.area);
+  }, []);
+
+  useEffect(() => {
+    if (!focusedFrontId || !currentArea?.fronts.some((front) => front.id === focusedFrontId)) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      document
+        .getElementById(frontElementId(focusedFrontId))
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [currentArea?.fronts, focusedFrontId]);
 
   return (
     <div className="space-y-3">
@@ -233,6 +252,7 @@ function FrontSection({
 
   return (
     <section
+      id={frontElementId(front.id)}
       role="button"
       tabIndex={0}
       onClick={(event) => {
@@ -538,6 +558,27 @@ function FrontSection({
       </Dialog>
     </section>
   );
+}
+
+function getProjectsFocusFromUrl(): { area?: Category; frontId?: string } {
+  if (typeof window === "undefined") return {};
+
+  const params = new URLSearchParams(window.location.search);
+  const area = params.get("area");
+  const frontId = params.get("front") ?? undefined;
+
+  return {
+    area: isCategory(area) ? area : undefined,
+    frontId,
+  };
+}
+
+function isCategory(value: string | null): value is Category {
+  return value === "Michelin" || value === "Miray" || value === "Estudos" || value === "Pessoal";
+}
+
+function frontElementId(frontId: string) {
+  return `front-card-${frontId}`;
 }
 
 function ProjectRow({ project, todayKey }: { project: Project; todayKey: string }) {

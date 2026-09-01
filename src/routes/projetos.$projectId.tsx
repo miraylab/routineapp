@@ -72,8 +72,8 @@ function ProjetoDetalhe() {
         back
         onBack={() =>
           navigate({
-            to: "/projetos/frentes/$frontId",
-            params: { frontId: project.frontId },
+            to: "/projetos/",
+            search: { area: project.category, front: project.frontId },
           })
         }
       />
