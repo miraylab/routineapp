@@ -220,6 +220,8 @@ Estrutura base de tarefas:
 - `dueDate` significa exclusivamente data de conclusao/completude. Se estiver vazio, a tarefa ainda esta aberta. Se estiver preenchido, a tarefa foi realizada naquela data. `dueDate` nao deve ser usado como prazo, data de execucao ou data de vencimento.
 - Regra geral de visibilidade: uma task concluida so desaparece das telas operacionais quando `dueDate` for diferente de hoje. Se `dueDate` for igual a hoje, ela continua aparecendo na tela, marcada/riscada. Isso vale para todas as telas e comportamentos que listam tasks ou proximas acoes.
 - A task base nao deve ter `deadline`. Prazos podem existir no nivel de projeto/marco/entrega, mas nao entram na estrutura simples da task no MVP.
+- A estrutura de Estudos deve ser: Area `Estudos`; Frentes `Aula`, `Leitura` e `Inglês`; Projeto como nome do livro, curso ou material; Task como capitulo, aula ou modulo. Blocos do Google Calendar como `Estudos - Video` devem apontar naturalmente para a frente `Aula`; blocos como `Estudos - Leitura` apontam para a frente `Leitura`.
+- A tela Hoje deve obter os blocos de tempo pela rota interna `/api/routine/week`, que consulta a agenda Google `ROTINA` no servidor e normaliza eventos para `ScheduleBlock`. Variaveis server-side esperadas: `ROUTINE_CALENDAR_ID` e `GOOGLE_CALENDAR_API_KEY`; enquanto o ID da agenda ROTINA pode ficar fixo/publico por nao ser segredo, a API key deve ficar apenas no servidor. Agenda, projetos e tasks nao devem ter fallback para mocks: se a fonte real nao carregar, a interface deve ficar vazia nessa parte para evidenciar a falha.
 
 ## Integracoes Externas
 
@@ -270,7 +272,7 @@ Atualmente sao persistidos:
 
 Em tarefas e proximas acoes de projeto, a conclusao deve ser derivada da presenca de `dueDate`: vazio significa aberta, preenchido significa concluida na data informada. A lista local `doneTasks` permanece apenas como mecanismo legado/local para alternar visualmente a conclusao dos mocks, mas o contrato de dados deve continuar sendo `dueDate`.
 
-O app esta em transicao dos mocks para Supabase. Ja existe login simples com Supabase Auth e leitura/escrita inicial das tabelas de projetos, mas os mocks ainda permanecem como apoio de desenvolvimento para partes que nao foram migradas.
+O app esta em transicao dos mocks para Supabase e Google Calendar. Agenda, projetos e tasks ja devem depender exclusivamente das fontes reais; os mocks permanecem apenas para partes ainda nao migradas, como metas, habitos, marcos semanais e visoes analiticas.
 
 ## Rotas Atuais
 
@@ -316,16 +318,17 @@ Hoje deve usar um icone que represente gestao e execucao do dia, nao apenas pass
 ## Regras da Tela Hoje
 
 - O botao flutuante verde de adicionar nota deve existir sempre na tela Hoje, independentemente de existir um cartao de tempo livre ativo/visivel naquele momento.
+- Os cartoes de atividade da tela Hoje devem usar a granularidade do bloco de tempo para filtrar tasks. Um bloco com apenas Area, como `Michelin`, mostra tasks daquele escopo inteiro; um bloco com Frente, como `Michelin · Operação`, mostra tasks daquela frente; um bloco com Projeto, como `Michelin · Data-Driven · Dashboard RQE`, mostra apenas tasks daquele projeto. A rotina base futura pode vir do Google Calendar somente como blocos de tempo; Supabase continua sendo a fonte de areas, frentes, projetos, tasks, notas e historico. O caminho da task deve aparecer em texto secundario dentro do checklist do cartao para indicar de onde ela veio.
 - Esse botao adiciona uma entrada nas Notas de Alivio e deve permitir marcar a flag de tarefa rapida. Quando a flag estiver ativa, a nota tambem entra no box global de Tarefas Rapidas; quando estiver inativa, fica apenas dentro das Notas de Alivio.
 - Quando um cartao de tempo livre aparecer, ele deve mostrar as Notas de Alivio globais junto com eventuais notas especificas daquele periodo.
 - Tarefas rapidas concluidas hoje continuam visiveis riscadas; tarefas concluidas antes de hoje deixam de aparecer nas listas operacionais.
 - Cartoes ligados a Saude/Alimentacao, como musculacao, corrida e refeicoes, nao devem exibir area de Ver Detalhes. Esses cards devem focar na lista operacional/avaliacao daquela rotina.
 - Nas paginas de detalhe de projeto, as pilulas de prazo e status ficam fora do box de objetivo, na mesma linha: prazo a esquerda e status a direita, com tamanho suficiente para leitura mobile. Nas paginas de detalhe de frente, o status tambem fica fora do box de descricao.
-- A primeira conexao com Supabase foi adicionada sem remover os mocks. A camada `src/lib/supabaseProjects.ts` le `areas`, `fronts`, `projects` e `tasks` via REST usando `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`; se nao houver dados suficientes ou se a chamada falhar, o app continua usando os dados mockados.
+- A conexao com Supabase para Projetos nao deve usar fallback para mocks. A camada `src/lib/supabaseProjects.ts` le `areas`, `fronts`, `projects` e `tasks` via REST usando `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`; se nao houver dados ou se a chamada falhar, a tela deve refletir a ausencia de dados reais.
 - As telas de gerenciamento de projetos ja possuem entradas para evoluir cadastros via app: um botao `+` discreto no card superior da pagina Projetos para adicionar Frente, lapis para editar objetivo da Frente, `+ Adicionar Projeto` dentro da Frente, e lapis no Projeto para editar objetivo e deadline.
 - Na pagina Projetos, cada card de Frente deve manter a leitura limpa: as acoes de criar `tarefa` e `projeto` ficam em um unico botao `+` no header da frente, ao lado da seta de aprofundamento. O box de `TAREFAS` aparece apenas quando houver tarefas visiveis para listar.
 - Controles internos dos cards de Frente, como `+`, dropdowns, inputs e dialogs, nao devem disparar a navegacao do card. Ao sair de paginas de detalhe de Frente ou Projeto pelo botao voltar do header, o destino deve ser a pagina principal de Projetos com a area correta selecionada e a Frente correspondente em foco.
-- As acoes principais de gerenciamento agora tentam escrever no Supabase quando o registro possui ID numerico vindo do banco: criar frente, editar objetivo/status da frente, criar projeto, editar objetivo/deadline/status do projeto, criar tarefa de frente/projeto e concluir/reabrir tarefa. Registros legados/mock continuam usando fallback local ate a migracao completa dos mocks.
+- As acoes principais de gerenciamento escrevem no Supabase quando o registro possui ID numerico vindo do banco: criar frente, editar objetivo/status da frente, criar projeto, editar objetivo/deadline/status do projeto, criar tarefa de frente/projeto e concluir/reabrir tarefa. Registros legados/mock nao devem gerar novos fallbacks locais silenciosos.
 - O app agora possui login simples com Supabase Auth em `src/lib/supabaseAuth.tsx`. A sessao fica salva no navegador, e as chamadas REST do modulo de projetos passam a enviar o `access_token` do usuario logado no header `Authorization`, permitindo usar policies RLS com `user_id = auth.uid()`.
 - Com Supabase configurado, a tela Projetos deve aguardar a sessao autenticada para buscar dados remotos e nao deve criar fallback visual de `Notas de alivio` dentro da propria pagina. Isso evita mascarar falhas de RLS/token como se apenas a area Pessoal existisse.
 

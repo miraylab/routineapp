@@ -15,9 +15,6 @@ import {
   goals,
   habits,
   monthView,
-  projects as projectsSeed,
-  schedule,
-  tasks as tasksSeed,
   todayGoal,
   weekAreas,
   weekFocus,
@@ -25,6 +22,7 @@ import {
   type DailyHabit,
   type Project,
   type ProjectStatus,
+  type ScheduleBlock,
   type Task,
 } from "@/data/mockData";
 import { getCurrentActivity, toMinutes } from "@/lib/schedule";
@@ -145,6 +143,7 @@ type StoreValue = ReturnType<typeof useStoreValue>;
 function useStoreValue(accessToken?: string) {
   const [state, setState] = useState<PersistedState>(initialState);
   const [remoteProjectData, setRemoteProjectData] = useState<SupabaseProjectData | null>(null);
+  const [remoteSchedule, setRemoteSchedule] = useState<ScheduleBlock[] | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [realNow, setRealNow] = useState(HYDRATION_CLOCK_FALLBACK);
 
@@ -199,7 +198,7 @@ function useStoreValue(accessToken?: string) {
         if (active) setRemoteProjectData(data);
       })
       .catch((error) => {
-        console.warn("Supabase project data fallback to mocks", error);
+        console.warn("Supabase project data unavailable", error);
         if (active) setRemoteProjectData(null);
       });
 
@@ -215,18 +214,45 @@ function useStoreValue(accessToken?: string) {
     : realNow.getHours() * 60 + realNow.getMinutes();
   const todayKey = useMemo(() => toDateKey(realNow), [realNow]);
 
-  const context = useMemo(
-    () => getCurrentActivity(schedule, dayOfWeek, nowMinutes),
-    [dayOfWeek, nowMinutes],
+  useEffect(() => {
+    if (!hydrated) return;
+
+    let active = true;
+
+    fetch(`/api/routine/week?start=${encodeURIComponent(todayKey)}&days=8`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Routine calendar: ${response.status}`);
+        return (await response.json()) as { blocks?: ScheduleBlock[] };
+      })
+      .then((data) => {
+        if (active) setRemoteSchedule(data.blocks ?? []);
+      })
+      .catch((error) => {
+        console.warn("Routine calendar unavailable", error);
+        if (active) setRemoteSchedule([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [hydrated, todayKey]);
+
+  const scheduleBlocks = useMemo(
+    () => remoteSchedule ?? [],
+    [remoteSchedule],
   );
 
-  const useRemoteProjectSource = isSupabaseProjectsConfigured();
-  const baseProjectSeeds = useRemoteProjectSource ? (remoteProjectData?.projects ?? []) : projectsSeed;
-  const baseTaskSeeds = useRemoteProjectSource ? (remoteProjectData?.tasks ?? []) : tasksSeed;
+  const context = useMemo(
+    () => getCurrentActivity(scheduleBlocks, dayOfWeek, nowMinutes),
+    [dayOfWeek, nowMinutes, scheduleBlocks],
+  );
+
+  const baseProjectSeeds = remoteProjectData?.projects ?? [];
+  const baseTaskSeeds = remoteProjectData?.tasks ?? [];
 
   const tasks: Task[] = useMemo(
     () =>
-      [...baseTaskSeeds, ...state.extraTasks].map((t) => {
+      baseTaskSeeds.map((t) => {
         const baseDone = Boolean(t.dueDate);
         const toggled = state.doneTasks.includes(t.id);
         const done = toggled ? !baseDone : baseDone;
@@ -238,22 +264,13 @@ function useStoreValue(accessToken?: string) {
           dueDate: done ? (t.dueDate ?? todayKey) : undefined,
         };
       }),
-    [baseTaskSeeds, state.extraTasks, state.doneTasks, todayKey],
+    [baseTaskSeeds, state.doneTasks, todayKey],
   );
 
   const projects: Project[] = useMemo(
     () =>
-      [...baseProjectSeeds, ...state.extraProjects].map((p) => {
+      baseProjectSeeds.map((p) => {
         const toggled = state.projectActions[p.id] ?? [];
-        const extra = (state.extraActions[p.id] ?? []).map((a) => {
-          const baseDone = Boolean(a.dueDate);
-          const done = toggled.includes(a.id) ? !baseDone : baseDone;
-          return {
-            ...a,
-            visibleFrom: a.visibleFrom ?? todayKey,
-            dueDate: done ? (a.dueDate ?? todayKey) : undefined,
-          };
-        });
         const actions = [
           ...p.actions.map((a) => {
             const baseDone = Boolean(a.dueDate);
@@ -264,7 +281,6 @@ function useStoreValue(accessToken?: string) {
               dueDate: done ? (a.dueDate ?? todayKey) : undefined,
             };
           }),
-          ...extra,
         ];
         // O progresso base vem do mock; interações locais apenas o ajustam,
         // mantendo consistência com as visões de semana/mês.
@@ -286,9 +302,7 @@ function useStoreValue(accessToken?: string) {
       }),
     [
       baseProjectSeeds,
-      state.extraProjects,
       state.projectActions,
-      state.extraActions,
       state.projectStatuses,
       state.projectObjectives,
       state.projectDeadlines,
@@ -327,14 +341,6 @@ function useStoreValue(accessToken?: string) {
       });
     });
 
-    state.extraFronts.forEach((front) => {
-      map.set(front.id, {
-        ...front,
-        objective: state.frontObjectives[front.id] ?? front.objective,
-        status: state.frontStatuses[front.id] ?? front.status,
-      });
-    });
-
     remoteProjectData?.fronts.forEach((front) => {
       map.set(front.id, {
         ...front,
@@ -343,18 +349,8 @@ function useStoreValue(accessToken?: string) {
       });
     });
 
-    if (!useRemoteProjectSource && !map.has("pessoal-notas-de-alivio")) {
-      map.set("pessoal-notas-de-alivio", {
-        id: "pessoal-notas-de-alivio",
-        area: "Pessoal",
-        title: "Notas de alívio",
-        objective: state.frontObjectives["pessoal-notas-de-alivio"] ?? "Espaço para capturar pendências pessoais e notas de alívio fora das frentes de trabalho.",
-        status: state.frontStatuses["pessoal-notas-de-alivio"] ?? "Em andamento",
-      });
-    }
-
     return Array.from(map.values());
-  }, [projects, remoteProjectData?.fronts, state.extraFronts, state.frontObjectives, state.frontStatuses, tasks, useRemoteProjectSource]);
+  }, [projects, remoteProjectData?.fronts, state.frontObjectives, state.frontStatuses, tasks]);
 
   const keyResults = useMemo(
     () =>
@@ -704,21 +700,7 @@ function useStoreValue(accessToken?: string) {
           }));
         })
         .catch((error) => {
-          console.warn("Supabase front create fallback to local state", error);
-          const id = `${toFatherSegment(area)}-${toFatherSegment(trimmed)}-${Date.now()}`;
-          setState((s) => ({
-            ...s,
-            extraFronts: [
-              ...(s.extraFronts ?? []),
-              {
-                id,
-                area,
-                title: trimmed,
-                objective: finalObjective,
-                status: "Em andamento",
-              },
-            ],
-          }));
+          console.warn("Supabase front create failed", error);
         });
     },
     [],
@@ -817,39 +799,12 @@ function useStoreValue(accessToken?: string) {
             }));
           })
           .catch((error) => {
-            console.warn("Supabase project create fallback to local state", error);
-            addLocalProject(remoteInput);
+            console.warn("Supabase project create failed", error);
           });
         return;
       }
 
-      addLocalProject(remoteInput);
-
-      function addLocalProject(localInput: CreateProjectInput) {
-        const id = `${toFatherSegment(title)}-${Date.now()}`;
-        const deadline = localInput.deadline ? formatDateInputToShort(localInput.deadline) : "";
-        setState((s) => ({
-          ...s,
-          extraProjects: [
-            ...(s.extraProjects ?? []),
-            {
-              id,
-              title,
-              category: localInput.category,
-              frontId: localInput.frontId,
-              frontTitle: localInput.frontTitle,
-              objective: localInput.objective?.trim() ?? "",
-              progress: 0,
-              status: "Em andamento",
-              health: "No prazo",
-              nextMilestone: "",
-              nextAction: "",
-              deadline,
-              actions: [],
-            },
-          ],
-        }));
-      }
+      console.warn("Supabase project create skipped: front id is not persisted", input.frontId);
     },
     [],
   );
@@ -894,27 +849,12 @@ function useStoreValue(accessToken?: string) {
             );
           })
           .catch((error) => {
-            console.warn("Supabase project action create fallback to local state", error);
-            addLocalProjectAction();
+            console.warn("Supabase project action create failed", error);
           });
         return;
       }
 
-      addLocalProjectAction();
-
-      function addLocalProjectAction() {
-        const id = `x-${Date.now()}`;
-        setState((s) => ({
-          ...s,
-          extraActions: {
-            ...s.extraActions,
-            [projectId]: [
-              ...(s.extraActions[projectId] ?? []),
-              { id, title: trimmed, ...options, visibleFrom: options.visibleFrom ?? todayKey },
-            ],
-          },
-        }));
-      }
+      console.warn("Supabase project action create skipped: project/front id is not persisted", projectId);
     },
     [projects, todayKey],
   );
@@ -954,185 +894,15 @@ function useStoreValue(accessToken?: string) {
             );
           })
           .catch((error) => {
-            console.warn("Supabase task create fallback to local state", error);
-            addLocalTask();
+            console.warn("Supabase task create failed", error);
           });
         return;
       }
 
-      addLocalTask();
-
-      function addLocalTask() {
-        setState((s) => ({
-          ...s,
-          extraTasks: [
-            ...s.extraTasks,
-            {
-              id: `t-${Date.now()}`,
-              title: trimmed,
-              fatherId,
-              quick: options.quick,
-              visibleFrom: options.visibleFrom ?? todayKey,
-              recurrence: options.recurrence ?? "none",
-            },
-          ],
-        }));
-      }
+      console.warn("Supabase task create skipped: front id is not persisted", fatherId);
     },
     [fronts, todayKey],
   );
-
-  /*
-   * Implementacoes legadas substituidas acima. Mantidas fora do fluxo por
-   * historico de patch: nao adicionar novos callbacks abaixo deste ponto.
-   */
-  /*
-  const addFront = useCallback(
-    (area: Category, title: string, objective = "") => {
-      const trimmed = title.trim();
-      if (!trimmed) return;
-      const id = `${toFatherSegment(area)}-${toFatherSegment(trimmed)}-${Date.now()}`;
-      setState((s) => ({
-        ...s,
-        extraFronts: [
-          ...(s.extraFronts ?? []),
-          {
-            id,
-            area,
-            title: trimmed,
-            objective: objective.trim() || "Frente operacional para agrupar tarefas soltas e próximos movimentos.",
-            status: "Em andamento",
-          },
-        ],
-      }));
-    },
-    [],
-  );
-
-  const updateFrontObjective = useCallback(
-    (frontId: string, objective: string) =>
-      setState((s) => ({
-        ...s,
-        frontObjectives: {
-          ...(s.frontObjectives ?? {}),
-          [frontId]: objective.trim(),
-        },
-      })),
-    [],
-  );
-
-  const updateProjectDetails = useCallback(
-    (projectId: string, details: { objective?: string; deadline?: string }) =>
-      setState((s) => ({
-        ...s,
-        projectObjectives:
-          details.objective === undefined
-            ? s.projectObjectives
-            : {
-                ...(s.projectObjectives ?? {}),
-                [projectId]: details.objective.trim(),
-              },
-        projectDeadlines:
-          details.deadline === undefined
-            ? s.projectDeadlines
-            : {
-                ...(s.projectDeadlines ?? {}),
-                [projectId]: formatDateInputToShort(details.deadline),
-              },
-      })),
-    [],
-  );
-
-  const addProject = useCallback(
-    (input: {
-      category: Category;
-      frontId: string;
-      frontTitle: string;
-      title: string;
-      objective?: string;
-      deadline?: string;
-    }) => {
-      const title = input.title.trim();
-      if (!title) return;
-      const id = `${toFatherSegment(title)}-${Date.now()}`;
-      const deadline = input.deadline ? formatDateInputToShort(input.deadline) : "";
-      setState((s) => ({
-        ...s,
-        extraProjects: [
-          ...(s.extraProjects ?? []),
-          {
-            id,
-            title,
-            category: input.category,
-            frontId: input.frontId,
-            frontTitle: input.frontTitle,
-            objective: input.objective?.trim() ?? "",
-            progress: 0,
-            status: "Em andamento",
-            health: "No prazo",
-            nextMilestone: "",
-            nextAction: "",
-            deadline,
-            actions: [],
-          },
-        ],
-      }));
-    },
-    [],
-  );
-
-  const addProjectAction = useCallback(
-    (
-      projectId: string,
-      title: string,
-      options: {
-        quick?: boolean;
-        visibleFrom?: string;
-        recurrence?: "none" | "daily" | "weekly" | "monthly";
-        dueDate?: string;
-        note?: string;
-      } = {},
-    ) => {
-      const id = `x-${Date.now()}`;
-      setState((s) => ({
-        ...s,
-        extraActions: {
-          ...s.extraActions,
-          [projectId]: [...(s.extraActions[projectId] ?? []), { id, title, ...options }],
-        },
-      }));
-    },
-    [],
-  );
-
-  const addTask = useCallback(
-    (
-      title: string,
-      fatherId = "pessoal",
-      options: {
-        quick?: boolean;
-        visibleFrom?: string;
-        recurrence?: "none" | "daily" | "weekly" | "monthly";
-      } = {},
-    ) => {
-    setState((s) => ({
-      ...s,
-      extraTasks: [
-        ...s.extraTasks,
-        {
-          id: `t-${Date.now()}`,
-          title,
-          fatherId,
-          quick: options.quick,
-          visibleFrom: options.visibleFrom ?? todayKey,
-          recurrence: options.recurrence ?? "none",
-        },
-      ],
-    }));
-    },
-    [todayKey],
-  );
-  */
 
   const setSimulation = useCallback(
     (next: Partial<PersistedState["simulation"]>) =>
@@ -1173,6 +943,7 @@ function useStoreValue(accessToken?: string) {
     dayOfWeek,
     nowMinutes,
     context,
+    scheduleBlocks,
     tasks,
     projects,
     fronts,

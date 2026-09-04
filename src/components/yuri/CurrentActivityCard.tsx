@@ -14,7 +14,8 @@ import { ProgressBar } from "./ProgressBar";
 import { StatusBadge } from "./StatusBadge";
 import type { CurrentActivity } from "@/lib/schedule";
 import { formatDuration } from "@/lib/schedule";
-import type { Project, ScheduleBlock } from "@/data/mockData";
+import type { Project, ProjectAction, ScheduleBlock, Task } from "@/data/mockData";
+import type { ManagedFront } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 type ActivitySlide = ScheduleBlock;
@@ -26,6 +27,8 @@ interface Props {
   context: CurrentActivity;
   project?: Project | undefined;
   projects?: Project[];
+  fronts?: ManagedFront[];
+  tasks?: Task[];
   nowMinutes: number;
   todayKey: string;
   done: boolean;
@@ -37,6 +40,8 @@ interface Props {
   extraChecklistItemsByActivity?: Record<string, ActivityChecklistItem[]>;
   routineRatings?: Record<string, number>;
   onToggleChecklistItem: (id: string) => void;
+  onToggleTask?: (id: string) => void;
+  onToggleProjectAction?: (projectId: string, actionId: string) => void;
   onAddChecklistItem: (title: string, priority: boolean) => void;
   onAddLearningNote?: (text: string) => void;
   onAddLearningAudio?: (audioDataUrl: string, mimeType: string) => void;
@@ -54,6 +59,8 @@ export function CurrentActivityCard({
   context,
   project,
   projects = [],
+  fronts = [],
+  tasks = [],
   nowMinutes,
   todayKey,
   done,
@@ -65,6 +72,8 @@ export function CurrentActivityCard({
   extraChecklistItemsByActivity = {},
   routineRatings = {},
   onToggleChecklistItem,
+  onToggleTask,
+  onToggleProjectAction,
   onAddChecklistItem,
   onAddLearningNote,
   onAddLearningAudio,
@@ -362,8 +371,11 @@ export function CurrentActivityCard({
             checklistItemCompletedAt={checklistItemCompletedAt}
             todayKey={todayKey}
             extraChecklistItems={extraChecklistItemsByActivity[previousSlide.id] ?? []}
+            scopedTaskItems={buildScopedTaskChecklist(previousSlide, previousProject, tasks, projects, fronts, todayKey)}
             routineRatings={routineRatings}
             onToggleChecklistItem={onToggleChecklistItem}
+            onToggleTask={onToggleTask}
+            onToggleProjectAction={onToggleProjectAction}
             onAddChecklistItem={onAddChecklistItem}
             onAddLearningNote={onAddLearningNote}
             onSetRoutineRating={onSetRoutineRating}
@@ -389,8 +401,11 @@ export function CurrentActivityCard({
           checklistItemCompletedAt={checklistItemCompletedAt}
           todayKey={todayKey}
           extraChecklistItems={extraChecklistItems}
+          scopedTaskItems={buildScopedTaskChecklist(current, project, tasks, projects, fronts, todayKey)}
           routineRatings={routineRatings}
           onToggleChecklistItem={onToggleChecklistItem}
+          onToggleTask={onToggleTask}
+          onToggleProjectAction={onToggleProjectAction}
           onAddChecklistItem={onAddChecklistItem}
           onAddLearningNote={onAddLearningNote}
           onToggleLearningAudioRecording={handleToggleLearningAudioRecording}
@@ -413,8 +428,11 @@ export function CurrentActivityCard({
             checklistItemCompletedAt={checklistItemCompletedAt}
             todayKey={todayKey}
             extraChecklistItems={extraChecklistItemsByActivity[nextSlide.id] ?? []}
+            scopedTaskItems={buildScopedTaskChecklist(nextSlide, nextProject, tasks, projects, fronts, todayKey)}
             routineRatings={routineRatings}
             onToggleChecklistItem={onToggleChecklistItem}
+            onToggleTask={onToggleTask}
+            onToggleProjectAction={onToggleProjectAction}
             onAddChecklistItem={onAddChecklistItem}
             onAddLearningNote={onAddLearningNote}
             onSetRoutineRating={onSetRoutineRating}
@@ -444,8 +462,11 @@ function ActivityCardPanel({
   checklistItemCompletedAt,
   todayKey,
   extraChecklistItems,
+  scopedTaskItems = [],
   routineRatings,
   onToggleChecklistItem,
+  onToggleTask,
+  onToggleProjectAction,
   onAddChecklistItem,
   onAddLearningNote,
   onToggleLearningAudioRecording,
@@ -471,8 +492,11 @@ function ActivityCardPanel({
   checklistItemCompletedAt?: (id: string) => string | undefined;
   todayKey: string;
   extraChecklistItems: ActivityChecklistItem[];
+  scopedTaskItems?: ActivityChecklistItem[];
   routineRatings: Record<string, number>;
   onToggleChecklistItem: (id: string) => void;
+  onToggleTask?: (id: string) => void;
+  onToggleProjectAction?: (projectId: string, actionId: string) => void;
   onAddChecklistItem: (title: string, priority: boolean) => void;
   onAddLearningNote?: (text: string) => void;
   onToggleLearningAudioRecording?: () => void;
@@ -495,12 +519,18 @@ function ActivityCardPanel({
   const routineRating = routineRatings[current.id];
   const titleFontSize = useFitText(titleRef, activityTitle, 28, 18);
   const checklist = getVisibleChecklistItems(
-    orderChecklistItems([...getActivityChecklist(current), ...extraChecklistItems], checklistItemDone),
+    orderChecklistItems(
+      [...getActivityChecklist(current), ...extraChecklistItems, ...scopedTaskItems],
+      (itemId) => {
+        const item = scopedTaskItems.find((scopedItem) => scopedItem.id === itemId);
+        return item ? Boolean(item.done) : checklistItemDone(itemId);
+      },
+    ),
     checklistItemDone,
     checklistItemCompletedAt,
     todayKey,
   );
-  const openChecklistItems = checklist.filter((item) => !checklistItemDone(item.id)).length;
+  const openChecklistItems = checklist.filter((item) => !isOperationalItemDone(item, checklistItemDone)).length;
   const viewLabel = viewMode === "past" ? "ANTERIOR" : viewMode === "future" ? "PRÓXIMA" : "AGORA";
   const statusLabel = done
     ? "Concluído"
@@ -605,13 +635,23 @@ function ActivityCardPanel({
           >
             {checklist.length > 0 ? (
               checklist.map((item) => {
-                const itemDone = checklistItemDone(item.id);
+                const itemDone = isOperationalItemDone(item, checklistItemDone);
                 return (
                   <button
                     key={item.id}
                     ref={item.id === firstPendingId ? firstPendingRef : undefined}
                     type="button"
-                    onClick={() => onToggleChecklistItem(item.id)}
+                    onClick={() => {
+                      if (item.source === "task" && item.taskId) {
+                        onToggleTask?.(item.taskId);
+                        return;
+                      }
+                      if (item.source === "project-action" && item.taskId && item.projectId) {
+                        onToggleProjectAction?.(item.projectId, item.taskId);
+                        return;
+                      }
+                      onToggleChecklistItem(item.id);
+                    }}
                     className="press relative flex w-full items-start gap-3 rounded-2xl bg-card/70 px-3.5 py-3 pr-7 text-left"
                   >
                     {item.priority && !itemDone ? (
@@ -634,6 +674,11 @@ function ActivityCardPanel({
                       )}
                     >
                       {item.title}
+                      {item.context ? (
+                        <span className="mt-1 block text-[11px] leading-snug text-muted-foreground">
+                          {item.context}
+                        </span>
+                      ) : null}
                     </span>
                   </button>
                 );
@@ -903,6 +948,11 @@ export interface ActivityChecklistItem {
   id: string;
   title: string;
   priority?: boolean;
+  context?: string;
+  source?: "checklist" | "task" | "project-action";
+  taskId?: string;
+  projectId?: string;
+  done?: boolean;
 }
 
 interface ActivityIndicator {
@@ -971,12 +1021,181 @@ function getVisibleChecklistItems(
   todayKey?: string,
 ) {
   return items.filter((item) => {
+    if (item.source === "task" || item.source === "project-action") return true;
     if (!checklistItemDone(item.id)) return true;
     const completedAt = checklistItemCompletedAt?.(item.id);
     if (!completedAt) return true;
 
     return toDateKey(new Date(completedAt)) === todayKey;
   });
+}
+
+function isOperationalItemDone(
+  item: ActivityChecklistItem,
+  checklistItemDone: (id: string) => boolean,
+) {
+  if (item.source === "task" || item.source === "project-action") return Boolean(item.done);
+  return checklistItemDone(item.id);
+}
+
+function buildScopedTaskChecklist(
+  block: ScheduleBlock,
+  focusedProject: Project | undefined,
+  tasks: Task[],
+  projects: Project[],
+  fronts: ManagedFront[],
+  todayKey: string,
+): ActivityChecklistItem[] {
+  if (block.cardType === "routine" || block.category === "Tempo livre") return [];
+
+  const scope = resolveBlockTaskScope(block, focusedProject, projects, fronts);
+  if (!scope) return [];
+
+  const directTasks = tasks
+    .filter((task) => taskMatchesScope(task.fatherId, scope))
+    .filter((task) => taskIsVisibleInOperationalCard(task, todayKey))
+    .map((task) => ({
+      id: `task:${task.id}`,
+      taskId: task.id,
+      title: task.title,
+      priority: task.quick,
+      context: formatTaskPath(task.fatherId, fronts, projects),
+      source: "task" as const,
+      done: Boolean(task.dueDate),
+    }));
+
+  const projectActions = projects
+    .filter((project) => projectMatchesScope(project, scope))
+    .flatMap((project) =>
+      project.actions
+        .filter((action) => taskIsVisibleInOperationalCard(action, todayKey))
+        .map((action) => ({
+          id: `project-action:${project.id}:${action.id}`,
+          taskId: action.id,
+          projectId: project.id,
+          title: action.title,
+          priority: action.quick,
+          context: `${project.category} · ${project.frontTitle} · ${project.title}`,
+          source: "project-action" as const,
+          done: Boolean(action.dueDate),
+        })),
+    );
+
+  return [...directTasks, ...projectActions];
+}
+
+interface TaskScope {
+  area: string;
+  frontId?: string;
+  projectId?: string;
+}
+
+function resolveBlockTaskScope(
+  block: ScheduleBlock,
+  focusedProject: Project | undefined,
+  projects: Project[],
+  fronts: ManagedFront[],
+): TaskScope | null {
+  const area = toFatherSegment(block.category);
+
+  if (focusedProject) {
+    return {
+      area: toFatherSegment(focusedProject.category),
+      frontId: focusedProject.frontId,
+      projectId: focusedProject.id,
+    };
+  }
+
+  const labelCandidates = [block.subtitle, block.title].filter(Boolean).map((label) => normalizeLabel(label));
+  const matchingProject = projects.find(
+    (project) =>
+      toFatherSegment(project.category) === area &&
+      labelCandidates.some((label) => label === normalizeLabel(project.title)),
+  );
+  if (matchingProject) {
+    return {
+      area: toFatherSegment(matchingProject.category),
+      frontId: matchingProject.frontId,
+      projectId: matchingProject.id,
+    };
+  }
+
+  const matchingFront = fronts.find(
+    (front) =>
+      toFatherSegment(front.area) === area &&
+      labelCandidates.some((label) => label === normalizeLabel(front.title)),
+  );
+
+  return {
+    area,
+    frontId: matchingFront?.id,
+  };
+}
+
+function taskMatchesScope(fatherId: string, scope: TaskScope) {
+  const father = parseFatherId(fatherId);
+  if (father.area !== scope.area) return false;
+  if (scope.projectId) return father.projectId === scope.projectId;
+  if (scope.frontId) return father.frontId === scope.frontId;
+  return true;
+}
+
+function projectMatchesScope(project: Project, scope: TaskScope) {
+  if (toFatherSegment(project.category) !== scope.area) return false;
+  if (scope.projectId) return project.id === scope.projectId;
+  if (scope.frontId) return project.frontId === scope.frontId;
+  return true;
+}
+
+function taskIsVisibleInOperationalCard(
+  task: Pick<Task | ProjectAction, "visibleFrom" | "dueDate">,
+  todayKey: string,
+) {
+  const visibleByStart = !task.visibleFrom || task.visibleFrom <= todayKey;
+  const visibleByCompletion = !task.dueDate || task.dueDate === todayKey;
+  return visibleByStart && visibleByCompletion;
+}
+
+function formatTaskPath(fatherId: string, fronts: ManagedFront[], projects: Project[]) {
+  const father = parseFatherId(fatherId);
+  const front = father.frontId ? fronts.find((item) => item.id === father.frontId) : undefined;
+  const project = father.projectId ? projects.find((item) => item.id === father.projectId) : undefined;
+
+  return [
+    formatFatherSegment(father.area),
+    front?.title ?? formatFatherSegment(father.frontId),
+    project?.title ?? formatFatherSegment(father.projectId),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function parseFatherId(fatherId: string) {
+  const [area, frontId, projectId] = fatherId.split(".");
+  return { area, frontId, projectId };
+}
+
+function normalizeLabel(value?: string) {
+  return toFatherSegment(value ?? "");
+}
+
+function toFatherSegment(value: string) {
+  return value
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function formatFatherSegment(segment?: string) {
+  if (!segment) return "";
+  return segment
+    .split("-")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 function toDateKey(date: Date) {

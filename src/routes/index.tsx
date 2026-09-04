@@ -19,7 +19,7 @@ import {
   type CurrentActivity,
 } from "@/lib/schedule";
 import { cn } from "@/lib/utils";
-import { schedule, type ScheduleBlock, type Task } from "@/data/mockData";
+import { type ScheduleBlock, type Task } from "@/data/mockData";
 
 const BEDTIME_MINUTES = toMinutes("21:30");
 const FREE_TIME_ID_PREFIX = "tempo-livre";
@@ -48,6 +48,7 @@ function HojePage() {
   const {
     hydrated,
     context,
+    scheduleBlocks,
     todayKey,
     nowMinutes,
     dayOfWeek,
@@ -72,6 +73,7 @@ function HojePage() {
     toggleWeekMilestone,
     toggleActivityChecklistItem,
     toggleTask,
+    toggleProjectAction,
     addActivityChecklistItem,
     addActivityLearningEntry,
     addActivityLearningAudioEntry,
@@ -224,8 +226,8 @@ function HojePage() {
   );
   const openDailyHabits = orderedDailyHabits.filter((habit) => !dailyHabitDone(habit.id)).length;
   const selectedDayBlocks = useMemo(
-    () => blocksForDay(schedule, selectedWeekDay),
-    [selectedWeekDay],
+    () => blocksForDay(scheduleBlocks, selectedWeekDay),
+    [scheduleBlocks, selectedWeekDay],
   );
 
   const weekdayLabel = WEEKDAYS[dayOfWeek];
@@ -415,6 +417,8 @@ function HojePage() {
         nowMinutes={nowMinutes}
         todayKey={todayKey}
         projects={projects}
+        fronts={fronts}
+        tasks={tasks}
         blockDoneById={blockDone}
         checklistItemDone={activityChecklistItemDone}
         checklistItemCompletedAt={activityChecklistItemCompletedAt}
@@ -422,6 +426,8 @@ function HojePage() {
         extraChecklistItemsByActivity={carouselExtraChecklistItems}
         extraChecklistItems={focusedExtraChecklistItems}
         onToggleChecklistItem={toggleActivityChecklistItem}
+        onToggleTask={toggleTask}
+        onToggleProjectAction={toggleProjectAction}
         onAddChecklistItem={(title, priority) =>
           focusedCurrent && addActivityChecklistItem(focusedCurrent.id, title, priority)
         }

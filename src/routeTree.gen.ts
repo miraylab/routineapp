@@ -22,6 +22,7 @@ import { Route as ProjetosProjectIdRouteImport } from './routes/projetos.$projec
 import { Route as ApiHealthDebugRouteImport } from './routes/api.health.debug'
 import { Route as ApiHealthRecentRouteImport } from './routes/api.health.recent'
 import { Route as ApiHealthTodayRouteImport } from './routes/api.health.today'
+import { Route as ApiRoutineWeekRouteImport } from './routes/api.routine.week'
 import { Route as ProjetosFrentesFrontIdRouteImport } from './routes/projetos.frentes.$frontId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -89,6 +90,11 @@ const ApiHealthTodayRoute = ApiHealthTodayRouteImport.update({
   path: '/api/health/today',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiRoutineWeekRoute = ApiRoutineWeekRouteImport.update({
+  id: '/api/routine/week',
+  path: '/api/routine/week',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProjetosFrentesFrontIdRoute = ProjetosFrentesFrontIdRouteImport.update({
   id: '/projetos/frentes/$frontId',
   path: '/projetos/frentes/$frontId',
@@ -109,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/api/health/debug': typeof ApiHealthDebugRoute
   '/api/health/recent': typeof ApiHealthRecentRoute
   '/api/health/today': typeof ApiHealthTodayRoute
+  '/api/routine/week': typeof ApiRoutineWeekRoute
   '/projetos/frentes/$frontId': typeof ProjetosFrentesFrontIdRoute
 }
 export interface FileRoutesByTo {
@@ -125,6 +132,7 @@ export interface FileRoutesByTo {
   '/api/health/debug': typeof ApiHealthDebugRoute
   '/api/health/recent': typeof ApiHealthRecentRoute
   '/api/health/today': typeof ApiHealthTodayRoute
+  '/api/routine/week': typeof ApiRoutineWeekRoute
   '/projetos/frentes/$frontId': typeof ProjetosFrentesFrontIdRoute
 }
 export interface FileRoutesById {
@@ -142,6 +150,7 @@ export interface FileRoutesById {
   '/api/health/debug': typeof ApiHealthDebugRoute
   '/api/health/recent': typeof ApiHealthRecentRoute
   '/api/health/today': typeof ApiHealthTodayRoute
+  '/api/routine/week': typeof ApiRoutineWeekRoute
   '/projetos/frentes/$frontId': typeof ProjetosFrentesFrontIdRoute
 }
 export interface FileRouteTypes {
@@ -160,6 +169,7 @@ export interface FileRouteTypes {
     | '/api/health/debug'
     | '/api/health/recent'
     | '/api/health/today'
+    | '/api/routine/week'
     | '/projetos/frentes/$frontId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -176,6 +186,7 @@ export interface FileRouteTypes {
     | '/api/health/debug'
     | '/api/health/recent'
     | '/api/health/today'
+    | '/api/routine/week'
     | '/projetos/frentes/$frontId'
   id:
     | '__root__'
@@ -192,6 +203,7 @@ export interface FileRouteTypes {
     | '/api/health/debug'
     | '/api/health/recent'
     | '/api/health/today'
+    | '/api/routine/week'
     | '/projetos/frentes/$frontId'
   fileRoutesById: FileRoutesById
 }
@@ -209,6 +221,7 @@ export interface RootRouteChildren {
   ApiHealthDebugRoute: typeof ApiHealthDebugRoute
   ApiHealthRecentRoute: typeof ApiHealthRecentRoute
   ApiHealthTodayRoute: typeof ApiHealthTodayRoute
+  ApiRoutineWeekRoute: typeof ApiRoutineWeekRoute
   ProjetosFrentesFrontIdRoute: typeof ProjetosFrentesFrontIdRoute
 }
 
@@ -305,6 +318,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHealthTodayRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/routine/week': {
+      id: '/api/routine/week'
+      path: '/api/routine/week'
+      fullPath: '/api/routine/week'
+      preLoaderRoute: typeof ApiRoutineWeekRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/projetos/frentes/$frontId': {
       id: '/projetos/frentes/$frontId'
       path: '/projetos/frentes/$frontId'
@@ -329,6 +349,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHealthDebugRoute: ApiHealthDebugRoute,
   ApiHealthRecentRoute: ApiHealthRecentRoute,
   ApiHealthTodayRoute: ApiHealthTodayRoute,
+  ApiRoutineWeekRoute: ApiRoutineWeekRoute,
   ProjetosFrentesFrontIdRoute: ProjetosFrentesFrontIdRoute,
 }
 export const routeTree = rootRouteImport

@@ -1,5 +1,4 @@
 import {
-  projects as projectsSeed,
   type Category,
   type Project,
   type ProjectAction,
@@ -329,7 +328,6 @@ function mapProject(
   frontById: Map<number, FrontRow>,
   actions: ProjectAction[],
 ): Project {
-  const seed = projectsSeed.find((item) => item.id === String(project.id));
   const area = normalizeCategory(areaById.get(project.area_id)?.title, project.area_id);
   const front = frontById.get(project.front_id);
   const doneActions = actions.filter((action) => action.dueDate).length;
@@ -344,9 +342,9 @@ function mapProject(
     objective: project.objective ?? "",
     progress,
     status: normalizeStatus(project.status),
-    health: seed?.health ?? "No prazo",
-    nextMilestone: seed?.nextMilestone ?? "",
-    nextAction: seed?.nextAction ?? "",
+    health: "No prazo",
+    nextMilestone: "",
+    nextAction: "",
     deadline: formatDeadlineForUi(project.deadline),
     actions,
   };
