@@ -394,7 +394,7 @@ function useStoreValue(accessToken?: string) {
           : data,
       );
       void updateSupabaseTaskDone(id, nextDueDate).catch((error) =>
-        console.warn("Supabase task update fallback to local state", error),
+        console.warn("Supabase task update failed after optimistic update", error),
       );
     },
     [tasks, todayKey],
@@ -624,7 +624,7 @@ function useStoreValue(accessToken?: string) {
           : data,
       );
       void updateSupabaseTaskDone(actionId, nextDueDate).catch((error) =>
-        console.warn("Supabase project action update fallback to local state", error),
+        console.warn("Supabase project action update failed after optimistic update", error),
       );
     },
     [projects, todayKey],
@@ -650,7 +650,7 @@ function useStoreValue(accessToken?: string) {
           : data,
       );
       void updateSupabaseProject(projectId, { status }).catch((error) =>
-        console.warn("Supabase project status fallback to local state", error),
+        console.warn("Supabase project status update failed after optimistic update", error),
       );
     },
     [],
@@ -677,7 +677,7 @@ function useStoreValue(accessToken?: string) {
           : data,
       );
       void updateSupabaseFront(frontId, { status }).catch((error) =>
-        console.warn("Supabase front status fallback to local state", error),
+        console.warn("Supabase front status update failed after optimistic update", error),
       );
     },
     [],
@@ -727,7 +727,7 @@ function useStoreValue(accessToken?: string) {
           : data,
       );
       void updateSupabaseFront(frontId, { objective: trimmed }).catch((error) =>
-        console.warn("Supabase front objective fallback to local state", error),
+        console.warn("Supabase front objective update failed after optimistic update", error),
       );
     },
     [],
@@ -773,7 +773,9 @@ function useStoreValue(accessToken?: string) {
       void updateSupabaseProject(projectId, {
         ...(objective === undefined ? {} : { objective }),
         ...(details.deadline === undefined ? {} : { deadline: details.deadline || null }),
-      }).catch((error) => console.warn("Supabase project details fallback to local state", error));
+      }).catch((error) =>
+        console.warn("Supabase project details update failed after optimistic update", error),
+      );
     },
     [],
   );
