@@ -46,6 +46,7 @@ function ProjetosPage() {
   const [addFrontOpen, setAddFrontOpen] = useState(false);
   const [frontTitle, setFrontTitle] = useState("");
   const [frontObjective, setFrontObjective] = useState("");
+  const [frontError, setFrontError] = useState("");
 
   const currentArea = hierarchy.find((area) => area.area === selectedArea) ?? hierarchy[0];
   const focusedFrontId = getProjectsFocusFromUrl().frontId;
@@ -73,7 +74,10 @@ function ProjetosPage() {
       {currentArea ? (
         <ProjectOverview
           area={currentArea}
-          onAddFront={() => setAddFrontOpen(true)}
+          onAddFront={() => {
+            setFrontError("");
+            setAddFrontOpen(true);
+          }}
         />
       ) : null}
 
@@ -132,15 +136,30 @@ function ProjetosPage() {
             onSubmit={(event) => {
               event.preventDefault();
               if (!currentArea || !frontTitle.trim()) return;
-              addFront(currentArea.area, frontTitle, frontObjective);
+              const duplicated = currentArea.fronts.some(
+                (front) => toFatherSegment(front.title) === toFatherSegment(frontTitle),
+              );
+              if (duplicated) {
+                setFrontError("Essa frente já existe nesta área.");
+                return;
+              }
+              const created = addFront(currentArea.area, frontTitle, frontObjective);
+              if (!created) {
+                setFrontError("Não consegui criar essa frente. Confira se ela já existe.");
+                return;
+              }
               setFrontTitle("");
               setFrontObjective("");
+              setFrontError("");
               setAddFrontOpen(false);
             }}
           >
             <input
               value={frontTitle}
-              onChange={(event) => setFrontTitle(event.target.value)}
+              onChange={(event) => {
+                setFrontTitle(event.target.value);
+                setFrontError("");
+              }}
               placeholder="Nome da frente"
               className="h-12 w-full rounded-2xl bg-elevated/50 px-4 text-[15px] outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
             />
@@ -150,6 +169,9 @@ function ProjetosPage() {
               placeholder="Objetivo"
               className="app-scrollbar h-28 w-full resize-none rounded-2xl bg-elevated/50 px-4 py-3 text-[15px] leading-snug outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
             />
+            {frontError ? (
+              <p className="text-xs leading-snug text-destructive">{frontError}</p>
+            ) : null}
             <button
               type="submit"
               disabled={!frontTitle.trim()}
@@ -215,7 +237,7 @@ function FrontSection({
     title: string;
     objective?: string;
     deadline?: string;
-  }) => void;
+  }) => boolean;
 }) {
   const navigate = useNavigate();
   const [tasksDismissed, setTasksDismissed] = useState(false);
@@ -229,6 +251,7 @@ function FrontSection({
   const [projectTitle, setProjectTitle] = useState("");
   const [projectObjective, setProjectObjective] = useState("");
   const [projectDeadline, setProjectDeadline] = useState("");
+  const [projectError, setProjectError] = useState("");
   const visibleDirectTasks = orderTasksByDoneLast(
     front.directTasks.filter((task) => taskIsVisibleToday(task, todayKey)),
   );
@@ -247,6 +270,7 @@ function FrontSection({
   const openAddProject = (event?: Event) => {
     event?.preventDefault();
     event?.stopPropagation();
+    setProjectError("");
     setAddProjectOpen(true);
   };
 
@@ -512,7 +536,14 @@ function FrontSection({
             onSubmit={(event) => {
               event.preventDefault();
               if (!projectTitle.trim()) return;
-              onAddProject({
+              const duplicated = front.projects.some(
+                (project) => toFatherSegment(project.title) === toFatherSegment(projectTitle),
+              );
+              if (duplicated) {
+                setProjectError("Esse projeto já existe nesta frente.");
+                return;
+              }
+              const created = onAddProject({
                 category: front.area,
                 frontId: front.id,
                 frontTitle: front.title,
@@ -520,15 +551,23 @@ function FrontSection({
                 objective: projectObjective,
                 deadline: projectDeadline || undefined,
               });
+              if (!created) {
+                setProjectError("Não consegui criar esse projeto. Confira se ele já existe.");
+                return;
+              }
               setProjectTitle("");
               setProjectObjective("");
               setProjectDeadline("");
+              setProjectError("");
               setAddProjectOpen(false);
             }}
           >
             <input
               value={projectTitle}
-              onChange={(event) => setProjectTitle(event.target.value)}
+              onChange={(event) => {
+                setProjectTitle(event.target.value);
+                setProjectError("");
+              }}
               placeholder="Nome do projeto"
               className="h-12 w-full rounded-2xl bg-elevated/50 px-4 text-[15px] outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
             />
@@ -545,6 +584,9 @@ function FrontSection({
               className="h-12 w-full rounded-2xl bg-elevated/50 px-3.5 text-[13px] text-foreground outline-none focus:ring-1 focus:ring-ring"
               aria-label="Deadline do projeto"
             />
+            {projectError ? (
+              <p className="text-xs leading-snug text-destructive">{projectError}</p>
+            ) : null}
             <button
               type="submit"
               disabled={!projectTitle.trim()}
@@ -767,7 +809,8 @@ function toFatherSegment(value: string) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
-    .replace(/\s+/g, "-");
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
 }
 
 function formatFatherSegment(value: string) {

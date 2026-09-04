@@ -54,6 +54,7 @@ function FrenteDetalhe() {
   const [projectTitle, setProjectTitle] = useState("");
   const [projectObjective, setProjectObjective] = useState("");
   const [projectDeadline, setProjectDeadline] = useState("");
+  const [projectError, setProjectError] = useState("");
   const [tasksDismissed, setTasksDismissed] = useState(false);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [editObjectiveOpen, setEditObjectiveOpen] = useState(false);
@@ -320,7 +321,10 @@ function FrenteDetalhe() {
         )}
         <button
           type="button"
-          onClick={() => setAddProjectOpen(true)}
+          onClick={() => {
+            setProjectError("");
+            setAddProjectOpen(true);
+          }}
           className="press mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-elevated/70 px-4 text-sm font-medium text-muted-foreground"
         >
           <Plus className="size-4" />
@@ -372,7 +376,14 @@ function FrenteDetalhe() {
             onSubmit={(event) => {
               event.preventDefault();
               if (!projectTitle.trim()) return;
-              addProject({
+              const duplicated = front.projects.some(
+                (project) => toFatherSegment(project.title) === toFatherSegment(projectTitle),
+              );
+              if (duplicated) {
+                setProjectError("Esse projeto já existe nesta frente.");
+                return;
+              }
+              const created = addProject({
                 category: front.area,
                 frontId: front.id,
                 frontTitle: front.title,
@@ -380,15 +391,23 @@ function FrenteDetalhe() {
                 objective: projectObjective,
                 deadline: projectDeadline || undefined,
               });
+              if (!created) {
+                setProjectError("Não consegui criar esse projeto. Confira se ele já existe.");
+                return;
+              }
               setProjectTitle("");
               setProjectObjective("");
               setProjectDeadline("");
+              setProjectError("");
               setAddProjectOpen(false);
             }}
           >
             <input
               value={projectTitle}
-              onChange={(event) => setProjectTitle(event.target.value)}
+              onChange={(event) => {
+                setProjectTitle(event.target.value);
+                setProjectError("");
+              }}
               placeholder="Nome do projeto"
               className="h-12 w-full rounded-2xl bg-elevated/50 px-4 text-[15px] outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
             />
@@ -405,6 +424,9 @@ function FrenteDetalhe() {
               className="h-12 w-full rounded-2xl bg-elevated/50 px-3.5 text-[13px] text-foreground outline-none focus:ring-1 focus:ring-ring"
               aria-label="Deadline do projeto"
             />
+            {projectError ? (
+              <p className="text-xs leading-snug text-destructive">{projectError}</p>
+            ) : null}
             <button
               type="submit"
               disabled={!projectTitle.trim()}
@@ -608,7 +630,8 @@ function toFatherSegment(value: string) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
-    .replace(/\s+/g, "-");
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
 }
 
 function formatFatherSegment(value: string) {

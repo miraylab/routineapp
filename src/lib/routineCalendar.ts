@@ -118,6 +118,7 @@ function mapCalendarEventToScheduleBlock(event: GoogleCalendarEvent): ScheduleBl
     category: parsedTitle.category,
     title: parsedTitle.title,
     subtitle: parsedTitle.subtitle,
+    scope: parsedTitle.scope,
     description: event.description?.replace(/<[^>]+>/g, "").trim() || undefined,
     cardType: parsedTitle.cardType,
   };
@@ -127,6 +128,7 @@ function parseRoutineTitle(rawTitle: string): {
   category: Category;
   title: string;
   subtitle?: string;
+  scope?: ScheduleBlock["scope"];
   cardType?: ScheduleBlock["cardType"];
 } {
   const parts = rawTitle
@@ -139,7 +141,12 @@ function parseRoutineTitle(rawTitle: string): {
   const category = normalizeCategory(first);
 
   if (category === "Estudos" && second && normalizeSegment(second) === "video") {
-    return { category, title: "Aula", subtitle: "Video" };
+    return {
+      category,
+      title: "Aula",
+      subtitle: "Video",
+      scope: { area: category, front: "Aula" },
+    };
   }
 
   if (category === "Saúde" || category === "Alimentação") {
@@ -147,19 +154,34 @@ function parseRoutineTitle(rawTitle: string): {
       category,
       title: second ?? first,
       subtitle: third,
+      scope: buildRoutineScope(category, second, third),
       cardType: "routine",
     };
   }
 
   if (parts.length === 1) {
-    return { category, title: first, cardType: category === "Rotina" ? "routine" : undefined };
+    return {
+      category,
+      title: first,
+      scope: buildRoutineScope(category, undefined, undefined),
+      cardType: category === "Rotina" ? "routine" : undefined,
+    };
   }
 
   return {
     category,
-    title: second ?? first,
-    subtitle: third,
+    title: third ?? second ?? first,
+    subtitle: third ? second : undefined,
+    scope: buildRoutineScope(category, second, third),
     cardType: category === "Rotina" ? "routine" : undefined,
+  };
+}
+
+function buildRoutineScope(category: Category, front?: string, project?: string): ScheduleBlock["scope"] {
+  return {
+    area: category,
+    ...(front ? { front } : {}),
+    ...(project ? { project } : {}),
   };
 }
 

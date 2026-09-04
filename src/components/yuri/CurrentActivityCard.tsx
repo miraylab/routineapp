@@ -43,6 +43,7 @@ interface Props {
   onToggleTask?: (id: string) => void;
   onToggleProjectAction?: (projectId: string, actionId: string) => void;
   onAddChecklistItem: (title: string, priority: boolean) => void;
+  onMaterializeScheduleScope?: (block: ScheduleBlock) => Promise<void> | void;
   onAddLearningNote?: (text: string) => void;
   onAddLearningAudio?: (audioDataUrl: string, mimeType: string) => void;
   onSetRoutineRating?: (id: string, rating: number) => void;
@@ -75,6 +76,7 @@ export function CurrentActivityCard({
   onToggleTask,
   onToggleProjectAction,
   onAddChecklistItem,
+  onMaterializeScheduleScope,
   onAddLearningNote,
   onAddLearningAudio,
   onSetRoutineRating,
@@ -377,6 +379,7 @@ export function CurrentActivityCard({
             onToggleTask={onToggleTask}
             onToggleProjectAction={onToggleProjectAction}
             onAddChecklistItem={onAddChecklistItem}
+            onMaterializeScheduleScope={onMaterializeScheduleScope}
             onAddLearningNote={onAddLearningNote}
             onSetRoutineRating={onSetRoutineRating}
             className="pointer-events-none h-full w-full shrink-0"
@@ -407,6 +410,7 @@ export function CurrentActivityCard({
           onToggleTask={onToggleTask}
           onToggleProjectAction={onToggleProjectAction}
           onAddChecklistItem={onAddChecklistItem}
+          onMaterializeScheduleScope={onMaterializeScheduleScope}
           onAddLearningNote={onAddLearningNote}
           onToggleLearningAudioRecording={handleToggleLearningAudioRecording}
           isRecordingLearningAudio={isRecordingLearningAudio}
@@ -434,6 +438,7 @@ export function CurrentActivityCard({
             onToggleTask={onToggleTask}
             onToggleProjectAction={onToggleProjectAction}
             onAddChecklistItem={onAddChecklistItem}
+            onMaterializeScheduleScope={onMaterializeScheduleScope}
             onAddLearningNote={onAddLearningNote}
             onSetRoutineRating={onSetRoutineRating}
             className="pointer-events-none h-full w-full shrink-0"
@@ -468,6 +473,7 @@ function ActivityCardPanel({
   onToggleTask,
   onToggleProjectAction,
   onAddChecklistItem,
+  onMaterializeScheduleScope,
   onAddLearningNote,
   onToggleLearningAudioRecording,
   isRecordingLearningAudio = false,
@@ -498,6 +504,7 @@ function ActivityCardPanel({
   onToggleTask?: (id: string) => void;
   onToggleProjectAction?: (projectId: string, actionId: string) => void;
   onAddChecklistItem: (title: string, priority: boolean) => void;
+  onMaterializeScheduleScope?: (block: ScheduleBlock) => Promise<void> | void;
   onAddLearningNote?: (text: string) => void;
   onToggleLearningAudioRecording?: () => void;
   isRecordingLearningAudio?: boolean;
@@ -509,15 +516,19 @@ function ActivityCardPanel({
 }) {
   const { current, progress, remaining } = context;
   const titleRef = useRef<HTMLHeadingElement>(null);
+  const [scopeCreationState, setScopeCreationState] = useState<
+    Record<string, "creating" | "created" | "error">
+  >({});
+  const pendingScopeCreationsRef = useRef<Set<string>>(new Set());
 
   if (!current) return <div className={className} />;
 
-  const activityTitle = current.subtitle ?? current.title;
+  const activityHeading = getActivityHeading(current);
   const isRoutine = current.cardType === "routine";
   const isStudy = current.category === "Estudos";
   const checklistTitle = getOperationalBoxTitle(current);
   const routineRating = routineRatings[current.id];
-  const titleFontSize = useFitText(titleRef, activityTitle, 28, 18);
+  const titleFontSize = useFitText(titleRef, activityHeading.title, 28, 18);
   const checklist = getVisibleChecklistItems(
     orderChecklistItems(
       [...getActivityChecklist(current), ...extraChecklistItems, ...scopedTaskItems],
@@ -530,7 +541,10 @@ function ActivityCardPanel({
     checklistItemCompletedAt,
     todayKey,
   );
-  const openChecklistItems = checklist.filter((item) => !isOperationalItemDone(item, checklistItemDone)).length;
+  const hasConfigurationNotice = checklist.some((item) => item.source === "notice");
+  const openChecklistItems = checklist.filter(
+    (item) => item.source !== "notice" && !isOperationalItemDone(item, checklistItemDone),
+  ).length;
   const viewLabel = viewMode === "past" ? "ANTERIOR" : viewMode === "future" ? "PRÓXIMA" : "AGORA";
   const statusLabel = done
     ? "Concluído"
@@ -579,15 +593,22 @@ function ActivityCardPanel({
         </StatusBadge>
       </div>
 
-      <p className="mt-4 truncate whitespace-nowrap text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-        {current.category}
-      </p>
+      {activityHeading.overline ? (
+        <p className="mt-4 truncate whitespace-nowrap text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+          {activityHeading.overline}
+        </p>
+      ) : (
+        <div className="mt-4" />
+      )}
       <h2
         ref={titleRef}
-        className="mt-1.5 overflow-hidden whitespace-nowrap font-semibold leading-tight tracking-tight"
+        className={cn(
+          "overflow-hidden whitespace-nowrap font-semibold leading-tight tracking-tight",
+          activityHeading.overline ? "mt-1.5" : "mt-0",
+        )}
         style={{ fontSize: titleFontSize }}
       >
-        {activityTitle}
+        {activityHeading.title}
       </h2>
 
       {hasDeliveryDetail ? (
@@ -623,11 +644,13 @@ function ActivityCardPanel({
         <div className="mt-5 flex min-h-0 flex-1 flex-col rounded-2xl bg-elevated/60 p-4">
           <div className="flex items-center justify-between gap-3">
             <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
-              {checklistTitle}
+              {hasConfigurationNotice ? "ATENÇÃO" : checklistTitle}
             </p>
-            <span className="tabular text-xs font-medium text-muted-foreground">
-              {openChecklistItems} abertas
-            </span>
+            {!hasConfigurationNotice ? (
+              <span className="tabular text-xs font-medium text-muted-foreground">
+                {openChecklistItems} abertas
+              </span>
+            ) : null}
           </div>
           <div
             ref={checklistScrollRef}
@@ -636,6 +659,65 @@ function ActivityCardPanel({
             {checklist.length > 0 ? (
               checklist.map((item) => {
                 const itemDone = isOperationalItemDone(item, checklistItemDone);
+                if (item.source === "notice") {
+                  const canConfigure = Boolean(item.configureBlock && onMaterializeScheduleScope);
+                  const creationState = scopeCreationState[item.id];
+                  const creating = creationState === "creating";
+                  const created = creationState === "created";
+                  const NoticeElement = canConfigure ? "button" : "div";
+                  return (
+                    <NoticeElement
+                      key={item.id}
+                      type={canConfigure ? "button" : undefined}
+                      disabled={canConfigure ? creating || created : undefined}
+                      onClick={async () => {
+                        if (!item.configureBlock || !onMaterializeScheduleScope || creating || created) return;
+                        if (pendingScopeCreationsRef.current.has(item.id)) return;
+                        pendingScopeCreationsRef.current.add(item.id);
+                        setScopeCreationState((state) => ({ ...state, [item.id]: "creating" }));
+                        try {
+                          await onMaterializeScheduleScope(item.configureBlock);
+                          setScopeCreationState((state) => ({ ...state, [item.id]: "created" }));
+                        } catch {
+                          setScopeCreationState((state) => ({ ...state, [item.id]: "error" }));
+                        } finally {
+                          pendingScopeCreationsRef.current.delete(item.id);
+                        }
+                      }}
+                      className={cn(
+                        "relative flex w-full items-start gap-3 rounded-2xl bg-card/70 px-3.5 py-3 text-left",
+                        canConfigure && "press cursor-pointer",
+                        created && "bg-primary/10",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border transition-colors duration-200",
+                          created
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border text-muted-foreground",
+                        )}
+                      >
+                        {created ? <Check className="size-3.5" strokeWidth={3} /> : <Plus className="size-3.5" />}
+                      </span>
+                      <span className="min-w-0 flex-1 text-[13px] leading-snug text-muted-foreground">
+                        {created
+                          ? "Estrutura criada. As tarefas certas já podem ser vinculadas."
+                          : creating
+                            ? "Criando estrutura..."
+                            : creationState === "error"
+                              ? "Não consegui criar agora. Tente novamente."
+                              : item.title}
+                        {item.context ? (
+                          <span className="mt-1 block text-[11px] leading-snug text-muted-foreground/80">
+                            {item.context}
+                          </span>
+                        ) : null}
+                      </span>
+                    </NoticeElement>
+                  );
+                }
+
                 return (
                   <button
                     key={item.id}
@@ -689,7 +771,7 @@ function ActivityCardPanel({
               </div>
             )}
           </div>
-          {isStudy ? (
+          {hasConfigurationNotice ? null : isStudy ? (
             <form
               className="mt-2 flex gap-2"
               onSubmit={(event) => {
@@ -865,6 +947,31 @@ function getOperationalBoxTitle(block: ScheduleBlock) {
   return block.category === "Tempo livre" ? "NOTAS DE ALÍVIO" : "CHECKLIST";
 }
 
+function getActivityHeading(block: ScheduleBlock) {
+  const area = block.scope?.area;
+  const front = block.scope?.front;
+  const project = block.scope?.project;
+
+  if (area && front && project) {
+    return {
+      overline: `${area} | ${front}`,
+      title: project,
+    };
+  }
+
+  if (area && front) {
+    return {
+      overline: area,
+      title: front,
+    };
+  }
+
+  return {
+    overline: undefined,
+    title: block.title,
+  };
+}
+
 function buildSlideContext(
   baseContext: CurrentActivity,
   block: ScheduleBlock,
@@ -949,9 +1056,10 @@ export interface ActivityChecklistItem {
   title: string;
   priority?: boolean;
   context?: string;
-  source?: "checklist" | "task" | "project-action";
+  source?: "checklist" | "task" | "project-action" | "notice";
   taskId?: string;
   projectId?: string;
+  configureBlock?: ScheduleBlock;
   done?: boolean;
 }
 
@@ -1049,7 +1157,7 @@ function buildScopedTaskChecklist(
   if (block.cardType === "routine" || block.category === "Tempo livre") return [];
 
   const scope = resolveBlockTaskScope(block, focusedProject, projects, fronts);
-  if (!scope) return [];
+  if (!scope) return [buildMissingScopeChecklistItem(block)];
 
   const directTasks = tasks
     .filter((task) => taskMatchesScope(task.fatherId, scope))
@@ -1096,13 +1204,50 @@ function resolveBlockTaskScope(
   projects: Project[],
   fronts: ManagedFront[],
 ): TaskScope | null {
-  const area = toFatherSegment(block.category);
+  const area = toFatherSegment(block.scope?.area ?? block.category);
+  const requestedFront = block.scope?.front;
+  const requestedProject = block.scope?.project;
 
   if (focusedProject) {
     return {
       area: toFatherSegment(focusedProject.category),
       frontId: focusedProject.frontId,
       projectId: focusedProject.id,
+    };
+  }
+
+  if (requestedProject) {
+    const requestedFrontLabel = requestedFront ? normalizeLabel(requestedFront) : null;
+    const matchingProject = projects.find((project) => {
+      if (toFatherSegment(project.category) !== area) return false;
+      if (normalizeLabel(project.title) !== normalizeLabel(requestedProject)) return false;
+      if (!requestedFrontLabel) return true;
+
+      const front = fronts.find((item) => item.id === project.frontId);
+      return normalizeLabel(front?.title ?? project.frontTitle) === requestedFrontLabel;
+    });
+
+    if (!matchingProject) return null;
+
+    return {
+      area: toFatherSegment(matchingProject.category),
+      frontId: matchingProject.frontId,
+      projectId: matchingProject.id,
+    };
+  }
+
+  if (requestedFront) {
+    const matchingFront = fronts.find(
+      (front) =>
+        toFatherSegment(front.area) === area &&
+        normalizeLabel(front.title) === normalizeLabel(requestedFront),
+    );
+
+    if (!matchingFront) return null;
+
+    return {
+      area,
+      frontId: matchingFront.id,
     };
   }
 
@@ -1129,6 +1274,25 @@ function resolveBlockTaskScope(
   return {
     area,
     frontId: matchingFront?.id,
+  };
+}
+
+function buildMissingScopeChecklistItem(block: ScheduleBlock): ActivityChecklistItem {
+  const missingLabel = block.scope?.project
+    ? `projeto "${block.scope.project}"`
+    : block.scope?.front
+      ? `frente "${block.scope.front}"`
+      : "escopo";
+  const path = [block.scope?.area ?? block.category, block.scope?.front, block.scope?.project]
+    .filter(Boolean)
+    .join(" · ");
+
+  return {
+    id: `${block.id}:missing-scope`,
+    title: `Configurar ${missingLabel} para listar as tarefas certas.`,
+    context: path || undefined,
+    source: "notice",
+    configureBlock: block,
   };
 }
 

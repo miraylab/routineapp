@@ -26,6 +26,11 @@ export interface ScheduleBlock {
   category: Category;
   title: string;
   subtitle?: string;
+  scope?: {
+    area?: string;
+    front?: string;
+    project?: string;
+  };
   description?: string;
   nextAction?: string;
   activityChecklist?: ActivityChecklistItemSeed[];
@@ -580,10 +585,6 @@ export const financeHistory = [
   { month: "Ago", income: 12250, saved: 3050 },
   { month: "Set", income: 12400, saved: 3200 },
 ];
-
-/* ---------------------------------- HOJE ---------------------------------- */
-
-export const todayGoal = "Avançar o MVP do robô de conteúdo sem perder a rotina base.";
 
 /* --------------------------------- SEMANA --------------------------------- */
 

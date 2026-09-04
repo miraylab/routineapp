@@ -58,8 +58,6 @@ function HojePage() {
     projects,
     dailyHabits,
     dailyJournalEntries,
-    todayGoal,
-    todayGoalDone,
     weekMilestones,
     routineRatingsToday,
     blockDone,
@@ -68,7 +66,6 @@ function HojePage() {
     activityChecklistItemDone,
     activityChecklistItemCompletedAt,
     extraActivityChecklistItems,
-    toggleTodayGoal,
     toggleDailyHabit,
     toggleWeekMilestone,
     toggleActivityChecklistItem,
@@ -80,6 +77,7 @@ function HojePage() {
     setRoutineRating,
     addDailyJournalEntry,
     addDailyJournalAudioEntry,
+    materializeScheduleScope,
   } = useStore();
   const [journalOpen, setJournalOpen] = useState(false);
   const [journalDraft, setJournalDraft] = useState("");
@@ -329,31 +327,6 @@ function HojePage() {
             </p>
           </div>
         </div>
-        <p className="mt-3 text-sm leading-snug text-primary-foreground/80">Sua meta de hoje:</p>
-        <button
-          type="button"
-          onClick={toggleTodayGoal}
-          className={cn(
-            "press relative mt-1.5 flex w-full items-start gap-2 overflow-hidden rounded-2xl px-3.5 py-3 text-left text-sm leading-snug shadow-[0_12px_28px_rgba(0,0,0,0.16)] transition-colors duration-300",
-            todayGoalDone
-              ? "bg-primary-foreground/20 text-primary-foreground/75"
-              : "bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.42),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.22),rgba(0,125,98,0.28))] text-primary-foreground",
-          )}
-        >
-          <span
-            className={cn(
-              "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full shadow-[inset_0_1px_0_rgba(255,255,255,0.30),0_4px_10px_rgba(0,0,0,0.10)] transition-colors duration-300",
-              todayGoalDone
-                ? "bg-primary-foreground text-primary"
-                : "bg-primary-foreground/18 text-transparent",
-            )}
-          >
-            <Check className="size-3.5" strokeWidth={3} />
-          </span>
-          <span className={cn("min-w-0 font-medium", todayGoalDone && "line-through")}>
-            {todayGoal}
-          </span>
-        </button>
       </header>
 
       {showFastTasks ? (
@@ -437,6 +410,7 @@ function HojePage() {
         onAddChecklistItem={(title, priority) =>
           focusedCurrent && addActivityChecklistItem(focusedCurrent.id, title, priority)
         }
+        onMaterializeScheduleScope={materializeScheduleScope}
         onAddLearningNote={(text) =>
           focusedCurrent && addActivityLearningEntry(focusedCurrent.id, text, formatMinutes(nowMinutes))
         }

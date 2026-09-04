@@ -15,7 +15,6 @@ import {
   goals,
   habits,
   monthView,
-  todayGoal,
   weekAreas,
   weekFocus,
   weekMilestones,
@@ -54,7 +53,6 @@ export interface ManagedFront {
 
 interface PersistedState {
   doneTasks: string[]; // legado/local: alterna dueDate em tasks baseadas nos mocks
-  todayGoalDone: boolean;
   doneDailyHabits: Record<string, string[]>;
   dailyJournal: Record<string, string>;
   dailyJournalEntries: Record<string, DailyJournalEntry[]>;
@@ -113,7 +111,6 @@ interface ActivityLearningEntry {
 
 const initialState: PersistedState = {
   doneTasks: [],
-  todayGoalDone: false,
   doneDailyHabits: {},
   dailyJournal: {},
   dailyJournalEntries: {},
@@ -400,11 +397,6 @@ function useStoreValue(accessToken?: string) {
     [tasks, todayKey],
   );
 
-  const toggleTodayGoal = useCallback(
-    () => setState((s) => ({ ...s, todayGoalDone: !s.todayGoalDone })),
-    [],
-  );
-
   const toggleDailyHabit = useCallback(
     (id: string) =>
       setState((s) => ({
@@ -686,7 +678,14 @@ function useStoreValue(accessToken?: string) {
   const addFront = useCallback(
     (area: Category, title: string, objective = "") => {
       const trimmed = title.trim();
-      if (!trimmed) return;
+      if (!trimmed) return false;
+      const duplicated = fronts.some(
+        (front) => front.area === area && toFatherSegment(front.title) === toFatherSegment(trimmed),
+      );
+      if (duplicated) {
+        console.warn("Supabase front create skipped: duplicated front path", { area, title: trimmed });
+        return false;
+      }
       const finalObjective =
         objective.trim() || "Frente operacional para agrupar tarefas soltas e próximos movimentos.";
 
@@ -702,8 +701,9 @@ function useStoreValue(accessToken?: string) {
         .catch((error) => {
           console.warn("Supabase front create failed", error);
         });
+      return true;
     },
-    [],
+    [fronts],
   );
 
   const updateFrontObjective = useCallback(
@@ -783,7 +783,19 @@ function useStoreValue(accessToken?: string) {
   const addProject = useCallback(
     (input: CreateProjectInput) => {
       const title = input.title.trim();
-      if (!title) return;
+      if (!title) return false;
+      const duplicated = projects.some(
+        (project) =>
+          project.frontId === input.frontId &&
+          toFatherSegment(project.title) === toFatherSegment(title),
+      );
+      if (duplicated) {
+        console.warn("Supabase project create skipped: duplicated project path", {
+          frontId: input.frontId,
+          title,
+        });
+        return false;
+      }
       const remoteInput = {
         ...input,
         title,
@@ -803,12 +815,13 @@ function useStoreValue(accessToken?: string) {
           .catch((error) => {
             console.warn("Supabase project create failed", error);
           });
-        return;
+        return true;
       }
 
       console.warn("Supabase project create skipped: front id is not persisted", input.frontId);
+      return false;
     },
-    [],
+    [projects],
   );
 
   const addProjectAction = useCallback(
@@ -906,6 +919,80 @@ function useStoreValue(accessToken?: string) {
     [fronts, todayKey],
   );
 
+  const materializeScheduleScope = useCallback(
+    (block: ScheduleBlock) => {
+      const area = normalizeScopeArea(block.scope?.area ?? block.category);
+      const frontTitle = block.scope?.front?.trim();
+      const projectTitle = block.scope?.project?.trim();
+
+      if (!frontTitle && !projectTitle) return Promise.resolve();
+
+      return (async () => {
+        let front = frontTitle
+          ? fronts.find(
+              (item) =>
+                item.area === area &&
+                toFatherSegment(item.title) === toFatherSegment(frontTitle),
+            )
+          : undefined;
+
+        if (!front && frontTitle) {
+          const alreadyQueuedFront = fronts.some(
+            (item) =>
+              item.area === area &&
+              toFatherSegment(item.title) === toFatherSegment(frontTitle),
+          );
+          if (alreadyQueuedFront) return;
+
+          front = await createSupabaseFront(
+            area,
+            frontTitle,
+            "Estrutura criada a partir da agenda ROTINA.",
+          );
+          const createdFront = front;
+          setRemoteProjectData((data) => ({
+            fronts: [...(data?.fronts ?? []), createdFront],
+            projects: data?.projects ?? [],
+            tasks: data?.tasks ?? [],
+            frontStatuses: {
+              ...(data?.frontStatuses ?? {}),
+              [createdFront.id]: createdFront.status,
+            },
+          }));
+        }
+
+        if (!projectTitle || !front || !isNumericId(front.id)) return;
+
+        const existingProject = projects.find(
+          (project) =>
+            project.category === area &&
+            project.frontId === front.id &&
+            toFatherSegment(project.title) === toFatherSegment(projectTitle),
+        );
+        if (existingProject) return;
+
+        const project = await createSupabaseProject({
+          category: area,
+          frontId: front.id,
+          frontTitle: front.title,
+          title: projectTitle,
+          objective: "Projeto criado a partir da agenda ROTINA.",
+        });
+
+        setRemoteProjectData((data) => ({
+          fronts: data?.fronts ?? (front ? [front] : []),
+          projects: [...(data?.projects ?? []), project],
+          tasks: data?.tasks ?? [],
+          frontStatuses: data?.frontStatuses ?? {},
+        }));
+      })().catch((error) => {
+        console.warn("Supabase schedule scope materialization failed", error);
+        throw error;
+      });
+    },
+    [fronts, projects],
+  );
+
   const setSimulation = useCallback(
     (next: Partial<PersistedState["simulation"]>) =>
       setState((s) => ({ ...s, simulation: { ...s.simulation, ...next } })),
@@ -957,8 +1044,6 @@ function useStoreValue(accessToken?: string) {
     routineRatingsToday,
     finance,
     financeHistory,
-    todayGoal,
-    todayGoalDone: state.todayGoalDone,
     monthView,
     weekAreas,
     weekFocus,
@@ -972,7 +1057,6 @@ function useStoreValue(accessToken?: string) {
     weekMilestoneDone,
     extraActivityChecklistItems: state.extraActivityChecklistItems ?? {},
     toggleTask,
-    toggleTodayGoal,
     toggleDailyHabit,
     toggleBlock,
     toggleActivityChecklistItem,
@@ -991,6 +1075,7 @@ function useStoreValue(accessToken?: string) {
     addProject,
     addProjectAction,
     addTask,
+    materializeScheduleScope,
     addDailyJournalEntry,
     addDailyJournalAudioEntry,
     setSimulation,
@@ -1024,6 +1109,17 @@ function formatArea(value: string | undefined): Category {
   if (value === "estudos") return "Estudos";
   if (value === "pessoal") return "Pessoal";
   return "Pessoal";
+}
+
+function normalizeScopeArea(value: string | undefined): Category {
+  const normalized = toFatherSegment(value ?? "");
+  if (normalized === "michelin") return "Michelin";
+  if (normalized === "miray") return "Miray";
+  if (normalized === "estudos") return "Estudos";
+  if (normalized === "pessoal") return "Pessoal";
+  if (normalized === "saude") return "Saúde";
+  if (normalized === "alimentacao") return "Alimentação";
+  return formatArea(normalized);
 }
 
 function toFatherSegment(value: string) {
