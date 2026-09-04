@@ -243,8 +243,8 @@ function useStoreValue(accessToken?: string) {
   );
 
   const context = useMemo(
-    () => getCurrentActivity(scheduleBlocks, dayOfWeek, nowMinutes),
-    [dayOfWeek, nowMinutes, scheduleBlocks],
+    () => getCurrentActivity(scheduleBlocks, dayOfWeek, nowMinutes, sim.enabled ? undefined : todayKey),
+    [dayOfWeek, nowMinutes, scheduleBlocks, sim.enabled, todayKey],
   );
 
   const baseProjectSeeds = remoteProjectData?.projects ?? [];

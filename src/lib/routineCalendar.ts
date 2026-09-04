@@ -86,6 +86,8 @@ export function routineCalendarErrorResponse(error: unknown) {
     );
   }
 
+  console.error("Unexpected routine calendar error", error);
+
   return Response.json(
     {
       available: false,
@@ -109,6 +111,7 @@ function mapCalendarEventToScheduleBlock(event: GoogleCalendarEvent): ScheduleBl
 
   return {
     id: `calendar:${event.id}`,
+    dateKey: formatSaoPauloDateKey(startDate),
     dayOfWeek: getSaoPauloWeekday(startDate),
     startTime: formatSaoPauloTime(startDate),
     endTime: formatSaoPauloTime(endDate),
@@ -211,6 +214,19 @@ function formatSaoPauloTime(date: Date) {
   const hour = parts.find((part) => part.type === "hour")?.value ?? "00";
   const minute = parts.find((part) => part.type === "minute")?.value ?? "00";
   return `${hour}:${minute}`;
+}
+
+function formatSaoPauloDateKey(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: SAO_PAULO_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value ?? "1970";
+  const month = parts.find((part) => part.type === "month")?.value ?? "01";
+  const day = parts.find((part) => part.type === "day")?.value ?? "01";
+  return `${year}-${month}-${day}`;
 }
 
 function readServerEnv(key: string) {

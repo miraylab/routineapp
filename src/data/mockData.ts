@@ -17,6 +17,7 @@ export type Category =
 
 export interface ScheduleBlock {
   id: string;
+  dateKey?: string; // "YYYY-MM-DD"; usado por fontes reais como Google Calendar
   dayOfWeek: number; // 0 = domingo ... 6 = sábado
   startTime: string; // "HH:MM"
   endTime: string; // "HH:MM"

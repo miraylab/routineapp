@@ -57,6 +57,15 @@ export const blocksForDay = (blocks: ScheduleBlock[], dayOfWeek: number) =>
     .filter((x) => x.dayOfWeek === dayOfWeek)
     .sort((a, b) => toMinutes(a.startTime) - toMinutes(b.startTime));
 
+export const blocksForDate = (
+  blocks: ScheduleBlock[],
+  dateKey: string,
+  fallbackDayOfWeek: number,
+) =>
+  blocks
+    .filter((x) => (x.dateKey ? x.dateKey === dateKey : x.dayOfWeek === fallbackDayOfWeek))
+    .sort((a, b) => toMinutes(a.startTime) - toMinutes(b.startTime));
+
 export interface CurrentActivity {
   current: ScheduleBlock | null;
   start: number | null;
@@ -78,8 +87,11 @@ export function getCurrentActivity(
   blocks: ScheduleBlock[],
   dayOfWeek: number,
   nowMinutes: number,
+  dateKey?: string,
 ): CurrentActivity {
-  const dayBlocks = blocksForDay(blocks, dayOfWeek);
+  const dayBlocks = dateKey
+    ? blocksForDate(blocks, dateKey, dayOfWeek)
+    : blocksForDay(blocks, dayOfWeek);
 
   const current =
     dayBlocks.find(

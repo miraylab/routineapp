@@ -11,7 +11,7 @@ import { useStore, type ManagedFront } from "@/lib/store";
 import {
   MONTHS,
   WEEKDAYS,
-  WEEKDAYS_SHORT,
+  blocksForDate,
   blocksForDay,
   formatMinutes,
   greetingFor,
@@ -87,7 +87,7 @@ function HojePage() {
   const [reliefNoteDraft, setReliefNoteDraft] = useState("");
   const [reliefNoteQuick, setReliefNoteQuick] = useState(false);
   const [openMilestoneId, setOpenMilestoneId] = useState<string | null>(null);
-  const [selectedWeekDay, setSelectedWeekDay] = useState(dayOfWeek);
+  const [selectedDateKey, setSelectedDateKey] = useState(todayKey);
   const [fastTasksDismissed, setFastTasksDismissed] = useState(false);
   const [isRecordingJournalAudio, setIsRecordingJournalAudio] = useState(false);
   const journalMediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -96,12 +96,12 @@ function HojePage() {
 
   const { current, dayBlocks } = context;
   const activeFreeTimeBlock = useMemo(
-    () => buildActiveFreeTimeBlock(dayBlocks, dayOfWeek, nowMinutes, current),
-    [current, dayBlocks, dayOfWeek, nowMinutes],
+    () => buildActiveFreeTimeBlock(dayBlocks, dayOfWeek, todayKey, nowMinutes, current),
+    [current, dayBlocks, dayOfWeek, nowMinutes, todayKey],
   );
   const finalFreeTimeBlock = useMemo(
-    () => buildFinalFreeTimeBlock(dayBlocks, dayOfWeek, nowMinutes),
-    [dayBlocks, dayOfWeek, nowMinutes],
+    () => buildFinalFreeTimeBlock(dayBlocks, dayOfWeek, todayKey, nowMinutes),
+    [dayBlocks, dayOfWeek, nowMinutes, todayKey],
   );
   const freeTimeBlock = activeFreeTimeBlock ?? finalFreeTimeBlock;
   const carouselBlocks = useMemo(
@@ -205,8 +205,8 @@ function HojePage() {
   }, [openFastTasks]);
 
   useEffect(() => {
-    setSelectedWeekDay(dayOfWeek);
-  }, [dayOfWeek]);
+    setSelectedDateKey(todayKey);
+  }, [todayKey]);
 
   useEffect(
     () => () => {
@@ -225,9 +225,15 @@ function HojePage() {
     [dailyHabitDone, dailyHabits],
   );
   const openDailyHabits = orderedDailyHabits.filter((habit) => !dailyHabitDone(habit.id)).length;
+  const visibleDays = useMemo(() => buildVisibleDays(realNow), [realNow]);
+  const selectedDayInfo =
+    visibleDays.find((day) => day.dateKey === selectedDateKey) ?? visibleDays[0];
   const selectedDayBlocks = useMemo(
-    () => blocksForDay(scheduleBlocks, selectedWeekDay),
-    [scheduleBlocks, selectedWeekDay],
+    () =>
+      selectedDayInfo
+        ? blocksForDate(scheduleBlocks, selectedDayInfo.dateKey, selectedDayInfo.dayOfWeek)
+        : [],
+    [scheduleBlocks, selectedDayInfo],
   );
 
   const weekdayLabel = WEEKDAYS[dayOfWeek];
@@ -688,19 +694,19 @@ function HojePage() {
           VISÃO DOS DIAS
         </p>
         <div className="app-scrollbar -mx-1 mt-4 flex gap-1.5 overflow-x-auto px-1 pb-1">
-          {WEEKDAYS_SHORT.map((label, index) => (
+          {visibleDays.map((day) => (
             <button
-              key={label}
+              key={day.dateKey}
               type="button"
-              onClick={() => setSelectedWeekDay(index)}
+              onClick={() => setSelectedDateKey(day.dateKey)}
               className={cn(
                 "press h-11 min-w-12 flex-1 rounded-2xl text-xs font-medium transition-colors",
-                selectedWeekDay === index
+                selectedDateKey === day.dateKey
                   ? "bg-primary text-primary-foreground"
                   : "bg-elevated/50 text-muted-foreground",
               )}
             >
-              {label}
+              {day.label}
             </button>
           ))}
         </div>
@@ -920,9 +926,33 @@ function orderItemsByDoneLast<T>(items: T[], isDone: (item: T) => boolean) {
   return [...items].sort((a, b) => Number(isDone(a)) - Number(isDone(b)));
 }
 
+function buildVisibleDays(baseDate: Date) {
+  return Array.from({ length: 7 }, (_, offset) => {
+    const date = new Date(baseDate);
+    date.setHours(12, 0, 0, 0);
+    date.setDate(date.getDate() + offset);
+
+    return {
+      dateKey: formatDateKey(date),
+      dayOfWeek: date.getDay(),
+      label: WEEKDAYS_SHORT_LABELS[date.getDay()],
+    };
+  });
+}
+
+const WEEKDAYS_SHORT_LABELS = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"];
+
+function formatDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function buildActiveFreeTimeBlock(
   dayBlocks: ScheduleBlock[],
   dayOfWeek: number,
+  dateKey: string,
   nowMinutes: number,
   currentBlock: ScheduleBlock | null,
 ): ScheduleBlock | null {
@@ -943,6 +973,7 @@ function buildActiveFreeTimeBlock(
 
   return {
     id: `${FREE_TIME_ID_PREFIX}-ativo-${dayOfWeek}-${previousBlock?.id ?? "inicio"}-${nextBlock?.id ?? "sono"}`,
+    dateKey,
     dayOfWeek,
     startTime,
     endTime,
@@ -954,6 +985,7 @@ function buildActiveFreeTimeBlock(
 function buildFinalFreeTimeBlock(
   dayBlocks: ScheduleBlock[],
   dayOfWeek: number,
+  dateKey: string,
   nowMinutes: number,
 ): ScheduleBlock | null {
   if (nowMinutes >= BEDTIME_MINUTES) return null;
@@ -970,6 +1002,7 @@ function buildFinalFreeTimeBlock(
 
   return {
     id: `${FREE_TIME_ID_PREFIX}-final-${dayOfWeek}-${lastBlockBeforeBedtime?.id ?? "inicio"}-21h30`,
+    dateKey,
     dayOfWeek,
     startTime: formatMinutes(freeStart),
     endTime: "21:30",
