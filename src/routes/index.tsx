@@ -109,6 +109,8 @@ function HojePage() {
     longitude: number;
     accuracy?: number;
   } | null>(null);
+  const [currentAddress, setCurrentAddress] = useState<string | null>(null);
+  const [addressStatus, setAddressStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const journalMediaRecorderRef = useRef<MediaRecorder | null>(null);
   const journalAudioChunksRef = useRef<BlobPart[]>([]);
   const journalRecordingStreamRef = useRef<MediaStream | null>(null);
@@ -453,6 +455,8 @@ function HojePage() {
           longitude: position.coords.longitude,
           accuracy: position.coords.accuracy,
         });
+        setCurrentAddress(null);
+        setAddressStatus("idle");
         setGpsStatus("ready");
       },
       (error) => {
@@ -487,6 +491,29 @@ function HojePage() {
       active = false;
     };
   }, [gpsStatus, hydrated, requestGpsLocation]);
+
+  useEffect(() => {
+    if (gpsStatus !== "ready" || !currentPosition) return;
+
+    let active = true;
+    setAddressStatus("loading");
+
+    reverseGeocode(currentPosition.latitude, currentPosition.longitude)
+      .then((address) => {
+        if (!active) return;
+        setCurrentAddress(address);
+        setAddressStatus(address ? "ready" : "error");
+      })
+      .catch(() => {
+        if (!active) return;
+        setCurrentAddress(null);
+        setAddressStatus("error");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [currentPosition, gpsStatus]);
 
   if (!hydrated) {
     return (
@@ -555,8 +582,12 @@ function HojePage() {
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-sm leading-snug text-foreground">
-              {gpsStatus === "ready" && nearestPlace
-                ? `${formatDistance(nearestPlace.distanceMeters)} de ${nearestPlace.place.label}`
+              {gpsStatus === "ready" && currentAddress
+                ? currentAddress
+                : gpsStatus === "ready" && addressStatus === "loading"
+                  ? "Identificando endereço atual..."
+                  : gpsStatus === "ready" && nearestPlace
+                    ? `${formatDistance(nearestPlace.distanceMeters)} de ${nearestPlace.place.label}`
                 : gpsStatus === "ready"
                   ? "Localização recebida. Cadastre seus endereços fixos para cruzar as informações."
                   : gpsStatus === "denied"
@@ -1300,6 +1331,51 @@ function toRadians(value: number) {
 function formatDistance(distanceMeters: number) {
   if (distanceMeters < 1_000) return `${Math.round(distanceMeters)} m`;
   return `${(distanceMeters / 1_000).toFixed(1).replace(".", ",")} km`;
+}
+
+async function reverseGeocode(latitude: number, longitude: number) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 8_000);
+
+  try {
+    const url = new URL("https://nominatim.openstreetmap.org/reverse");
+    url.searchParams.set("format", "jsonv2");
+    url.searchParams.set("lat", String(latitude));
+    url.searchParams.set("lon", String(longitude));
+    url.searchParams.set("zoom", "18");
+    url.searchParams.set("addressdetails", "1");
+
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: { accept: "application/json" },
+    });
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as {
+      display_name?: string;
+      address?: {
+        road?: string;
+        suburb?: string;
+        neighbourhood?: string;
+        city?: string;
+        town?: string;
+        state?: string;
+      };
+    };
+    const address = data.address;
+    if (!address) return data.display_name ?? null;
+
+    return [
+      address.road,
+      address.neighbourhood ?? address.suburb,
+      address.city ?? address.town,
+      address.state,
+    ]
+      .filter(Boolean)
+      .join(", ") || data.display_name || null;
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
 function getCurrentWeekStartKey(date: Date) {
