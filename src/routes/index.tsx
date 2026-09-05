@@ -604,12 +604,16 @@ function HojePage() {
                   </button>
                 </div>
                 {pendingJournalAudio ? (
-                  <div className="grid grid-cols-[1fr_44px_44px] items-center gap-2 rounded-2xl bg-card/70 p-2">
-                    <audio controls src={pendingJournalAudio.url} className="h-9 min-w-0" />
+                  <div className="grid w-full grid-cols-[minmax(0,1fr)_40px_40px] items-center gap-2 overflow-hidden rounded-2xl bg-card/70 p-2">
+                    <audio
+                      controls
+                      src={pendingJournalAudio.url}
+                      className="h-9 w-full min-w-0 max-w-full"
+                    />
                     <button
                       type="button"
                       onClick={handleDeleteJournalAudio}
-                      className="press grid size-11 place-items-center rounded-2xl border border-border text-muted-foreground"
+                      className="press grid size-10 place-items-center rounded-2xl border border-border text-muted-foreground"
                       aria-label="Apagar áudio"
                     >
                       <X className="size-4" />
@@ -617,7 +621,7 @@ function HojePage() {
                     <button
                       type="button"
                       onClick={handleSendJournalAudio}
-                      className="press grid size-11 place-items-center rounded-2xl bg-primary text-primary-foreground"
+                      className="press grid size-10 place-items-center rounded-2xl bg-primary text-primary-foreground"
                       aria-label="Enviar áudio"
                     >
                       <Send className="size-4" />
