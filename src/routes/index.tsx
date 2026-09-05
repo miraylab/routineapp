@@ -604,28 +604,31 @@ function HojePage() {
                   </button>
                 </div>
                 {pendingJournalAudio ? (
-                  <div className="grid w-full grid-cols-[minmax(0,1fr)_40px_40px] items-center gap-2 overflow-hidden rounded-2xl bg-card/70 p-2">
+                  <div className="w-full space-y-2 overflow-hidden rounded-2xl bg-card/70 p-2">
                     <audio
                       controls
                       src={pendingJournalAudio.url}
                       className="h-9 w-full min-w-0 max-w-full"
                     />
-                    <button
-                      type="button"
-                      onClick={handleDeleteJournalAudio}
-                      className="press grid size-10 place-items-center rounded-2xl border border-border text-muted-foreground"
-                      aria-label="Apagar áudio"
-                    >
-                      <X className="size-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSendJournalAudio}
-                      className="press grid size-10 place-items-center rounded-2xl bg-primary text-primary-foreground"
-                      aria-label="Enviar áudio"
-                    >
-                      <Send className="size-4" />
-                    </button>
+                    <div className="grid grid-cols-[40px_1fr] gap-2">
+                      <button
+                        type="button"
+                        onClick={handleDeleteJournalAudio}
+                        className="press grid size-10 place-items-center rounded-2xl border border-border text-muted-foreground"
+                        aria-label="Apagar áudio"
+                      >
+                        <X className="size-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSendJournalAudio}
+                        className="press flex h-10 items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground"
+                        aria-label="Enviar áudio"
+                      >
+                        <Send className="size-4" />
+                        Enviar áudio
+                      </button>
+                    </div>
                   </div>
                 ) : null}
               </form>
