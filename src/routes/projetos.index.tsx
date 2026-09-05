@@ -253,7 +253,7 @@ function FrontSection({
   const [projectDeadline, setProjectDeadline] = useState("");
   const [projectError, setProjectError] = useState("");
   const visibleDirectTasks = orderTasksByDoneLast(
-    front.directTasks.filter((task) => taskIsVisibleToday(task, todayKey)),
+    front.directTasks.filter((task) => taskIsVisibleInProjectManagement(task, todayKey)),
   );
   const openDirectTasks = visibleDirectTasks.filter((task) => !task.dueDate);
   const showTaskList = visibleDirectTasks.length > 0 && !(tasksDismissed && openDirectTasks.length === 0);
@@ -389,12 +389,13 @@ function FrontSection({
           <ul className="app-scrollbar mt-3 max-h-[190px] space-y-2 overflow-y-auto pr-1">
             {visibleDirectTasks.map((task) => {
               const taskDone = Boolean(task.dueDate);
+              const visibleFromLabel = formatVisibleFromDistance(task.visibleFrom, todayKey);
               return (
                 <li key={task.id}>
                   <button
                     type="button"
                     onClick={() => onToggleTask(task.id)}
-                    className="press relative flex w-full items-start gap-3 rounded-2xl bg-card/70 px-3.5 py-3 pr-7 text-left text-sm text-foreground"
+                    className="press flex w-full items-start gap-3 rounded-2xl bg-card/70 px-3.5 py-3 text-left text-sm text-foreground"
                   >
                     <span
                       className={cn(
@@ -414,8 +415,17 @@ function FrontSection({
                     >
                       {task.title}
                     </span>
-                    {task.quick && !taskDone ? (
-                      <span className="absolute right-3 top-1/2 size-2 -translate-y-1/2 rounded-full bg-primary" />
+                    {visibleFromLabel || (task.quick && !taskDone) ? (
+                      <span className="ml-auto flex shrink-0 items-center gap-2">
+                        {visibleFromLabel ? (
+                            <span className="rounded-full bg-primary/12 px-2.5 py-1 text-[11px] font-medium leading-none text-primary">
+                            {visibleFromLabel}
+                          </span>
+                        ) : null}
+                        {task.quick && !taskDone ? (
+                          <span className="size-2 rounded-full bg-primary" />
+                        ) : null}
+                      </span>
                     ) : null}
                   </button>
                 </li>
@@ -625,7 +635,7 @@ function frontElementId(frontId: string) {
 
 function ProjectRow({ project, todayKey }: { project: Project; todayKey: string }) {
   const openActions = project.actions.filter(
-    (action) => !action.dueDate && (!action.visibleFrom || action.visibleFrom <= todayKey),
+    (action) => !action.dueDate,
   ).length;
 
   return (
@@ -747,14 +757,34 @@ function parseFatherId(fatherId: string) {
   return { areaId, frontId, projectId };
 }
 
-function taskIsVisibleToday(task: Task, todayKey: string) {
-  const visibleByStart = !task.visibleFrom || task.visibleFrom <= todayKey;
+function taskIsVisibleInProjectManagement(task: Task, todayKey: string) {
   const visibleByCompletion = !task.dueDate || task.dueDate === todayKey;
-  return visibleByStart && visibleByCompletion;
+  return visibleByCompletion;
 }
 
 function orderTasksByDoneLast(tasks: Task[]) {
   return [...tasks].sort((a, b) => Number(Boolean(a.dueDate)) - Number(Boolean(b.dueDate)));
+}
+
+function formatVisibleFromDistance(visibleFrom: string | undefined, todayKey: string) {
+  if (!visibleFrom || visibleFrom <= todayKey) return null;
+
+  const visibleDate = parseInputDate(visibleFrom);
+  const today = parseInputDate(todayKey);
+  if (!visibleDate || !today) return null;
+
+  const diffInDays = Math.ceil((visibleDate.getTime() - today.getTime()) / 86_400_000);
+  if (diffInDays <= 0) return null;
+  if (diffInDays === 1) return "Amanhã";
+  return `Daqui ${diffInDays} dias`;
+}
+
+function parseInputDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  const parsed = new Date(year, month - 1, day);
+  parsed.setHours(0, 0, 0, 0);
+  return parsed;
 }
 
 function formatDeadlineDistance(deadline: string) {

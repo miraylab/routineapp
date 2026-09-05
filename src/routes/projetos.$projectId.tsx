@@ -197,7 +197,7 @@ function ProjetoDetalhe() {
                       {visibleFromLabel || (a.quick && !a.dueDate) ? (
                         <span className="ml-auto flex shrink-0 items-center gap-2">
                           {visibleFromLabel ? (
-                            <span className="rounded-full bg-elevated px-2.5 py-1 text-[11px] font-medium leading-none text-muted-foreground">
+                            <span className="rounded-full bg-primary/12 px-2.5 py-1 text-[11px] font-medium leading-none text-primary">
                               {visibleFromLabel}
                             </span>
                           ) : null}
