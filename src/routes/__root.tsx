@@ -160,7 +160,7 @@ function AuthenticatedApp() {
   const { session } = useAuth();
 
   return (
-    <StoreProvider accessToken={session?.accessToken}>
+    <StoreProvider accessToken={session?.accessToken} userId={session?.user.id}>
       <div className="min-h-screen bg-background">
         <main className="safe-top mx-auto w-full max-w-s25 px-5 pb-32">
           {/* Required: nested routes render here. */}

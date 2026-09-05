@@ -45,7 +45,7 @@ interface Props {
   onAddChecklistItem: (title: string, priority: boolean) => void;
   onMaterializeScheduleScope?: (block: ScheduleBlock) => Promise<void> | void;
   onAddLearningNote?: (text: string) => void;
-  onAddLearningAudio?: (audioDataUrl: string, mimeType: string) => void;
+  onAddLearningAudio?: (audioBlob: Blob, mimeType: string) => void;
   onSetRoutineRating?: (id: string, rating: number) => void;
   viewMode?: "current" | "past" | "future";
   previousSlide?: ActivitySlide | null;
@@ -197,15 +197,8 @@ export function CurrentActivityCard({
       recorder.onstop = () => {
         const mimeType = recorder.mimeType || "audio/webm";
         const blob = new Blob(audioChunksRef.current, { type: mimeType });
-        const reader = new FileReader();
 
-        reader.onloadend = () => {
-          if (typeof reader.result === "string") {
-            onAddLearningAudio?.(reader.result, mimeType);
-          }
-        };
-
-        reader.readAsDataURL(blob);
+        onAddLearningAudio?.(blob, mimeType);
         stream.getTracks().forEach((track) => track.stop());
         if (recordingStreamRef.current === stream) {
           recordingStreamRef.current = null;

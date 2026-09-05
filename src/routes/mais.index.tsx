@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarRange, ChevronRight, Compass, Settings } from "lucide-react";
+import { CalendarRange, ChevronRight, Compass, ListChecks, Settings, Target } from "lucide-react";
 
 import { PageHeader } from "@/components/yuri/PageHeader";
 
@@ -15,6 +15,18 @@ const links = [
     label: "Visão mensal",
     desc: "Progresso por área",
     icon: CalendarRange,
+  },
+  {
+    to: "/mais/habitos" as const,
+    label: "Hábitos",
+    desc: "Frequência e progressão",
+    icon: ListChecks,
+  },
+  {
+    to: "/mais/foco-da-semana" as const,
+    label: "Foco da Semana",
+    desc: "Marcos e conquistas",
+    icon: Target,
   },
   {
     to: "/configuracoes" as const,

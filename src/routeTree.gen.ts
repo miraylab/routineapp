@@ -17,6 +17,8 @@ import { Route as HojeRouteImport } from './routes/hoje'
 import { Route as MesRouteImport } from './routes/mes'
 import { Route as ObjetivosRouteImport } from './routes/objetivos'
 import { Route as MaisIndexRouteImport } from './routes/mais.index'
+import { Route as MaisFocoDaSemanaRouteImport } from './routes/mais.foco-da-semana'
+import { Route as MaisHabitosRouteImport } from './routes/mais.habitos'
 import { Route as ProjetosIndexRouteImport } from './routes/projetos.index'
 import { Route as ProjetosProjectIdRouteImport } from './routes/projetos.$projectId'
 import { Route as ApiHealthDebugRouteImport } from './routes/api.health.debug'
@@ -65,6 +67,16 @@ const MaisIndexRoute = MaisIndexRouteImport.update({
   path: '/mais/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MaisFocoDaSemanaRoute = MaisFocoDaSemanaRouteImport.update({
+  id: '/mais/foco-da-semana',
+  path: '/mais/foco-da-semana',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MaisHabitosRoute = MaisHabitosRouteImport.update({
+  id: '/mais/habitos',
+  path: '/mais/habitos',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProjetosIndexRoute = ProjetosIndexRouteImport.update({
   id: '/projetos/',
   path: '/projetos/',
@@ -109,6 +121,8 @@ export interface FileRoutesByFullPath {
   '/hoje': typeof HojeRoute
   '/mes': typeof MesRoute
   '/objetivos': typeof ObjetivosRoute
+  '/mais/foco-da-semana': typeof MaisFocoDaSemanaRoute
+  '/mais/habitos': typeof MaisHabitosRoute
   '/projetos/$projectId': typeof ProjetosProjectIdRoute
   '/mais/': typeof MaisIndexRoute
   '/projetos/': typeof ProjetosIndexRoute
@@ -126,6 +140,8 @@ export interface FileRoutesByTo {
   '/hoje': typeof HojeRoute
   '/mes': typeof MesRoute
   '/objetivos': typeof ObjetivosRoute
+  '/mais/foco-da-semana': typeof MaisFocoDaSemanaRoute
+  '/mais/habitos': typeof MaisHabitosRoute
   '/projetos/$projectId': typeof ProjetosProjectIdRoute
   '/mais': typeof MaisIndexRoute
   '/projetos': typeof ProjetosIndexRoute
@@ -144,6 +160,8 @@ export interface FileRoutesById {
   '/hoje': typeof HojeRoute
   '/mes': typeof MesRoute
   '/objetivos': typeof ObjetivosRoute
+  '/mais/foco-da-semana': typeof MaisFocoDaSemanaRoute
+  '/mais/habitos': typeof MaisHabitosRoute
   '/projetos/$projectId': typeof ProjetosProjectIdRoute
   '/mais/': typeof MaisIndexRoute
   '/projetos/': typeof ProjetosIndexRoute
@@ -163,6 +181,8 @@ export interface FileRouteTypes {
     | '/hoje'
     | '/mes'
     | '/objetivos'
+    | '/mais/foco-da-semana'
+    | '/mais/habitos'
     | '/projetos/$projectId'
     | '/mais/'
     | '/projetos/'
@@ -180,6 +200,8 @@ export interface FileRouteTypes {
     | '/hoje'
     | '/mes'
     | '/objetivos'
+    | '/mais/foco-da-semana'
+    | '/mais/habitos'
     | '/projetos/$projectId'
     | '/mais'
     | '/projetos'
@@ -197,6 +219,8 @@ export interface FileRouteTypes {
     | '/hoje'
     | '/mes'
     | '/objetivos'
+    | '/mais/foco-da-semana'
+    | '/mais/habitos'
     | '/projetos/$projectId'
     | '/mais/'
     | '/projetos/'
@@ -215,6 +239,8 @@ export interface RootRouteChildren {
   HojeRoute: typeof HojeRoute
   MesRoute: typeof MesRoute
   ObjetivosRoute: typeof ObjetivosRoute
+  MaisFocoDaSemanaRoute: typeof MaisFocoDaSemanaRoute
+  MaisHabitosRoute: typeof MaisHabitosRoute
   ProjetosProjectIdRoute: typeof ProjetosProjectIdRoute
   MaisIndexRoute: typeof MaisIndexRoute
   ProjetosIndexRoute: typeof ProjetosIndexRoute
@@ -283,6 +309,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MaisIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/mais/foco-da-semana': {
+      id: '/mais/foco-da-semana'
+      path: '/mais/foco-da-semana'
+      fullPath: '/mais/foco-da-semana'
+      preLoaderRoute: typeof MaisFocoDaSemanaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mais/habitos': {
+      id: '/mais/habitos'
+      path: '/mais/habitos'
+      fullPath: '/mais/habitos'
+      preLoaderRoute: typeof MaisHabitosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/projetos/': {
       id: '/projetos/'
       path: '/projetos'
@@ -343,6 +383,8 @@ const rootRouteChildren: RootRouteChildren = {
   HojeRoute: HojeRoute,
   MesRoute: MesRoute,
   ObjetivosRoute: ObjetivosRoute,
+  MaisFocoDaSemanaRoute: MaisFocoDaSemanaRoute,
+  MaisHabitosRoute: MaisHabitosRoute,
   ProjetosProjectIdRoute: ProjetosProjectIdRoute,
   MaisIndexRoute: MaisIndexRoute,
   ProjetosIndexRoute: ProjetosIndexRoute,

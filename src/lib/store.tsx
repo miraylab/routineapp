@@ -9,7 +9,6 @@ import {
 } from "react";
 
 import {
-  dailyHabits as dailyHabitsSeed,
   finance,
   financeHistory,
   goals,
@@ -17,14 +16,23 @@ import {
   monthView,
   weekAreas,
   weekFocus,
-  weekMilestones,
   type DailyHabit,
   type Project,
   type ProjectStatus,
   type ScheduleBlock,
   type Task,
+  type WeekMilestone,
 } from "@/data/mockData";
 import { getCurrentActivity, toMinutes } from "@/lib/schedule";
+import {
+  archiveSupabaseHabit,
+  createSupabaseHabit,
+  fetchSupabaseHabitData,
+  isSupabaseHabitsConfigured,
+  setSupabaseHabitDone,
+  updateSupabaseHabit,
+  type SupabaseHabitData,
+} from "@/lib/supabaseHabits";
 import {
   createSupabaseFront,
   createSupabaseProject,
@@ -39,6 +47,19 @@ import {
   type CreateProjectInput,
   type SupabaseProjectData,
 } from "@/lib/supabaseProjects";
+import {
+  createSupabaseWeekFocus,
+  deleteSupabaseWeekFocus,
+  fetchSupabaseWeekFocus,
+  isSupabaseWeekFocusConfigured,
+  updateSupabaseWeekFocus,
+  updateSupabaseWeekFocusDone,
+} from "@/lib/supabaseWeekFocus";
+import {
+  createDailyAudioNote,
+  createStudyAudioNote,
+  isSupabaseAudioConfigured,
+} from "@/lib/supabaseAudio";
 
 const STORAGE_KEY = "yuri-os.state.v1";
 const HYDRATION_CLOCK_FALLBACK = new Date(0);
@@ -53,6 +74,7 @@ export interface ManagedFront {
 
 interface PersistedState {
   doneTasks: string[]; // legado/local: alterna dueDate em tasks baseadas nos mocks
+  dailyHabitSettings: DailyHabit[];
   doneDailyHabits: Record<string, string[]>;
   dailyJournal: Record<string, string>;
   dailyJournalEntries: Record<string, DailyJournalEntry[]>;
@@ -85,6 +107,7 @@ interface PersistedState {
   >;
   doneKeyResults: string[];
   doneWeekMilestones: string[];
+  weekMilestones: WeekMilestone[];
   simulation: { enabled: boolean; dayOfWeek: number; time: string };
 }
 
@@ -111,6 +134,7 @@ interface ActivityLearningEntry {
 
 const initialState: PersistedState = {
   doneTasks: [],
+  dailyHabitSettings: [],
   doneDailyHabits: {},
   dailyJournal: {},
   dailyJournalEntries: {},
@@ -132,14 +156,17 @@ const initialState: PersistedState = {
   extraActions: {},
   doneKeyResults: weekFocus.keyResults.filter((k) => k.done).map((k) => k.id),
   doneWeekMilestones: [],
+  weekMilestones: [],
   simulation: { enabled: false, dayOfWeek: 1, time: "19:42" },
 };
 
 type StoreValue = ReturnType<typeof useStoreValue>;
 
-function useStoreValue(accessToken?: string) {
+function useStoreValue(accessToken?: string, userId?: string) {
   const [state, setState] = useState<PersistedState>(initialState);
   const [remoteProjectData, setRemoteProjectData] = useState<SupabaseProjectData | null>(null);
+  const [remoteHabitData, setRemoteHabitData] = useState<SupabaseHabitData | null>(null);
+  const [remoteWeekMilestones, setRemoteWeekMilestones] = useState<WeekMilestone[]>([]);
   const [remoteSchedule, setRemoteSchedule] = useState<ScheduleBlock[] | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [realNow, setRealNow] = useState(HYDRATION_CLOCK_FALLBACK);
@@ -197,6 +224,44 @@ function useStoreValue(accessToken?: string) {
       .catch((error) => {
         console.warn("Supabase project data unavailable", error);
         if (active) setRemoteProjectData(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [accessToken]);
+
+  useEffect(() => {
+    if (isSupabaseHabitsConfigured() && !accessToken) return;
+
+    let active = true;
+
+    fetchSupabaseHabitData(accessToken)
+      .then((data) => {
+        if (active) setRemoteHabitData(data ?? { habits: [], doneDailyHabits: {} });
+      })
+      .catch((error) => {
+        console.warn("Supabase habit data unavailable", error);
+        if (active) setRemoteHabitData({ habits: [], doneDailyHabits: {} });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [accessToken]);
+
+  useEffect(() => {
+    if (isSupabaseWeekFocusConfigured() && !accessToken) return;
+
+    let active = true;
+
+    fetchSupabaseWeekFocus(accessToken)
+      .then((data) => {
+        if (active) setRemoteWeekMilestones(data);
+      })
+      .catch((error) => {
+        console.warn("Supabase week focus unavailable", error);
+        if (active) setRemoteWeekMilestones([]);
       });
 
     return () => {
@@ -358,15 +423,22 @@ function useStoreValue(accessToken?: string) {
     [state.doneKeyResults],
   );
 
+  const dailyHabitSettings = remoteHabitData?.habits ?? [];
+  const doneDailyHabits = remoteHabitData?.doneDailyHabits ?? {};
   const dailyHabits: DailyHabit[] = useMemo(
     () =>
-      dailyHabitsSeed.filter((habit) => !habit.daysOfWeek || habit.daysOfWeek.includes(dayOfWeek)),
-    [dayOfWeek],
+      dailyHabitSettings
+        .map((habit) => ({
+          ...habit,
+          streakDays: getHabitStreak(habit, doneDailyHabits, todayKey),
+        }))
+        .filter((habit) => habitIsScheduledForDay(habit, dayOfWeek)),
+    [dailyHabitSettings, dayOfWeek, doneDailyHabits, todayKey],
   );
 
   const doneDailyHabitsToday = useMemo(
-    () => state.doneDailyHabits?.[todayKey] ?? [],
-    [state.doneDailyHabits, todayKey],
+    () => doneDailyHabits[todayKey] ?? [],
+    [doneDailyHabits, todayKey],
   );
   const dailyJournalEntries = state.dailyJournalEntries?.[todayKey] ?? [];
   const routineRatingsToday = state.routineRatings?.[todayKey] ?? {};
@@ -398,15 +470,125 @@ function useStoreValue(accessToken?: string) {
   );
 
   const toggleDailyHabit = useCallback(
-    (id: string) =>
-      setState((s) => ({
-        ...s,
+    (id: string) => {
+      const current = doneDailyHabits[todayKey] ?? [];
+      const done = !current.includes(id);
+      const nextForToday = done ? [...current, id] : current.filter((item) => item !== id);
+
+      setRemoteHabitData((data) => ({
+        habits: data?.habits ?? dailyHabitSettings,
         doneDailyHabits: {
-          ...(s.doneDailyHabits ?? {}),
-          [todayKey]: toggleId(s.doneDailyHabits?.[todayKey] ?? [], id),
+          ...(data?.doneDailyHabits ?? doneDailyHabits),
+          [todayKey]: nextForToday,
         },
-      })),
-    [todayKey],
+      }));
+
+      if (!userId) return;
+      void setSupabaseHabitDone({ userId, habitId: id, doneDate: todayKey, done }).catch((error) =>
+        console.warn("Supabase habit log update failed after optimistic update", error),
+      );
+    },
+    [dailyHabitSettings, doneDailyHabits, todayKey, userId],
+  );
+
+  const addDailyHabit = useCallback((title: string, daysOfWeek: number[]) => {
+    const trimmed = title.trim();
+    if (!trimmed) return false;
+    const duplicated = dailyHabitSettings.some(
+      (habit) => toFatherSegment(habit.title) === toFatherSegment(trimmed),
+    );
+    if (duplicated) return false;
+
+    const optimisticId = `habit-${Date.now()}`;
+    const optimisticHabit: DailyHabit = {
+      id: optimisticId,
+      title: trimmed,
+      createdAt: todayKey,
+      daysOfWeek: daysOfWeek.length > 0 ? daysOfWeek : undefined,
+    };
+
+    setRemoteHabitData((data) => ({
+      habits: [...(data?.habits ?? dailyHabitSettings), optimisticHabit],
+      doneDailyHabits: data?.doneDailyHabits ?? doneDailyHabits,
+    }));
+
+    if (userId) {
+      void createSupabaseHabit({ userId, title: trimmed, daysOfWeek }).then((created) => {
+        setRemoteHabitData((data) => ({
+          habits: (data?.habits ?? []).map((habit) =>
+            habit.id === optimisticId ? created : habit,
+          ),
+          doneDailyHabits: data?.doneDailyHabits ?? doneDailyHabits,
+        }));
+      }).catch((error) => {
+        console.warn("Supabase habit create failed after optimistic update", error);
+        setRemoteHabitData((data) => ({
+          habits: (data?.habits ?? []).filter((habit) => habit.id !== optimisticId),
+          doneDailyHabits: data?.doneDailyHabits ?? doneDailyHabits,
+        }));
+      });
+    }
+
+    return true;
+  }, [dailyHabitSettings, doneDailyHabits, todayKey, userId]);
+
+  const removeDailyHabit = useCallback((id: string) => {
+    setRemoteHabitData((data) => ({
+      habits: (data?.habits ?? dailyHabitSettings).filter((habit) => habit.id !== id),
+      doneDailyHabits: Object.fromEntries(
+        Object.entries(data?.doneDailyHabits ?? doneDailyHabits).map(([date, ids]) => [
+          date,
+          ids.filter((doneId) => doneId !== id),
+        ]),
+      ),
+    }));
+
+    void archiveSupabaseHabit(id).catch((error) =>
+      console.warn("Supabase habit archive failed after optimistic update", error),
+    );
+  }, [dailyHabitSettings, doneDailyHabits]);
+
+  const updateDailyHabit = useCallback(
+    (id: string, patch: { title?: string; daysOfWeek?: number[] }) => {
+      const title = patch.title?.trim();
+      let shouldPersist = false;
+
+      setRemoteHabitData((data) => {
+        const settings = data?.habits ?? dailyHabitSettings;
+        if (
+          title &&
+          settings.some(
+            (habit) =>
+              habit.id !== id && toFatherSegment(habit.title) === toFatherSegment(title),
+          )
+        ) {
+          return data ?? { habits: settings, doneDailyHabits };
+        }
+
+        shouldPersist = true;
+        return {
+          habits: settings.map((habit) =>
+            habit.id === id
+              ? {
+                  ...habit,
+                  ...(title !== undefined ? { title } : {}),
+                  ...(patch.daysOfWeek !== undefined
+                    ? { daysOfWeek: patch.daysOfWeek.length > 0 ? patch.daysOfWeek : undefined }
+                    : {}),
+                }
+              : habit,
+          ),
+          doneDailyHabits: data?.doneDailyHabits ?? doneDailyHabits,
+        };
+      });
+
+      if (shouldPersist) {
+        void updateSupabaseHabit(id, patch).catch((error) =>
+          console.warn("Supabase habit update failed after optimistic update", error),
+        );
+      }
+    },
+    [dailyHabitSettings, doneDailyHabits],
   );
 
   const addDailyJournalEntry = useCallback(
@@ -434,8 +616,9 @@ function useStoreValue(accessToken?: string) {
   );
 
   const addDailyJournalAudioEntry = useCallback(
-    (audioDataUrl: string, mimeType: string, time: string) => {
-      if (!audioDataUrl) return;
+    (audioBlob: Blob, mimeType: string, time: string) => {
+      if (!audioBlob.size) return;
+      const audioDataUrl = URL.createObjectURL(audioBlob);
       setState((s) => ({
         ...s,
         dailyJournalEntries: {
@@ -454,8 +637,19 @@ function useStoreValue(accessToken?: string) {
           ],
         },
       }));
+
+      if (userId && isSupabaseAudioConfigured()) {
+        void createDailyAudioNote({
+          userId,
+          entryDate: todayKey,
+          audioBlob,
+          mimeType,
+        }).catch((error) =>
+          console.warn("Supabase daily audio create failed after optimistic update", error),
+        );
+      }
     },
-    [todayKey],
+    [todayKey, userId],
   );
 
   const toggleBlock = useCallback(
@@ -526,8 +720,15 @@ function useStoreValue(accessToken?: string) {
   );
 
   const addActivityLearningAudioEntry = useCallback(
-    (activityId: string, audioDataUrl: string, mimeType: string, time: string) => {
-      if (!audioDataUrl) return;
+    (
+      activityId: string,
+      projectId: string | undefined,
+      audioBlob: Blob,
+      mimeType: string,
+      time: string,
+    ) => {
+      if (!audioBlob.size) return;
+      const audioDataUrl = URL.createObjectURL(audioBlob);
       setState((s) => ({
         ...s,
         activityLearningEntries: {
@@ -547,8 +748,22 @@ function useStoreValue(accessToken?: string) {
           ],
         },
       }));
+
+      if (userId && projectId && isSupabaseAudioConfigured()) {
+        void createStudyAudioNote({
+          userId,
+          entryDate: todayKey,
+          projectId,
+          audioBlob,
+          mimeType,
+        }).catch((error) =>
+          console.warn("Supabase study audio create failed after optimistic update", error),
+        );
+      } else if (userId && isSupabaseAudioConfigured()) {
+        console.warn("Supabase study audio create skipped: missing project id");
+      }
     },
-    [],
+    [todayKey, userId],
   );
 
   const setRoutineRating = useCallback(
@@ -571,15 +786,6 @@ function useStoreValue(accessToken?: string) {
       setState((s) => ({
         ...s,
         doneKeyResults: toggleId(s.doneKeyResults, id),
-      })),
-    [],
-  );
-
-  const toggleWeekMilestone = useCallback(
-    (id: string) =>
-      setState((s) => ({
-        ...s,
-        doneWeekMilestones: toggleId(s.doneWeekMilestones ?? [], id),
       })),
     [],
   );
@@ -1021,9 +1227,118 @@ function useStoreValue(accessToken?: string) {
   );
 
   const weekMilestoneDone = useCallback(
-    (id: string) => (state.doneWeekMilestones ?? []).includes(id),
-    [state.doneWeekMilestones],
+    (id: string) =>
+      Boolean(remoteWeekMilestones.find((milestone) => milestone.id === id)?.doneDate) ||
+      (state.doneWeekMilestones ?? []).includes(id),
+    [remoteWeekMilestones, state.doneWeekMilestones],
   );
+
+  const addWeekMilestone = useCallback((input: { title: string; dayOfWeek: number; detail?: string }) => {
+    const title = input.title.trim();
+    if (!title) return false;
+    const weekStart = currentWeekStartKey(dateKeyToDate(todayKey));
+    const optimisticId = `wm-${Date.now()}`;
+    const optimisticMilestone: WeekMilestone = {
+      id: optimisticId,
+      title,
+      dayOfWeek: input.dayOfWeek,
+      dayLabel: WEEKDAY_LABELS[input.dayOfWeek] ?? "DOM",
+      weekStart,
+      detail: input.detail?.trim() || undefined,
+    };
+
+    setRemoteWeekMilestones((items) => sortWeekMilestones([...items, optimisticMilestone]));
+
+    if (userId) {
+      void createSupabaseWeekFocus({
+        userId,
+        weekStart,
+        title,
+        dayOfWeek: input.dayOfWeek,
+        detail: input.detail?.trim() || undefined,
+      })
+        .then((created) => {
+          setRemoteWeekMilestones((items) =>
+            sortWeekMilestones(items.map((item) => (item.id === optimisticId ? created : item))),
+          );
+        })
+        .catch((error) => {
+          console.warn("Supabase week focus create failed after optimistic update", error);
+          setRemoteWeekMilestones((items) => items.filter((item) => item.id !== optimisticId));
+        });
+    }
+
+    return true;
+  }, [todayKey, userId]);
+
+  const updateWeekMilestone = useCallback(
+    (id: string, input: { title?: string; dayOfWeek?: number; detail?: string }) => {
+      const title = input.title?.trim();
+      const patch = {
+        ...(title !== undefined ? { title } : {}),
+        ...(input.dayOfWeek !== undefined ? { dayOfWeek: input.dayOfWeek } : {}),
+        ...(input.detail !== undefined ? { detail: input.detail.trim() || undefined } : {}),
+      };
+
+      setRemoteWeekMilestones((items) =>
+        sortWeekMilestones(items.map((milestone) =>
+          milestone.id === id
+            ? {
+                ...milestone,
+                ...patch,
+                ...(input.dayOfWeek !== undefined
+                  ? {
+                      dayLabel: WEEKDAY_LABELS[input.dayOfWeek] ?? milestone.dayLabel,
+                    }
+                  : {}),
+              }
+            : milestone,
+        )),
+      );
+
+      void updateSupabaseWeekFocus(id, patch).catch((error) =>
+        console.warn("Supabase week focus update failed after optimistic update", error),
+      );
+    },
+    [],
+  );
+
+  const removeWeekMilestone = useCallback((id: string) => {
+    setRemoteWeekMilestones((items) => items.filter((milestone) => milestone.id !== id));
+    setState((s) => ({
+      ...s,
+      doneWeekMilestones: (s.doneWeekMilestones ?? []).filter((doneId) => doneId !== id),
+    }));
+
+    void deleteSupabaseWeekFocus(id).catch((error) =>
+      console.warn("Supabase week focus delete failed after optimistic update", error),
+    );
+  }, []);
+
+  const toggleWeekMilestoneDone = useCallback((id: string) => {
+    const current = remoteWeekMilestones.find((milestone) => milestone.id === id);
+    const nextDoneDate = current?.doneDate ? null : todayKey;
+
+    setState((s) => ({
+      ...s,
+      doneWeekMilestones: (s.doneWeekMilestones ?? []).filter((doneId) => doneId !== id),
+    }));
+    setRemoteWeekMilestones((items) =>
+      items.map((milestone) =>
+        milestone.id === id
+          ? {
+              ...milestone,
+              weekStart: milestone.weekStart ?? currentWeekStartKey(dateKeyToDate(todayKey)),
+              doneDate: nextDoneDate ?? undefined,
+            }
+          : milestone,
+      ),
+    );
+
+    void updateSupabaseWeekFocusDone(id, nextDoneDate).catch((error) =>
+      console.warn("Supabase week focus done update failed after optimistic update", error),
+    );
+  }, [remoteWeekMilestones, todayKey]);
 
   return {
     hydrated,
@@ -1039,7 +1354,12 @@ function useStoreValue(accessToken?: string) {
     keyResults,
     goals,
     habits,
+    dailyHabitSettings: dailyHabitSettings.map((habit) => ({
+      ...habit,
+      streakDays: getHabitStreak(habit, doneDailyHabits, todayKey),
+    })),
     dailyHabits,
+    doneDailyHabits,
     dailyJournalEntries,
     routineRatingsToday,
     finance,
@@ -1047,7 +1367,7 @@ function useStoreValue(accessToken?: string) {
     monthView,
     weekAreas,
     weekFocus,
-    weekMilestones,
+    weekMilestones: remoteWeekMilestones,
     simulation: state.simulation,
     frontStatuses: { ...(remoteProjectData?.frontStatuses ?? {}), ...(state.frontStatuses ?? {}) },
     blockDone,
@@ -1058,6 +1378,9 @@ function useStoreValue(accessToken?: string) {
     extraActivityChecklistItems: state.extraActivityChecklistItems ?? {},
     toggleTask,
     toggleDailyHabit,
+    addDailyHabit,
+    removeDailyHabit,
+    updateDailyHabit,
     toggleBlock,
     toggleActivityChecklistItem,
     addActivityChecklistItem,
@@ -1065,7 +1388,10 @@ function useStoreValue(accessToken?: string) {
     addActivityLearningAudioEntry,
     setRoutineRating,
     toggleKeyResult,
-    toggleWeekMilestone,
+    toggleWeekMilestone: toggleWeekMilestoneDone,
+    addWeekMilestone,
+    updateWeekMilestone,
+    removeWeekMilestone,
     toggleProjectAction,
     setProjectStatus,
     setFrontStatus,
@@ -1088,6 +1414,72 @@ function toDateKey(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function habitIsScheduledForDay(habit: DailyHabit, dayOfWeek: number) {
+  return !habit.daysOfWeek || habit.daysOfWeek.includes(dayOfWeek);
+}
+
+function getHabitStreak(
+  habit: DailyHabit,
+  doneDailyHabits: Record<string, string[]>,
+  todayKey: string,
+) {
+  let streak = 0;
+  let cursor = dateKeyToDate(todayKey);
+  let checkedScheduledDays = 0;
+
+  while (checkedScheduledDays < 370) {
+    const dateKey = toDateKey(cursor);
+    const scheduled = habitIsScheduledForDay(habit, cursor.getDay());
+
+    if (scheduled) {
+      checkedScheduledDays += 1;
+      const done = doneDailyHabits[dateKey]?.includes(habit.id) ?? false;
+      const isToday = dateKey === todayKey;
+
+      if (done) {
+        streak += 1;
+      } else if (!isToday) {
+        break;
+      }
+    }
+
+    cursor = addDays(cursor, -1);
+  }
+
+  return streak;
+}
+
+function dateKeyToDate(dateKey: string) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(year, (month ?? 1) - 1, day ?? 1);
+}
+
+function addDays(date: Date, amount: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return next;
+}
+
+function currentWeekStartKey(date: Date) {
+  const mondayOffset = date.getDay() === 0 ? -6 : 1 - date.getDay();
+  return toDateKey(addDays(date, mondayOffset));
+}
+
+const WEEKDAY_LABELS = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"];
+
+function dayLabelToDayOfWeek(label: string) {
+  const index = WEEKDAY_LABELS.indexOf(label);
+  return index >= 0 ? index : 0;
+}
+
+function sortWeekMilestones(items: WeekMilestone[]) {
+  return [...items].sort((a, b) => {
+    const week = (b.weekStart ?? "").localeCompare(a.weekStart ?? "");
+    if (week !== 0) return week;
+    return (a.dayOfWeek ?? dayLabelToDayOfWeek(a.dayLabel)) - (b.dayOfWeek ?? dayLabelToDayOfWeek(b.dayLabel));
+  });
 }
 
 function parseFatherId(fatherId: string) {
@@ -1158,11 +1550,13 @@ const StoreContext = createContext<StoreValue | null>(null);
 export function StoreProvider({
   children,
   accessToken,
+  userId,
 }: {
   children: ReactNode;
   accessToken?: string;
+  userId?: string;
 }) {
-  const value = useStoreValue(accessToken);
+  const value = useStoreValue(accessToken, userId);
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 

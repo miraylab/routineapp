@@ -95,8 +95,11 @@ export interface WeekMilestone {
   id: string;
   title: string;
   dayLabel: string;
+  dayOfWeek?: number;
+  weekStart?: string;
   date?: string;
   detail?: string;
+  doneDate?: string;
 }
 
 export interface Habit {
@@ -113,6 +116,7 @@ export interface DailyHabit {
   title: string;
   streakDays?: number;
   daysOfWeek?: number[];
+  createdAt?: string;
 }
 
 export interface FinanceMonth {
@@ -605,6 +609,7 @@ export const weekMilestones: WeekMilestone[] = [
     id: "wm-entrega-miray",
     title: "Entrega do planejamento Miray",
     dayLabel: "QUA",
+    dayOfWeek: 3,
     date: "02 set",
     detail:
       "Fechar foco da semana, blocos de execução e próximos entregáveis do MVP para destravar a rotina de produção.",
@@ -613,6 +618,7 @@ export const weekMilestones: WeekMilestone[] = [
     id: "wm-dashboard-rqe",
     title: "Revisão do dashboard RQE",
     dayLabel: "QUI",
+    dayOfWeek: 4,
     date: "03 set",
     detail:
       "Validar principais leituras, pontos de atrito e próximos ajustes antes de avançar para a versão de apresentação.",
@@ -621,6 +627,7 @@ export const weekMilestones: WeekMilestone[] = [
     id: "wm-viagem",
     title: "Organizar viagem para Belo Horizonte",
     dayLabel: "SÁB",
+    dayOfWeek: 6,
     date: "05 set",
     detail:
       "Separar horários, deslocamento e pendências pessoais para reduzir ruído antes do fim de semana.",

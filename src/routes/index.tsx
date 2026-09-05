@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { BookOpen, Check, ChevronDown, Flag, Mic, Plus, Send, X } from "lucide-react";
 
 import {
@@ -78,6 +78,7 @@ function HojePage() {
     addDailyJournalEntry,
     addDailyJournalAudioEntry,
     materializeScheduleScope,
+    addTask,
   } = useStore();
   const [journalOpen, setJournalOpen] = useState(false);
   const [journalDraft, setJournalDraft] = useState("");
@@ -153,9 +154,30 @@ function HojePage() {
     () => buildActivityIndicators(carouselBlocks, current, focusedBlock, activeFreeTimeBlock),
     [activeFreeTimeBlock, carouselBlocks, current, focusedBlock],
   );
+  const reliefNotesFront = useMemo(
+    () =>
+      fronts.find(
+        (front) =>
+          front.area === "Pessoal" &&
+          normalizeLabel(front.title) === normalizeLabel("Notas de Alívio"),
+      ),
+    [fronts],
+  );
+  const personalTaskItems = useMemo(
+    () => buildPersonalTaskItems(tasks, fronts, projects, todayKey),
+    [fronts, projects, tasks, todayKey],
+  );
+  const currentWeekStart = useMemo(() => getCurrentWeekStartKey(realNow), [realNow]);
+  const currentWeekMilestones = useMemo(
+    () =>
+      weekMilestones.filter(
+        (milestone) => (milestone.weekStart ?? currentWeekStart) === currentWeekStart,
+      ),
+    [currentWeekStart, weekMilestones],
+  );
   const carouselExtraChecklistItems = useMemo(
-    () => mergeReliefNotesIntoFreeTimeBlocks(carouselBlocks, extraActivityChecklistItems),
-    [carouselBlocks, extraActivityChecklistItems],
+    () => mergeReliefNotesIntoFreeTimeBlocks(carouselBlocks, extraActivityChecklistItems, personalTaskItems),
+    [carouselBlocks, extraActivityChecklistItems, personalTaskItems],
   );
   const focusedExtraChecklistItems = useMemo(() => {
     if (!focusedCurrent) return [];
@@ -164,10 +186,11 @@ function HojePage() {
     if (!isFreeTimeBlock(focusedCurrent)) return currentItems;
 
     return [
+      ...personalTaskItems,
       ...(extraActivityChecklistItems[RELIEF_NOTES_ACTIVITY_ID] ?? []),
       ...currentItems,
     ];
-  }, [extraActivityChecklistItems, focusedCurrent]);
+  }, [extraActivityChecklistItems, focusedCurrent, personalTaskItems]);
   const fastTasks = useMemo(
     () =>
       buildFastTasks(
@@ -238,7 +261,11 @@ function HojePage() {
   const fullDateLabel = `${realNow.getDate()} de ${MONTHS[realNow.getMonth()]}`;
   const handleAddReliefNote = () => {
     if (!reliefNoteDraft.trim()) return;
-    addActivityChecklistItem(RELIEF_NOTES_ACTIVITY_ID, reliefNoteDraft.trim(), reliefNoteQuick);
+    if (reliefNotesFront) {
+      addTask(reliefNoteDraft.trim(), `pessoal.${reliefNotesFront.id}`, { quick: reliefNoteQuick });
+    } else {
+      addActivityChecklistItem(RELIEF_NOTES_ACTIVITY_ID, reliefNoteDraft.trim(), reliefNoteQuick);
+    }
     setReliefNoteDraft("");
     setReliefNoteQuick(false);
     setReliefNoteComposerOpen(false);
@@ -269,15 +296,8 @@ function HojePage() {
       recorder.onstop = () => {
         const mimeType = recorder.mimeType || "audio/webm";
         const blob = new Blob(journalAudioChunksRef.current, { type: mimeType });
-        const reader = new FileReader();
 
-        reader.onloadend = () => {
-          if (typeof reader.result === "string") {
-            addDailyJournalAudioEntry(reader.result, mimeType, formatMinutes(nowMinutes));
-          }
-        };
-
-        reader.readAsDataURL(blob);
+        addDailyJournalAudioEntry(blob, mimeType, formatMinutes(nowMinutes));
         stream.getTracks().forEach((track) => track.stop());
         if (journalRecordingStreamRef.current === stream) {
           journalRecordingStreamRef.current = null;
@@ -408,17 +428,21 @@ function HojePage() {
         onToggleTask={toggleTask}
         onToggleProjectAction={toggleProjectAction}
         onAddChecklistItem={(title, priority) =>
-          focusedCurrent && addActivityChecklistItem(focusedCurrent.id, title, priority)
+          focusedCurrent &&
+          (isFreeTimeBlock(focusedCurrent) && reliefNotesFront
+            ? addTask(title, `pessoal.${reliefNotesFront.id}`, { quick: priority })
+            : addActivityChecklistItem(focusedCurrent.id, title, priority))
         }
         onMaterializeScheduleScope={materializeScheduleScope}
         onAddLearningNote={(text) =>
           focusedCurrent && addActivityLearningEntry(focusedCurrent.id, text, formatMinutes(nowMinutes))
         }
-        onAddLearningAudio={(audioDataUrl, mimeType) =>
+        onAddLearningAudio={(audioBlob, mimeType) =>
           focusedCurrent &&
           addActivityLearningAudioEntry(
             focusedCurrent.id,
-            audioDataUrl,
+            focusedCurrent.projectId,
+            audioBlob,
             mimeType,
             formatMinutes(nowMinutes),
           )
@@ -450,7 +474,7 @@ function HojePage() {
         <div className="mt-4 space-y-2">
           {orderedDailyHabits.map((habit) => {
             const done = dailyHabitDone(habit.id);
-            const streakDays = (habit.streakDays ?? 0) + (done ? 1 : 0);
+            const streakDays = habit.streakDays ?? 0;
             return (
               <button
                 key={habit.id}
@@ -595,11 +619,21 @@ function HojePage() {
       </section>
 
       <section className="rounded-3xl bg-primary p-5 text-primary-foreground shadow-[0_18px_40px_rgba(0,0,0,0.18)]">
-        <p className="text-[11px] font-medium tracking-[0.18em] text-primary-foreground/70">
-          FOCO DA SEMANA
-        </p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[11px] font-medium tracking-[0.18em] text-primary-foreground/70">
+            FOCO DA SEMANA
+          </p>
+          {dayOfWeek === 0 ? (
+            <Link
+              to="/mais/foco-da-semana"
+              className="press rounded-full bg-primary-foreground/18 px-3 py-1.5 text-[11px] font-semibold tracking-[0.08em] text-primary-foreground/86"
+            >
+              Editar foco
+            </Link>
+          ) : null}
+        </div>
         <div className="mt-4 space-y-2">
-          {weekMilestones.map((milestone) => {
+          {currentWeekMilestones.map((milestone) => {
             const open = openMilestoneId === milestone.id;
             const done = weekMilestoneDone(milestone.id);
             return (
@@ -851,6 +885,28 @@ function buildFastTasks(
   );
 }
 
+function buildPersonalTaskItems(
+  tasks: Task[],
+  fronts: ManagedFront[],
+  projects: Project[],
+  todayKey: string,
+): ActivityChecklistItem[] {
+  return tasks
+    .filter((task) => {
+      const fatherId = task.fatherId ?? "";
+      return fatherId.startsWith("pessoal.") && taskIsVisibleToday(task, todayKey);
+    })
+    .map((task) => ({
+      id: `task:${task.id}`,
+      taskId: task.id,
+      title: task.title,
+      priority: task.quick,
+      context: formatFatherId(task.fatherId, fronts, projects),
+      source: "task" as const,
+      done: Boolean(task.dueDate),
+    }));
+}
+
 function formatFatherId(fatherId: string, fronts: ManagedFront[], projects: Project[]) {
   const [areaId, frontId, projectId] = fatherId.split(".");
   const area = formatFatherSegment(areaId);
@@ -870,6 +926,14 @@ function formatFatherSegment(segment?: string) {
     .filter(Boolean)
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
+}
+
+function normalizeLabel(value?: string) {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
 function taskIsVisibleToday(task: Task, todayKey: string) {
@@ -894,6 +958,13 @@ function toDateKey(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function getCurrentWeekStartKey(date: Date) {
+  const mondayOffset = date.getDay() === 0 ? -6 : 1 - date.getDay();
+  const monday = new Date(date);
+  monday.setDate(date.getDate() + mondayOffset);
+  return toDateKey(monday);
 }
 
 function orderItemsByDoneLast<T>(items: T[], isDone: (item: T) => boolean) {
@@ -1014,8 +1085,12 @@ function isFreeTimeBlock(block: ScheduleBlock | null) {
 function mergeReliefNotesIntoFreeTimeBlocks(
   carouselBlocks: ScheduleBlock[],
   extraItemsByActivity: Record<string, ActivityChecklistItem[]>,
+  reliefNoteTaskItems: ActivityChecklistItem[],
 ) {
-  const reliefNotes = extraItemsByActivity[RELIEF_NOTES_ACTIVITY_ID] ?? [];
+  const reliefNotes = [
+    ...reliefNoteTaskItems,
+    ...(extraItemsByActivity[RELIEF_NOTES_ACTIVITY_ID] ?? []),
+  ];
   if (reliefNotes.length === 0) return extraItemsByActivity;
 
   return carouselBlocks.reduce(
