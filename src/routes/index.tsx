@@ -1,6 +1,23 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { BookOpen, Check, ChevronDown, Flag, LocateFixed, MapPin, Mic, Plus, Send, X } from "lucide-react";
+import {
+  BookOpen,
+  BriefcaseBusiness,
+  BusFront,
+  CalendarCheck,
+  Check,
+  ChevronDown,
+  Dumbbell,
+  Flag,
+  Heart,
+  House,
+  LocateFixed,
+  Mic,
+  Plane,
+  Plus,
+  Send,
+  X,
+} from "lucide-react";
 
 import {
   CurrentActivityCard,
@@ -109,8 +126,6 @@ function HojePage() {
     longitude: number;
     accuracy?: number;
   } | null>(null);
-  const [currentAddress, setCurrentAddress] = useState<string | null>(null);
-  const [addressStatus, setAddressStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const journalMediaRecorderRef = useRef<MediaRecorder | null>(null);
   const journalAudioChunksRef = useRef<BlobPart[]>([]);
   const journalRecordingStreamRef = useRef<MediaStream | null>(null);
@@ -296,13 +311,13 @@ function HojePage() {
 
   const weekdayLabel = WEEKDAYS[dayOfWeek];
   const fullDateLabel = `${realNow.getDate()} de ${MONTHS[realNow.getMonth()]}`;
-  const nearestPlace = useMemo(
-    () => findNearestPlace(currentPosition, fixedPlaces),
-    [currentPosition, fixedPlaces],
-  );
   const suggestedDestination = useMemo(
     () => getSuggestedDestination(fixedPlaces, nowMinutes),
     [fixedPlaces, nowMinutes],
+  );
+  const travelHint = useMemo(
+    () => buildTravelHint(currentPosition, suggestedDestination),
+    [currentPosition, suggestedDestination],
   );
   const handleAddReliefNote = () => {
     if (!reliefNoteDraft.trim()) return;
@@ -455,8 +470,6 @@ function HojePage() {
           longitude: position.coords.longitude,
           accuracy: position.coords.accuracy,
         });
-        setCurrentAddress(null);
-        setAddressStatus("idle");
         setGpsStatus("ready");
       },
       (error) => {
@@ -492,29 +505,6 @@ function HojePage() {
     };
   }, [gpsStatus, hydrated, requestGpsLocation]);
 
-  useEffect(() => {
-    if (gpsStatus !== "ready" || !currentPosition) return;
-
-    let active = true;
-    setAddressStatus("loading");
-
-    reverseGeocode(currentPosition.latitude, currentPosition.longitude)
-      .then((address) => {
-        if (!active) return;
-        setCurrentAddress(address);
-        setAddressStatus(address ? "ready" : "error");
-      })
-      .catch(() => {
-        if (!active) return;
-        setCurrentAddress(null);
-        setAddressStatus("error");
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [currentPosition, gpsStatus]);
-
   if (!hydrated) {
     return (
       <div className="space-y-3">
@@ -532,6 +522,35 @@ function HojePage() {
             <h1 className="truncate text-2xl font-semibold tracking-tight">
               {greetingFor(nowMinutes)}, Yuri
             </h1>
+            <button
+              type="button"
+              onClick={requestGpsLocation}
+              disabled={gpsStatus === "loading"}
+              className="press mt-3 inline-flex h-8 items-center gap-2 rounded-xl bg-black/10 px-2.5 text-sm font-semibold text-primary-foreground/90 transition-colors hover:bg-black/15 disabled:opacity-70"
+              aria-label={
+                travelHint
+                  ? `Tempo estimado até ${travelHint.destination.label}: ${travelHint.minutes} minutos`
+                  : "Atualizar localização"
+              }
+              title={
+                travelHint
+                  ? `${travelHint.minutes} min até ${travelHint.destination.label}`
+                  : gpsStatus === "denied"
+                    ? "GPS bloqueado"
+                    : gpsStatus === "error"
+                      ? "GPS indisponível"
+                      : "Atualizar localização"
+              }
+            >
+              {travelHint ? (
+                <TravelPlaceIcon place={travelHint.destination} className="size-4" />
+              ) : (
+                <LocateFixed className={cn("size-4", gpsStatus === "loading" && "animate-pulse")} />
+              )}
+              <span className="tabular">
+                {gpsStatus === "loading" ? "..." : travelHint ? `${travelHint.minutes} min` : "GPS"}
+              </span>
+            </button>
           </div>
           <div className="shrink-0 text-right">
             <p className="tabular text-2xl font-semibold tracking-tight">
@@ -545,65 +564,6 @@ function HojePage() {
           </div>
         </div>
       </header>
-
-      <section className="rounded-3xl border border-border/60 bg-card p-5">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[11px] font-medium tracking-[0.18em] text-muted-foreground">
-              LOCALIZAÇÃO
-            </p>
-            <h2 className="mt-1 truncate text-lg font-semibold">
-              {gpsStatus === "ready" && nearestPlace
-                ? `Perto de ${nearestPlace.place.label}`
-                : gpsStatus === "loading"
-                  ? "Buscando GPS"
-                  : "GPS disponível"}
-            </h2>
-          </div>
-          <button
-            type="button"
-            onClick={requestGpsLocation}
-            disabled={gpsStatus === "loading"}
-            className={cn(
-              "press grid size-11 shrink-0 place-items-center rounded-2xl border transition-colors",
-              gpsStatus === "ready"
-                ? "border-primary/30 bg-primary/12 text-primary"
-                : "border-border bg-elevated/50 text-muted-foreground",
-            )}
-            aria-label="Atualizar localização"
-          >
-            <LocateFixed className={cn("size-4", gpsStatus === "loading" && "animate-pulse")} />
-          </button>
-        </div>
-
-        <div className="mt-3 flex items-start gap-3 rounded-2xl bg-elevated/45 px-3.5 py-3">
-          <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-xl bg-card/70 text-primary">
-            <MapPin className="size-4" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm leading-snug text-foreground">
-              {gpsStatus === "ready" && currentAddress
-                ? currentAddress
-                : gpsStatus === "ready" && addressStatus === "loading"
-                  ? "Identificando endereço atual..."
-                  : gpsStatus === "ready" && nearestPlace
-                    ? `${formatDistance(nearestPlace.distanceMeters)} de ${nearestPlace.place.label}`
-                : gpsStatus === "ready"
-                  ? "Localização recebida. Cadastre seus endereços fixos para cruzar as informações."
-                  : gpsStatus === "denied"
-                    ? "Permissão de localização negada no navegador."
-                    : gpsStatus === "error"
-                      ? "Não consegui acessar o GPS neste dispositivo."
-                      : "Toque no botão para usar sua localização atual quando abrir a Home."}
-            </p>
-            {suggestedDestination ? (
-              <p className="mt-1 text-xs leading-snug text-muted-foreground">
-                Destino sugerido agora: {suggestedDestination.label}
-              </p>
-            ) : null}
-          </div>
-        </div>
-      </section>
 
       {showFastTasks ? (
         <section className="rounded-3xl border-2 border-primary/35 bg-card p-5 shadow-[0_18px_40px_rgba(0,0,0,0.16)]">
@@ -1287,20 +1247,6 @@ function toDateKey(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
-function findNearestPlace(
-  position: { latitude: number; longitude: number } | null,
-  places: FixedPlace[],
-) {
-  if (!position || places.length === 0) return null;
-
-  return places
-    .map((place) => ({
-      place,
-      distanceMeters: distanceInMeters(position.latitude, position.longitude, place.latitude, place.longitude),
-    }))
-    .sort((a, b) => a.distanceMeters - b.distanceMeters)[0] ?? null;
-}
-
 function getSuggestedDestination(places: FixedPlace[], nowMinutes: number) {
   const home = places.find((place) => place.kind === "home");
   const work = places.find((place) => place.kind === "work");
@@ -1309,6 +1255,58 @@ function getSuggestedDestination(places: FixedPlace[], nowMinutes: number) {
   if (nowMinutes < toMinutes("12:00")) return work;
   if (nowMinutes >= toMinutes("16:00")) return home;
   return null;
+}
+
+function buildTravelHint(
+  position: { latitude: number; longitude: number } | null,
+  destination: FixedPlace | null,
+) {
+  if (!position || !destination) return null;
+
+  const distanceMeters = distanceInMeters(
+    position.latitude,
+    position.longitude,
+    destination.latitude,
+    destination.longitude,
+  );
+
+  return {
+    destination,
+    distanceMeters,
+    minutes: estimateTravelMinutes(distanceMeters),
+  };
+}
+
+function estimateTravelMinutes(distanceMeters: number) {
+  return Math.max(3, Math.round(distanceMeters / 450 + 4));
+}
+
+function TravelPlaceIcon({ place, className }: { place: FixedPlace; className?: string }) {
+  const Icon = getTravelPlaceIcon(place);
+  return <Icon className={className} />;
+}
+
+function getTravelPlaceIcon(place: FixedPlace) {
+  if (isAirportPlace(place)) return Plane;
+
+  switch (place.kind) {
+    case "home":
+      return House;
+    case "partner_home":
+      return Heart;
+    case "work":
+      return BriefcaseBusiness;
+    case "shuttle_stop":
+      return BusFront;
+    case "gym":
+      return Dumbbell;
+    default:
+      return CalendarCheck;
+  }
+}
+
+function isAirportPlace(place: FixedPlace) {
+  return /aeroporto|airport/i.test(`${place.label} ${place.address ?? ""}`);
 }
 
 function distanceInMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -1326,56 +1324,6 @@ function distanceInMeters(lat1: number, lon1: number, lat2: number, lon2: number
 
 function toRadians(value: number) {
   return (value * Math.PI) / 180;
-}
-
-function formatDistance(distanceMeters: number) {
-  if (distanceMeters < 1_000) return `${Math.round(distanceMeters)} m`;
-  return `${(distanceMeters / 1_000).toFixed(1).replace(".", ",")} km`;
-}
-
-async function reverseGeocode(latitude: number, longitude: number) {
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 8_000);
-
-  try {
-    const url = new URL("https://nominatim.openstreetmap.org/reverse");
-    url.searchParams.set("format", "jsonv2");
-    url.searchParams.set("lat", String(latitude));
-    url.searchParams.set("lon", String(longitude));
-    url.searchParams.set("zoom", "18");
-    url.searchParams.set("addressdetails", "1");
-
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: { accept: "application/json" },
-    });
-    if (!response.ok) return null;
-
-    const data = (await response.json()) as {
-      display_name?: string;
-      address?: {
-        road?: string;
-        suburb?: string;
-        neighbourhood?: string;
-        city?: string;
-        town?: string;
-        state?: string;
-      };
-    };
-    const address = data.address;
-    if (!address) return data.display_name ?? null;
-
-    return [
-      address.road,
-      address.neighbourhood ?? address.suburb,
-      address.city ?? address.town,
-      address.state,
-    ]
-      .filter(Boolean)
-      .join(", ") || data.display_name || null;
-  } finally {
-    window.clearTimeout(timeout);
-  }
 }
 
 function getCurrentWeekStartKey(date: Date) {

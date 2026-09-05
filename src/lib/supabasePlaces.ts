@@ -6,7 +6,7 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 export interface FixedPlace {
   id: string;
   label: string;
-  kind: "home" | "work" | "gym" | "other";
+  kind: "home" | "work" | "gym" | "partner_home" | "shuttle_stop" | "other";
   address?: string;
   latitude: number;
   longitude: number;
