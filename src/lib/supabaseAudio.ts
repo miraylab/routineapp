@@ -49,9 +49,26 @@ export async function createStudyAudioNote(input: {
   });
 }
 
+export async function createReliefNoteAudio(input: {
+  userId: string;
+  entryDate: string;
+  audioBlob: Blob;
+  mimeType: string;
+  durationSeconds?: number;
+}) {
+  return createAudioNote({
+    userId: input.userId,
+    context: "relief_note",
+    entryDate: input.entryDate,
+    audioBlob: input.audioBlob,
+    mimeType: input.mimeType,
+    durationSeconds: input.durationSeconds,
+  });
+}
+
 async function createAudioNote(input: {
   userId: string;
-  context: "daily" | "study";
+  context: "daily" | "study" | "relief_note";
   entryDate: string;
   projectId?: string;
   audioBlob: Blob;

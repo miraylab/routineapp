@@ -79,12 +79,19 @@ function HojePage() {
     addDailyJournalAudioEntry,
     materializeScheduleScope,
     addTask,
+    addReliefNoteAudioEntry,
   } = useStore();
   const [journalOpen, setJournalOpen] = useState(false);
   const [journalDraft, setJournalDraft] = useState("");
   const [reliefNoteComposerOpen, setReliefNoteComposerOpen] = useState(false);
   const [reliefNoteDraft, setReliefNoteDraft] = useState("");
   const [reliefNoteQuick, setReliefNoteQuick] = useState(false);
+  const [isRecordingReliefAudio, setIsRecordingReliefAudio] = useState(false);
+  const [pendingReliefAudio, setPendingReliefAudio] = useState<{
+    blob: Blob;
+    mimeType: string;
+    url: string;
+  } | null>(null);
   const [openMilestoneId, setOpenMilestoneId] = useState<string | null>(null);
   const [selectedDateKey, setSelectedDateKey] = useState(todayKey);
   const [fastTasksDismissed, setFastTasksDismissed] = useState(false);
@@ -97,6 +104,9 @@ function HojePage() {
   const journalMediaRecorderRef = useRef<MediaRecorder | null>(null);
   const journalAudioChunksRef = useRef<BlobPart[]>([]);
   const journalRecordingStreamRef = useRef<MediaStream | null>(null);
+  const reliefMediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const reliefAudioChunksRef = useRef<BlobPart[]>([]);
+  const reliefRecordingStreamRef = useRef<MediaStream | null>(null);
 
   const { current, dayBlocks } = context;
   const activeFreeTimeBlock = useMemo(
@@ -244,9 +254,18 @@ function HojePage() {
       if (pendingJournalAudio) {
         URL.revokeObjectURL(pendingJournalAudio.url);
       }
+      const reliefRecorder = reliefMediaRecorderRef.current;
+      if (reliefRecorder && reliefRecorder.state !== "inactive") {
+        reliefRecorder.onstop = null;
+        reliefRecorder.stop();
+      }
+      if (pendingReliefAudio) {
+        URL.revokeObjectURL(pendingReliefAudio.url);
+      }
+      reliefRecordingStreamRef.current?.getTracks().forEach((track) => track.stop());
       journalRecordingStreamRef.current?.getTracks().forEach((track) => track.stop());
     },
-    [pendingJournalAudio],
+    [pendingJournalAudio, pendingReliefAudio],
   );
 
   const orderedDailyHabits = useMemo(
@@ -278,6 +297,69 @@ function HojePage() {
     setReliefNoteQuick(false);
     setReliefNoteComposerOpen(false);
   };
+  const handleToggleReliefAudioRecording = useCallback(async () => {
+    const activeRecorder = reliefMediaRecorderRef.current;
+    if (activeRecorder?.state === "recording") {
+      activeRecorder.stop();
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      reliefRecordingStreamRef.current = stream;
+      reliefAudioChunksRef.current = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          reliefAudioChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const mimeType = recorder.mimeType || "audio/webm";
+        const blob = new Blob(reliefAudioChunksRef.current, { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        setPendingReliefAudio((currentAudio) => {
+          if (currentAudio) URL.revokeObjectURL(currentAudio.url);
+          return { blob, mimeType, url };
+        });
+        stream.getTracks().forEach((track) => track.stop());
+        if (reliefRecordingStreamRef.current === stream) {
+          reliefRecordingStreamRef.current = null;
+        }
+        reliefMediaRecorderRef.current = null;
+        reliefAudioChunksRef.current = [];
+        setIsRecordingReliefAudio(false);
+      };
+
+      reliefMediaRecorderRef.current = recorder;
+      setIsRecordingReliefAudio(true);
+      recorder.start();
+    } catch {
+      setIsRecordingReliefAudio(false);
+      reliefRecordingStreamRef.current?.getTracks().forEach((track) => track.stop());
+      reliefRecordingStreamRef.current = null;
+      reliefMediaRecorderRef.current = null;
+      reliefAudioChunksRef.current = [];
+    }
+  }, []);
+  const handleSendReliefAudio = useCallback(() => {
+    if (!pendingReliefAudio) return;
+    addReliefNoteAudioEntry(pendingReliefAudio.blob, pendingReliefAudio.mimeType);
+    URL.revokeObjectURL(pendingReliefAudio.url);
+    setPendingReliefAudio(null);
+    setReliefNoteComposerOpen(false);
+  }, [addReliefNoteAudioEntry, pendingReliefAudio]);
+  const handleDeleteReliefAudio = useCallback(() => {
+    if (!pendingReliefAudio) return;
+    URL.revokeObjectURL(pendingReliefAudio.url);
+    setPendingReliefAudio(null);
+  }, [pendingReliefAudio]);
   const handleToggleJournalAudioRecording = useCallback(async () => {
     const activeRecorder = journalMediaRecorderRef.current;
     if (activeRecorder?.state === "recording") {
@@ -816,6 +898,20 @@ function HojePage() {
                   <Flag className="size-4" />
                 </button>
                 <button
+                  type="button"
+                  onClick={handleToggleReliefAudioRecording}
+                  disabled={Boolean(pendingReliefAudio)}
+                  className={cn(
+                    "press grid size-10 shrink-0 place-items-center rounded-2xl border transition-colors duration-300 disabled:cursor-not-allowed disabled:opacity-45",
+                    isRecordingReliefAudio
+                      ? "border-primary bg-primary text-primary-foreground shadow-[0_0_22px_rgba(55,220,184,0.34)]"
+                      : "border-border bg-elevated/60 text-muted-foreground",
+                  )}
+                  aria-label={isRecordingReliefAudio ? "Parar gravação" : "Gravar áudio"}
+                >
+                  <Mic className={cn("size-4", isRecordingReliefAudio && "live-dot")} />
+                </button>
+                <button
                   type="submit"
                   disabled={!reliefNoteDraft.trim()}
                   className="press flex h-10 flex-1 items-center justify-center rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
@@ -823,6 +919,34 @@ function HojePage() {
                   Adicionar
                 </button>
               </div>
+              {pendingReliefAudio ? (
+                <div className="mt-2 w-full space-y-2 overflow-hidden rounded-2xl bg-elevated/60 p-2">
+                  <audio
+                    controls
+                    src={pendingReliefAudio.url}
+                    className="h-9 w-full min-w-0 max-w-full"
+                  />
+                  <div className="grid grid-cols-[40px_1fr] gap-2">
+                    <button
+                      type="button"
+                      onClick={handleDeleteReliefAudio}
+                      className="press grid size-10 place-items-center rounded-2xl border border-border text-muted-foreground"
+                      aria-label="Apagar áudio"
+                    >
+                      <X className="size-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSendReliefAudio}
+                      className="press flex h-10 items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+                      aria-label="Enviar áudio"
+                    >
+                      <Send className="size-4" />
+                      Enviar áudio
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </form>
           ) : null}
           <button

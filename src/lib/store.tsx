@@ -57,6 +57,7 @@ import {
 } from "@/lib/supabaseWeekFocus";
 import {
   createDailyAudioNote,
+  createReliefNoteAudio,
   createStudyAudioNote,
   isSupabaseAudioConfigured,
 } from "@/lib/supabaseAudio";
@@ -1125,6 +1126,22 @@ function useStoreValue(accessToken?: string, userId?: string) {
     [fronts, todayKey],
   );
 
+  const addReliefNoteAudioEntry = useCallback(
+    (audioBlob: Blob, mimeType: string) => {
+      if (!audioBlob.size || !userId || !isSupabaseAudioConfigured()) return;
+
+      void createReliefNoteAudio({
+        userId,
+        entryDate: todayKey,
+        audioBlob,
+        mimeType,
+      }).catch((error) =>
+        console.warn("Supabase relief note audio create failed", error),
+      );
+    },
+    [todayKey, userId],
+  );
+
   const materializeScheduleScope = useCallback(
     (block: ScheduleBlock) => {
       const area = normalizeScopeArea(block.scope?.area ?? block.category);
@@ -1401,6 +1418,7 @@ function useStoreValue(accessToken?: string, userId?: string) {
     addProject,
     addProjectAction,
     addTask,
+    addReliefNoteAudioEntry,
     materializeScheduleScope,
     addDailyJournalEntry,
     addDailyJournalAudioEntry,
