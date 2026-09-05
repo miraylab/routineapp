@@ -176,16 +176,14 @@ function FrenteDetalhe() {
             <ul className="app-scrollbar max-h-[190px] space-y-2 overflow-y-auto pr-1">
               {visibleTasks.map((task) => {
                 const done = Boolean(task.dueDate);
+                const visibleFromLabel = formatVisibleFromDistance(task.visibleFrom, todayKey);
                 return (
                   <li key={task.id}>
                     <button
                       type="button"
                       onClick={() => toggleTask(task.id)}
-                      className="press relative flex w-full items-start gap-3 rounded-2xl bg-card/70 px-3.5 py-3 pr-8 text-left text-sm text-foreground"
+                      className="press flex w-full items-start gap-3 rounded-2xl bg-card/70 px-3.5 py-3 text-left text-sm text-foreground"
                     >
-                      {task.quick && !done ? (
-                        <span className="absolute right-3 top-1/2 size-2 -translate-y-1/2 rounded-full bg-primary" />
-                      ) : null}
                       <span
                         className={cn(
                           "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border transition-colors duration-200",
@@ -204,6 +202,18 @@ function FrenteDetalhe() {
                       >
                         {task.title}
                       </span>
+                      {visibleFromLabel || (task.quick && !done) ? (
+                        <span className="ml-auto flex shrink-0 items-center gap-2">
+                          {visibleFromLabel ? (
+                            <span className="rounded-full bg-elevated px-2.5 py-1 text-[11px] font-medium leading-none text-muted-foreground">
+                              {visibleFromLabel}
+                            </span>
+                          ) : null}
+                          {task.quick && !done ? (
+                            <span className="size-2 rounded-full bg-primary" />
+                          ) : null}
+                        </span>
+                      ) : null}
                     </button>
                   </li>
                 );
@@ -568,6 +578,27 @@ function parseFatherId(fatherId: string) {
 
 function orderTasksByDoneLast(tasks: Task[]) {
   return [...tasks].sort((a, b) => Number(Boolean(a.dueDate)) - Number(Boolean(b.dueDate)));
+}
+
+function formatVisibleFromDistance(visibleFrom: string | undefined, todayKey: string) {
+  if (!visibleFrom || visibleFrom <= todayKey) return null;
+
+  const visibleDate = parseInputDate(visibleFrom);
+  const today = parseInputDate(todayKey);
+  if (!visibleDate || !today) return null;
+
+  const diffInDays = Math.ceil((visibleDate.getTime() - today.getTime()) / 86_400_000);
+  if (diffInDays <= 0) return null;
+  if (diffInDays === 1) return "Amanhã";
+  return `Daqui ${diffInDays} dias`;
+}
+
+function parseInputDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  const parsed = new Date(year, month - 1, day);
+  parsed.setHours(0, 0, 0, 0);
+  return parsed;
 }
 
 const PROJECT_STATUSES: ProjectStatus[] = ["Em andamento", "Concluído", "Arquivado"];

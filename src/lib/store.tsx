@@ -619,25 +619,6 @@ function useStoreValue(accessToken?: string, userId?: string) {
   const addDailyJournalAudioEntry = useCallback(
     (audioBlob: Blob, mimeType: string, time: string) => {
       if (!audioBlob.size) return;
-      const audioDataUrl = URL.createObjectURL(audioBlob);
-      setState((s) => ({
-        ...s,
-        dailyJournalEntries: {
-          ...(s.dailyJournalEntries ?? {}),
-          [todayKey]: [
-            ...(s.dailyJournalEntries?.[todayKey] ?? []),
-            {
-              id: `journal-audio-${Date.now()}`,
-              time,
-              text: "Audio do bloco de notas",
-              type: "audio",
-              audioDataUrl,
-              mimeType,
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      }));
 
       if (userId && isSupabaseAudioConfigured()) {
         void createDailyAudioNote({
@@ -729,26 +710,6 @@ function useStoreValue(accessToken?: string, userId?: string) {
       time: string,
     ) => {
       if (!audioBlob.size) return;
-      const audioDataUrl = URL.createObjectURL(audioBlob);
-      setState((s) => ({
-        ...s,
-        activityLearningEntries: {
-          ...(s.activityLearningEntries ?? {}),
-          [activityId]: [
-            ...(s.activityLearningEntries?.[activityId] ?? []),
-            {
-              id: `${activityId}:learning-audio:${Date.now()}`,
-              activityId,
-              time,
-              text: "Audio de aprendizado",
-              type: "audio",
-              audioDataUrl,
-              mimeType,
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      }));
 
       if (userId && projectId && isSupabaseAudioConfigured()) {
         void createStudyAudioNote({

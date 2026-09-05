@@ -36,7 +36,7 @@ export const Route = createFileRoute("/projetos/$projectId")({
 function ProjetoDetalhe() {
   const { projectId } = Route.useParams();
   const navigate = useNavigate();
-  const { projects, toggleProjectAction, addProjectAction, setProjectStatus, updateProjectDetails } = useStore();
+  const { projects, todayKey, toggleProjectAction, addProjectAction, setProjectStatus, updateProjectDetails } = useStore();
   const [draft, setDraft] = useState("");
   const [draftQuick, setDraftQuick] = useState(false);
   const [draftVisibleFrom, setDraftVisibleFrom] = useState("");
@@ -162,42 +162,54 @@ function ProjetoDetalhe() {
         {showActions ? (
           <div className="mt-3 rounded-2xl bg-elevated/45 p-2">
             <ul className="app-scrollbar max-h-[190px] space-y-2 overflow-y-auto pr-1">
-              {visibleActions.map((a) => (
-                <li key={a.id}>
-                  <button
-                    type="button"
-                    onClick={() => toggleProjectAction(project.id, a.id)}
-                    className="press relative flex w-full items-start gap-3 rounded-2xl bg-card/70 px-3.5 py-3 pr-8 text-left text-sm text-foreground"
-                  >
-                    {a.quick && !a.dueDate ? (
-                      <span className="absolute right-3 top-1/2 size-2 -translate-y-1/2 rounded-full bg-primary" />
-                    ) : null}
-                    <span
-                      className={cn(
-                        "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border transition-colors duration-300",
-                        a.dueDate
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border text-transparent",
-                      )}
+              {visibleActions.map((a) => {
+                const visibleFromLabel = formatVisibleFromDistance(a.visibleFrom, todayKey);
+                return (
+                  <li key={a.id}>
+                    <button
+                      type="button"
+                      onClick={() => toggleProjectAction(project.id, a.id)}
+                      className="press flex w-full items-start gap-3 rounded-2xl bg-card/70 px-3.5 py-3 text-left text-sm text-foreground"
                     >
-                      <Check className="size-3" strokeWidth={3} />
-                    </span>
-                    <span
-                      className={cn(
-                        "min-w-0 flex-1 leading-snug",
-                        a.dueDate && "text-muted-foreground line-through",
-                      )}
-                    >
-                      {a.title}
-                      {a.note ? (
-                        <span className="mt-1 block text-xs leading-snug text-muted-foreground">
-                          {a.note}
+                      <span
+                        className={cn(
+                          "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border transition-colors duration-300",
+                          a.dueDate
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border text-transparent",
+                        )}
+                      >
+                        <Check className="size-3" strokeWidth={3} />
+                      </span>
+                      <span
+                        className={cn(
+                          "min-w-0 flex-1 leading-snug",
+                          a.dueDate && "text-muted-foreground line-through",
+                        )}
+                      >
+                        {a.title}
+                        {a.note ? (
+                          <span className="mt-1 block text-xs leading-snug text-muted-foreground">
+                            {a.note}
+                          </span>
+                        ) : null}
+                      </span>
+                      {visibleFromLabel || (a.quick && !a.dueDate) ? (
+                        <span className="ml-auto flex shrink-0 items-center gap-2">
+                          {visibleFromLabel ? (
+                            <span className="rounded-full bg-elevated px-2.5 py-1 text-[11px] font-medium leading-none text-muted-foreground">
+                              {visibleFromLabel}
+                            </span>
+                          ) : null}
+                          {a.quick && !a.dueDate ? (
+                            <span className="size-2 rounded-full bg-primary" />
+                          ) : null}
                         </span>
                       ) : null}
-                    </span>
-                  </button>
-                </li>
-              ))}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         ) : null}
@@ -328,6 +340,27 @@ function ProjetoDetalhe() {
 
 function orderActionsByDoneLast<T extends { dueDate?: string }>(actions: T[]) {
   return [...actions].sort((a, b) => Number(Boolean(a.dueDate)) - Number(Boolean(b.dueDate)));
+}
+
+function formatVisibleFromDistance(visibleFrom: string | undefined, todayKey: string) {
+  if (!visibleFrom || visibleFrom <= todayKey) return null;
+
+  const visibleDate = parseInputDate(visibleFrom);
+  const today = parseInputDate(todayKey);
+  if (!visibleDate || !today) return null;
+
+  const diffInDays = Math.ceil((visibleDate.getTime() - today.getTime()) / 86_400_000);
+  if (diffInDays <= 0) return null;
+  if (diffInDays === 1) return "Amanhã";
+  return `Daqui ${diffInDays} dias`;
+}
+
+function parseInputDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  const parsed = new Date(year, month - 1, day);
+  parsed.setHours(0, 0, 0, 0);
+  return parsed;
 }
 
 const PROJECT_STATUSES: ProjectStatus[] = ["Em andamento", "Concluído", "Arquivado"];
