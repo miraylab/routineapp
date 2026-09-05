@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { BookOpen, Check, ChevronDown, Flag, Mic, Plus, Send, X } from "lucide-react";
+import { BookOpen, Check, ChevronDown, Flag, LocateFixed, MapPin, Mic, Plus, Send, X } from "lucide-react";
 
 import {
   CurrentActivityCard,
@@ -20,6 +20,7 @@ import {
 } from "@/lib/schedule";
 import { cn } from "@/lib/utils";
 import { type ScheduleBlock, type Task } from "@/data/mockData";
+import type { FixedPlace } from "@/lib/supabasePlaces";
 
 const BEDTIME_MINUTES = toMinutes("21:30");
 const FREE_TIME_ID_PREFIX = "tempo-livre";
@@ -59,6 +60,7 @@ function HojePage() {
     dailyHabits,
     dailyJournalEntries,
     weekMilestones,
+    fixedPlaces,
     routineRatingsToday,
     blockDone,
     dailyHabitDone,
@@ -100,6 +102,12 @@ function HojePage() {
     blob: Blob;
     mimeType: string;
     url: string;
+  } | null>(null);
+  const [gpsStatus, setGpsStatus] = useState<"idle" | "loading" | "ready" | "denied" | "error">("idle");
+  const [currentPosition, setCurrentPosition] = useState<{
+    latitude: number;
+    longitude: number;
+    accuracy?: number;
   } | null>(null);
   const journalMediaRecorderRef = useRef<MediaRecorder | null>(null);
   const journalAudioChunksRef = useRef<BlobPart[]>([]);
@@ -286,6 +294,14 @@ function HojePage() {
 
   const weekdayLabel = WEEKDAYS[dayOfWeek];
   const fullDateLabel = `${realNow.getDate()} de ${MONTHS[realNow.getMonth()]}`;
+  const nearestPlace = useMemo(
+    () => findNearestPlace(currentPosition, fixedPlaces),
+    [currentPosition, fixedPlaces],
+  );
+  const suggestedDestination = useMemo(
+    () => getSuggestedDestination(fixedPlaces, nowMinutes),
+    [fixedPlaces, nowMinutes],
+  );
   const handleAddReliefNote = () => {
     if (!reliefNoteDraft.trim()) return;
     if (reliefNotesFront) {
@@ -422,6 +438,56 @@ function HojePage() {
     URL.revokeObjectURL(pendingJournalAudio.url);
     setPendingJournalAudio(null);
   }, [pendingJournalAudio]);
+
+  const requestGpsLocation = useCallback(() => {
+    if (!("geolocation" in navigator)) {
+      setGpsStatus("error");
+      return;
+    }
+
+    setGpsStatus("loading");
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setCurrentPosition({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+        });
+        setGpsStatus("ready");
+      },
+      (error) => {
+        setGpsStatus(error.code === error.PERMISSION_DENIED ? "denied" : "error");
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 60_000,
+        timeout: 10_000,
+      },
+    );
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated || gpsStatus !== "idle" || !("geolocation" in navigator)) return;
+
+    if (!navigator.permissions?.query) return;
+
+    let active = true;
+
+    navigator.permissions
+      .query({ name: "geolocation" })
+      .then((permission) => {
+        if (!active || permission.state !== "granted") return;
+        requestGpsLocation();
+      })
+      .catch(() => {
+        /* Sem Permissions API, evita abrir prompt automaticamente. */
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [gpsStatus, hydrated, requestGpsLocation]);
+
   if (!hydrated) {
     return (
       <div className="space-y-3">
@@ -452,6 +518,61 @@ function HojePage() {
           </div>
         </div>
       </header>
+
+      <section className="rounded-3xl border border-border/60 bg-card p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium tracking-[0.18em] text-muted-foreground">
+              LOCALIZAÇÃO
+            </p>
+            <h2 className="mt-1 truncate text-lg font-semibold">
+              {gpsStatus === "ready" && nearestPlace
+                ? `Perto de ${nearestPlace.place.label}`
+                : gpsStatus === "loading"
+                  ? "Buscando GPS"
+                  : "GPS disponível"}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={requestGpsLocation}
+            disabled={gpsStatus === "loading"}
+            className={cn(
+              "press grid size-11 shrink-0 place-items-center rounded-2xl border transition-colors",
+              gpsStatus === "ready"
+                ? "border-primary/30 bg-primary/12 text-primary"
+                : "border-border bg-elevated/50 text-muted-foreground",
+            )}
+            aria-label="Atualizar localização"
+          >
+            <LocateFixed className={cn("size-4", gpsStatus === "loading" && "animate-pulse")} />
+          </button>
+        </div>
+
+        <div className="mt-3 flex items-start gap-3 rounded-2xl bg-elevated/45 px-3.5 py-3">
+          <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-xl bg-card/70 text-primary">
+            <MapPin className="size-4" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm leading-snug text-foreground">
+              {gpsStatus === "ready" && nearestPlace
+                ? `${formatDistance(nearestPlace.distanceMeters)} de ${nearestPlace.place.label}`
+                : gpsStatus === "ready"
+                  ? "Localização recebida. Cadastre seus endereços fixos para cruzar as informações."
+                  : gpsStatus === "denied"
+                    ? "Permissão de localização negada no navegador."
+                    : gpsStatus === "error"
+                      ? "Não consegui acessar o GPS neste dispositivo."
+                      : "Toque no botão para usar sua localização atual quando abrir a Home."}
+            </p>
+            {suggestedDestination ? (
+              <p className="mt-1 text-xs leading-snug text-muted-foreground">
+                Destino sugerido agora: {suggestedDestination.label}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </section>
 
       {showFastTasks ? (
         <section className="rounded-3xl border-2 border-primary/35 bg-card p-5 shadow-[0_18px_40px_rgba(0,0,0,0.16)]">
@@ -1133,6 +1254,52 @@ function toDateKey(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function findNearestPlace(
+  position: { latitude: number; longitude: number } | null,
+  places: FixedPlace[],
+) {
+  if (!position || places.length === 0) return null;
+
+  return places
+    .map((place) => ({
+      place,
+      distanceMeters: distanceInMeters(position.latitude, position.longitude, place.latitude, place.longitude),
+    }))
+    .sort((a, b) => a.distanceMeters - b.distanceMeters)[0] ?? null;
+}
+
+function getSuggestedDestination(places: FixedPlace[], nowMinutes: number) {
+  const home = places.find((place) => place.kind === "home");
+  const work = places.find((place) => place.kind === "work");
+  if (!home || !work) return work ?? home ?? null;
+
+  if (nowMinutes < toMinutes("12:00")) return work;
+  if (nowMinutes >= toMinutes("16:00")) return home;
+  return null;
+}
+
+function distanceInMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const earthRadius = 6_371_000;
+  const dLat = toRadians(lat2 - lat1);
+  const dLon = toRadians(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(lat1)) *
+      Math.cos(toRadians(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function toRadians(value: number) {
+  return (value * Math.PI) / 180;
+}
+
+function formatDistance(distanceMeters: number) {
+  if (distanceMeters < 1_000) return `${Math.round(distanceMeters)} m`;
+  return `${(distanceMeters / 1_000).toFixed(1).replace(".", ",")} km`;
 }
 
 function getCurrentWeekStartKey(date: Date) {

@@ -61,6 +61,11 @@ import {
   createStudyAudioNote,
   isSupabaseAudioConfigured,
 } from "@/lib/supabaseAudio";
+import {
+  fetchSupabaseFixedPlaces,
+  isSupabasePlacesConfigured,
+  type FixedPlace,
+} from "@/lib/supabasePlaces";
 
 const STORAGE_KEY = "yuri-os.state.v1";
 const HYDRATION_CLOCK_FALLBACK = new Date(0);
@@ -169,6 +174,7 @@ function useStoreValue(accessToken?: string, userId?: string) {
   const [remoteHabitData, setRemoteHabitData] = useState<SupabaseHabitData | null>(null);
   const [remoteWeekMilestones, setRemoteWeekMilestones] = useState<WeekMilestone[]>([]);
   const [remoteSchedule, setRemoteSchedule] = useState<ScheduleBlock[] | null>(null);
+  const [fixedPlaces, setFixedPlaces] = useState<FixedPlace[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [realNow, setRealNow] = useState(HYDRATION_CLOCK_FALLBACK);
 
@@ -263,6 +269,25 @@ function useStoreValue(accessToken?: string, userId?: string) {
       .catch((error) => {
         console.warn("Supabase week focus unavailable", error);
         if (active) setRemoteWeekMilestones([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [accessToken]);
+
+  useEffect(() => {
+    if (isSupabasePlacesConfigured() && !accessToken) return;
+
+    let active = true;
+
+    fetchSupabaseFixedPlaces(accessToken)
+      .then((places) => {
+        if (active) setFixedPlaces(places);
+      })
+      .catch((error) => {
+        console.warn("Supabase fixed places unavailable", error);
+        if (active) setFixedPlaces([]);
       });
 
     return () => {
@@ -1347,6 +1372,7 @@ function useStoreValue(accessToken?: string, userId?: string) {
     weekAreas,
     weekFocus,
     weekMilestones: remoteWeekMilestones,
+    fixedPlaces,
     simulation: state.simulation,
     frontStatuses: { ...(remoteProjectData?.frontStatuses ?? {}), ...(state.frontStatuses ?? {}) },
     blockDone,
