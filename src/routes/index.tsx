@@ -89,6 +89,11 @@ function HojePage() {
   const [selectedDateKey, setSelectedDateKey] = useState(todayKey);
   const [fastTasksDismissed, setFastTasksDismissed] = useState(false);
   const [isRecordingJournalAudio, setIsRecordingJournalAudio] = useState(false);
+  const [pendingJournalAudio, setPendingJournalAudio] = useState<{
+    blob: Blob;
+    mimeType: string;
+    url: string;
+  } | null>(null);
   const journalMediaRecorderRef = useRef<MediaRecorder | null>(null);
   const journalAudioChunksRef = useRef<BlobPart[]>([]);
   const journalRecordingStreamRef = useRef<MediaStream | null>(null);
@@ -236,9 +241,12 @@ function HojePage() {
         recorder.onstop = null;
         recorder.stop();
       }
+      if (pendingJournalAudio) {
+        URL.revokeObjectURL(pendingJournalAudio.url);
+      }
       journalRecordingStreamRef.current?.getTracks().forEach((track) => track.stop());
     },
-    [],
+    [pendingJournalAudio],
   );
 
   const orderedDailyHabits = useMemo(
@@ -296,8 +304,11 @@ function HojePage() {
       recorder.onstop = () => {
         const mimeType = recorder.mimeType || "audio/webm";
         const blob = new Blob(journalAudioChunksRef.current, { type: mimeType });
-
-        addDailyJournalAudioEntry(blob, mimeType, formatMinutes(nowMinutes));
+        const url = URL.createObjectURL(blob);
+        setPendingJournalAudio((currentAudio) => {
+          if (currentAudio) URL.revokeObjectURL(currentAudio.url);
+          return { blob, mimeType, url };
+        });
         stream.getTracks().forEach((track) => track.stop());
         if (journalRecordingStreamRef.current === stream) {
           journalRecordingStreamRef.current = null;
@@ -317,7 +328,18 @@ function HojePage() {
       journalMediaRecorderRef.current = null;
       journalAudioChunksRef.current = [];
     }
-  }, [addDailyJournalAudioEntry, nowMinutes]);
+  }, []);
+  const handleSendJournalAudio = useCallback(() => {
+    if (!pendingJournalAudio) return;
+    addDailyJournalAudioEntry(pendingJournalAudio.blob, pendingJournalAudio.mimeType, formatMinutes(nowMinutes));
+    URL.revokeObjectURL(pendingJournalAudio.url);
+    setPendingJournalAudio(null);
+  }, [addDailyJournalAudioEntry, nowMinutes, pendingJournalAudio]);
+  const handleDeleteJournalAudio = useCallback(() => {
+    if (!pendingJournalAudio) return;
+    URL.revokeObjectURL(pendingJournalAudio.url);
+    setPendingJournalAudio(null);
+  }, [pendingJournalAudio]);
   if (!hydrated) {
     return (
       <div className="space-y-3">
@@ -560,8 +582,9 @@ function HojePage() {
                   <button
                     type="button"
                     onClick={handleToggleJournalAudioRecording}
+                    disabled={Boolean(pendingJournalAudio)}
                     className={cn(
-                      "press grid size-11 shrink-0 place-items-center rounded-2xl border transition-colors duration-300",
+                      "press grid size-11 shrink-0 place-items-center rounded-2xl border transition-colors duration-300 disabled:cursor-not-allowed disabled:opacity-45",
                       isRecordingJournalAudio
                         ? "border-primary bg-primary text-primary-foreground shadow-[0_0_22px_rgba(55,220,184,0.34)]"
                         : "border-border bg-card/70 text-muted-foreground",
@@ -580,6 +603,27 @@ function HojePage() {
                     Enviar
                   </button>
                 </div>
+                {pendingJournalAudio ? (
+                  <div className="grid grid-cols-[1fr_44px_44px] items-center gap-2 rounded-2xl bg-card/70 p-2">
+                    <audio controls src={pendingJournalAudio.url} className="h-9 min-w-0" />
+                    <button
+                      type="button"
+                      onClick={handleDeleteJournalAudio}
+                      className="press grid size-11 place-items-center rounded-2xl border border-border text-muted-foreground"
+                      aria-label="Apagar áudio"
+                    >
+                      <X className="size-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSendJournalAudio}
+                      className="press grid size-11 place-items-center rounded-2xl bg-primary text-primary-foreground"
+                      aria-label="Enviar áudio"
+                    >
+                      <Send className="size-4" />
+                    </button>
+                  </div>
+                ) : null}
               </form>
 
               {dailyJournalEntries.length > 0 && (

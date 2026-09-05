@@ -8,7 +8,7 @@ import {
   type RefObject,
   type PointerEvent,
 } from "react";
-import { Check, Flag, Mic, Plus, Send } from "lucide-react";
+import { Check, Flag, Mic, Plus, Send, X } from "lucide-react";
 
 import { ProgressBar } from "./ProgressBar";
 import { StatusBadge } from "./StatusBadge";
@@ -91,6 +91,11 @@ export function CurrentActivityCard({
   const [draft, setDraft] = useState("");
   const [draftPriority, setDraftPriority] = useState(false);
   const [learningDraft, setLearningDraft] = useState("");
+  const [pendingLearningAudio, setPendingLearningAudio] = useState<{
+    blob: Blob;
+    mimeType: string;
+    url: string;
+  } | null>(null);
   const [dragX, setDragX] = useState(0);
   const [isSettling, setIsSettling] = useState(false);
   const [isResettingTrack, setIsResettingTrack] = useState(false);
@@ -161,6 +166,9 @@ export function CurrentActivityCard({
       if (resetFrameRef.current) {
         window.cancelAnimationFrame(resetFrameRef.current);
       }
+      if (pendingLearningAudio) {
+        URL.revokeObjectURL(pendingLearningAudio.url);
+      }
       const recorder = mediaRecorderRef.current;
       if (recorder && recorder.state !== "inactive") {
         recorder.onstop = null;
@@ -168,7 +176,7 @@ export function CurrentActivityCard({
       }
       recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
     },
-    [],
+    [pendingLearningAudio],
   );
 
   const handleToggleLearningAudioRecording = useCallback(async () => {
@@ -197,8 +205,11 @@ export function CurrentActivityCard({
       recorder.onstop = () => {
         const mimeType = recorder.mimeType || "audio/webm";
         const blob = new Blob(audioChunksRef.current, { type: mimeType });
-
-        onAddLearningAudio?.(blob, mimeType);
+        const url = URL.createObjectURL(blob);
+        setPendingLearningAudio((currentAudio) => {
+          if (currentAudio) URL.revokeObjectURL(currentAudio.url);
+          return { blob, mimeType, url };
+        });
         stream.getTracks().forEach((track) => track.stop());
         if (recordingStreamRef.current === stream) {
           recordingStreamRef.current = null;
@@ -218,7 +229,20 @@ export function CurrentActivityCard({
       mediaRecorderRef.current = null;
       audioChunksRef.current = [];
     }
-  }, [onAddLearningAudio]);
+  }, []);
+
+  const sendPendingLearningAudio = useCallback(() => {
+    if (!pendingLearningAudio) return;
+    onAddLearningAudio?.(pendingLearningAudio.blob, pendingLearningAudio.mimeType);
+    URL.revokeObjectURL(pendingLearningAudio.url);
+    setPendingLearningAudio(null);
+  }, [onAddLearningAudio, pendingLearningAudio]);
+
+  const deletePendingLearningAudio = useCallback(() => {
+    if (!pendingLearningAudio) return;
+    URL.revokeObjectURL(pendingLearningAudio.url);
+    setPendingLearningAudio(null);
+  }, [pendingLearningAudio]);
 
   const handlePointerDown = (event: PointerEvent<HTMLElement>) => {
     if (isInteractiveElement(event.target)) return;
@@ -407,6 +431,9 @@ export function CurrentActivityCard({
           onAddLearningNote={onAddLearningNote}
           onToggleLearningAudioRecording={handleToggleLearningAudioRecording}
           isRecordingLearningAudio={isRecordingLearningAudio}
+          pendingLearningAudio={pendingLearningAudio}
+          onSendPendingLearningAudio={sendPendingLearningAudio}
+          onDeletePendingLearningAudio={deletePendingLearningAudio}
           onSetRoutineRating={onSetRoutineRating}
           checklistScrollRef={checklistScrollRef}
           firstPendingRef={firstPendingRef}
@@ -470,6 +497,9 @@ function ActivityCardPanel({
   onAddLearningNote,
   onToggleLearningAudioRecording,
   isRecordingLearningAudio = false,
+  pendingLearningAudio = null,
+  onSendPendingLearningAudio,
+  onDeletePendingLearningAudio,
   onSetRoutineRating,
   checklistScrollRef,
   firstPendingRef,
@@ -501,6 +531,9 @@ function ActivityCardPanel({
   onAddLearningNote?: (text: string) => void;
   onToggleLearningAudioRecording?: () => void;
   isRecordingLearningAudio?: boolean;
+  pendingLearningAudio?: { blob: Blob; mimeType: string; url: string } | null;
+  onSendPendingLearningAudio?: () => void;
+  onDeletePendingLearningAudio?: () => void;
   onSetRoutineRating?: (id: string, rating: number) => void;
   checklistScrollRef?: RefObject<HTMLDivElement | null>;
   firstPendingRef?: RefObject<HTMLButtonElement | null>;
@@ -765,43 +798,67 @@ function ActivityCardPanel({
             )}
           </div>
           {hasConfigurationNotice ? null : isStudy ? (
-            <form
-              className="mt-2 flex gap-2"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (!learningDraft.trim()) return;
-                onAddLearningNote?.(learningDraft.trim());
-                setLearningDraft?.("");
-              }}
-            >
-              <input
-                value={learningDraft}
-                onChange={(event) => setLearningDraft?.(event.target.value)}
-                placeholder="Comentar aprendizado"
-                className="h-11 min-w-0 flex-1 rounded-2xl bg-card/70 px-3.5 text-[13px] outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
-              />
-              <button
-                type="button"
-                onClick={onToggleLearningAudioRecording}
-                className={cn(
-                  "press grid size-11 shrink-0 place-items-center rounded-2xl border transition-colors duration-300",
-                  isRecordingLearningAudio
-                    ? "border-primary bg-primary text-primary-foreground shadow-[0_0_22px_rgba(55,220,184,0.34)]"
-                    : "border-border bg-card/70 text-muted-foreground",
-                )}
-                aria-label={isRecordingLearningAudio ? "Parar gravação" : "Gravar áudio"}
+            <div className="mt-2 space-y-2">
+              <form
+                className="flex gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (!learningDraft.trim()) return;
+                  onAddLearningNote?.(learningDraft.trim());
+                  setLearningDraft?.("");
+                }}
               >
-                <Mic className={cn("size-4", isRecordingLearningAudio && "live-dot")} />
-              </button>
-              <button
-                type="submit"
-                disabled={!learningDraft.trim()}
-                className="press grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
-                aria-label="Enviar aprendizado"
-              >
-                <Send className="size-4" />
-              </button>
-            </form>
+                <input
+                  value={learningDraft}
+                  onChange={(event) => setLearningDraft?.(event.target.value)}
+                  placeholder="Comentar aprendizado"
+                  className="h-11 min-w-0 flex-1 rounded-2xl bg-card/70 px-3.5 text-[13px] outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+                />
+                <button
+                  type="button"
+                  onClick={onToggleLearningAudioRecording}
+                  disabled={Boolean(pendingLearningAudio)}
+                  className={cn(
+                    "press grid size-11 shrink-0 place-items-center rounded-2xl border transition-colors duration-300 disabled:cursor-not-allowed disabled:opacity-45",
+                    isRecordingLearningAudio
+                      ? "border-primary bg-primary text-primary-foreground shadow-[0_0_22px_rgba(55,220,184,0.34)]"
+                      : "border-border bg-card/70 text-muted-foreground",
+                  )}
+                  aria-label={isRecordingLearningAudio ? "Parar gravação" : "Gravar áudio"}
+                >
+                  <Mic className={cn("size-4", isRecordingLearningAudio && "live-dot")} />
+                </button>
+                <button
+                  type="submit"
+                  disabled={!learningDraft.trim()}
+                  className="press grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+                  aria-label="Enviar aprendizado"
+                >
+                  <Send className="size-4" />
+                </button>
+              </form>
+              {pendingLearningAudio ? (
+                <div className="grid grid-cols-[1fr_44px_44px] items-center gap-2 rounded-2xl bg-card/70 p-2">
+                  <audio controls src={pendingLearningAudio.url} className="h-9 min-w-0" />
+                  <button
+                    type="button"
+                    onClick={onDeletePendingLearningAudio}
+                    className="press grid size-11 place-items-center rounded-2xl border border-border text-muted-foreground"
+                    aria-label="Apagar áudio"
+                  >
+                    <X className="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onSendPendingLearningAudio}
+                    className="press grid size-11 place-items-center rounded-2xl bg-primary text-primary-foreground"
+                    aria-label="Enviar áudio"
+                  >
+                    <Send className="size-4" />
+                  </button>
+                </div>
+              ) : null}
+            </div>
           ) : (
             <form
               className="mt-2 flex gap-2"
