@@ -45,16 +45,23 @@ function WeeklyFocusPage() {
       ),
     [currentWeekStart, weekMilestones],
   );
+  const futureGroups = useMemo(
+    () =>
+      groupMilestonesByWeek(
+        weekMilestones.filter(
+          (milestone) => (milestone.weekStart ?? currentWeekStart) > currentWeekStart,
+        ),
+      ),
+    [currentWeekStart, weekMilestones],
+  );
   const historyGroups = useMemo(
     () =>
       groupMilestonesByWeek(
         weekMilestones.filter(
-          (milestone) =>
-            (milestone.weekStart ?? currentWeekStart) < currentWeekStart &&
-            weekMilestoneDone(milestone.id),
+          (milestone) => (milestone.weekStart ?? currentWeekStart) < currentWeekStart,
         ),
       ),
-    [weekMilestoneDone, weekMilestones],
+    [currentWeekStart, weekMilestones],
   );
 
   return (
@@ -101,9 +108,38 @@ function WeeklyFocusPage() {
         )}
       </section>
 
+      {futureGroups.length > 0 ? (
+        <section className="rounded-3xl border border-border/60 bg-card p-5">
+          <p className="text-[11px] font-medium tracking-[0.18em] text-muted-foreground">
+            PRÓXIMAS SEMANAS
+          </p>
+          <div className="mt-4 space-y-2">
+            {futureGroups.map((group) => (
+              <div key={group.weekStart} className="rounded-2xl bg-elevated/35 p-3">
+                <p className="mb-2 text-[11px] font-medium tracking-[0.14em] text-muted-foreground">
+                  SEMANA DE {formatWeekStart(group.weekStart)}
+                </p>
+                <div className="space-y-2">
+                  {group.items.map((milestone) => (
+                    <WeeklyFocusCard
+                      key={milestone.id}
+                      milestone={milestone}
+                      done={weekMilestoneDone(milestone.id)}
+                      onToggle={() => toggleWeekMilestone(milestone.id)}
+                      onUpdate={(patch) => updateWeekMilestone(milestone.id, patch)}
+                      onRemove={() => removeWeekMilestone(milestone.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <section className="rounded-3xl border border-border/60 bg-card p-5">
         <p className="text-[11px] font-medium tracking-[0.18em] text-muted-foreground">
-          HISTÓRICO DE CONQUISTAS
+          HISTÓRICO DAS SEMANAS
         </p>
         <div className="mt-4 space-y-2">
           {historyGroups.length > 0 ? (
@@ -113,31 +149,48 @@ function WeeklyFocusPage() {
                   SEMANA DE {formatWeekStart(group.weekStart)}
                 </p>
                 <div className="space-y-2">
-                  {group.items.map((milestone) => (
-                    <div
-                      key={milestone.id}
-                      className="flex items-center gap-3 rounded-2xl bg-card/60 px-3.5 py-3"
-                    >
-                      <span className="grid size-7 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground">
-                        <Check className="size-4" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium line-through">
-                          {milestone.title}
+                  {group.items.map((milestone) => {
+                    const done = weekMilestoneDone(milestone.id);
+                    return (
+                      <div
+                        key={milestone.id}
+                        className="flex items-center gap-3 rounded-2xl bg-card/60 px-3.5 py-3"
+                      >
+                        <span
+                          className={cn(
+                            "grid size-7 shrink-0 place-items-center rounded-xl border",
+                            done
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border bg-elevated/45 text-transparent",
+                          )}
+                        >
+                          <Check className="size-4" />
                         </span>
-                        <span className="block text-xs text-muted-foreground">
-                          {milestone.dayLabel}
-                          {milestone.doneDate ? ` · concluído em ${formatDateKey(milestone.doneDate)}` : ""}
+                        <span className="min-w-0 flex-1">
+                          <span
+                            className={cn(
+                              "block truncate text-sm font-medium",
+                              done && "text-muted-foreground line-through",
+                            )}
+                          >
+                            {milestone.title}
+                          </span>
+                          <span className="block text-xs text-muted-foreground">
+                            {milestone.dayLabel}
+                            {milestone.doneDate
+                              ? ` · concluído em ${formatDateKey(milestone.doneDate)}`
+                              : " · não concluído"}
+                          </span>
                         </span>
-                      </span>
-                    </div>
-                  ))}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))
           ) : (
             <p className="text-sm text-muted-foreground">
-              As conquistas concluídas em semanas anteriores aparecem aqui.
+              As semanas anteriores aparecem aqui.
             </p>
           )}
         </div>
@@ -165,7 +218,7 @@ function WeeklyFocusCard({
   milestone: WeekMilestone;
   done: boolean;
   onToggle: () => void;
-  onUpdate: (input: { title?: string; dayOfWeek?: number; detail?: string }) => void;
+  onUpdate: (input: { title?: string; dayOfWeek?: number; detail?: string; weekStart?: string }) => void;
   onRemove: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -236,11 +289,17 @@ function WeeklyFocusDialog({
   milestone?: WeekMilestone;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (input: { title: string; dayOfWeek: number; detail?: string }) => void;
+  onSubmit: (input: { title: string; dayOfWeek: number; detail?: string; weekStart: string }) => void;
   onRemove?: () => void;
 }) {
+  const currentWeekStart = useMemo(() => getCurrentWeekStartKey(new Date()), []);
+  const weekOptions = useMemo(
+    () => buildWeekOptions(currentWeekStart, milestone?.weekStart),
+    [currentWeekStart, milestone?.weekStart],
+  );
   const [title, setTitle] = useState(milestone?.title ?? "");
   const [dayOfWeek, setDayOfWeek] = useState(milestone?.dayOfWeek ?? dayLabelToDayOfWeek(milestone?.dayLabel));
+  const [weekStart, setWeekStart] = useState(milestone?.weekStart ?? currentWeekStart);
   const [detail, setDetail] = useState(milestone?.detail ?? "");
 
   function resetDraft(nextOpen: boolean) {
@@ -248,6 +307,7 @@ function WeeklyFocusDialog({
     if (!nextOpen) return;
     setTitle(milestone?.title ?? "");
     setDayOfWeek(milestone?.dayOfWeek ?? dayLabelToDayOfWeek(milestone?.dayLabel));
+    setWeekStart(milestone?.weekStart ?? currentWeekStart);
     setDetail(milestone?.detail ?? "");
   }
 
@@ -268,7 +328,7 @@ function WeeklyFocusDialog({
           onSubmit={(event) => {
             event.preventDefault();
             if (!title.trim()) return;
-            onSubmit({ title: title.trim(), dayOfWeek, detail: detail.trim() || undefined });
+            onSubmit({ title: title.trim(), weekStart, dayOfWeek, detail: detail.trim() || undefined });
           }}
         >
           <input
@@ -277,6 +337,22 @@ function WeeklyFocusDialog({
             placeholder="Marco da semana"
             className="h-12 w-full rounded-2xl bg-elevated/50 px-4 text-[15px] outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
           />
+          <label className="block space-y-1.5">
+            <span className="px-1 text-[11px] font-medium tracking-[0.14em] text-muted-foreground">
+              SEMANA
+            </span>
+            <select
+              value={weekStart}
+              onChange={(event) => setWeekStart(event.target.value)}
+              className="h-12 w-full rounded-2xl bg-elevated/50 px-4 text-[15px] outline-none focus:ring-1 focus:ring-ring"
+            >
+              {weekOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="grid grid-cols-7 gap-1.5">
             {WEEKDAY_OPTIONS.map((day) => (
               <button
@@ -353,15 +429,41 @@ function groupMilestonesByWeek(items: WeekMilestone[]) {
 }
 
 function getCurrentWeekStartKey(date: Date) {
-  const mondayOffset = date.getDay() === 0 ? -6 : 1 - date.getDay();
-  const monday = new Date(date);
-  monday.setDate(date.getDate() + mondayOffset);
-  return toDateKey(monday);
+  const sunday = new Date(date);
+  sunday.setDate(date.getDate() - date.getDay());
+  return toDateKey(sunday);
 }
 
 function formatWeekStart(dateKey: string) {
   const date = dateKeyToDate(dateKey);
   return `${String(date.getDate()).padStart(2, "0")} ${MONTH_LABELS[date.getMonth()] ?? ""}`;
+}
+
+function formatWeekRange(weekStart: string) {
+  const start = dateKeyToDate(weekStart);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  return `${formatDateKey(toDateKey(start))} - ${formatDateKey(toDateKey(end))}`;
+}
+
+function buildWeekOptions(currentWeekStart: string, selectedWeekStart?: string) {
+  const current = dateKeyToDate(currentWeekStart);
+  const weeks = [0, 7, 14].map((offset) => {
+    const start = new Date(current);
+    start.setDate(current.getDate() + offset);
+    return toDateKey(start);
+  });
+
+  if (selectedWeekStart && !weeks.includes(selectedWeekStart)) {
+    weeks.unshift(selectedWeekStart);
+  }
+
+  return weeks.map((weekStart, index) => ({
+    value: weekStart,
+    label: index === 0 && weekStart === currentWeekStart
+      ? `Semana atual: ${formatWeekRange(weekStart)}`
+      : formatWeekRange(weekStart),
+  }));
 }
 
 function formatDateKey(dateKey: string) {

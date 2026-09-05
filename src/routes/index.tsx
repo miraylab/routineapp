@@ -756,12 +756,12 @@ function HojePage() {
           <p className="text-[11px] font-medium tracking-[0.18em] text-primary-foreground/70">
             FOCO DA SEMANA
           </p>
-          {dayOfWeek === 0 ? (
+          {dayOfWeek === 0 || currentWeekMilestones.length === 0 ? (
             <Link
               to="/mais/foco-da-semana"
               className="press rounded-full bg-primary-foreground/18 px-3 py-1.5 text-[11px] font-semibold tracking-[0.08em] text-primary-foreground/86"
             >
-              Editar foco
+              {currentWeekMilestones.length > 0 ? "Editar foco" : "Adicionar foco"}
             </Link>
           ) : null}
         </div>
@@ -1136,10 +1136,9 @@ function toDateKey(date: Date) {
 }
 
 function getCurrentWeekStartKey(date: Date) {
-  const mondayOffset = date.getDay() === 0 ? -6 : 1 - date.getDay();
-  const monday = new Date(date);
-  monday.setDate(date.getDate() + mondayOffset);
-  return toDateKey(monday);
+  const sunday = new Date(date);
+  sunday.setDate(date.getDate() - date.getDay());
+  return toDateKey(sunday);
 }
 
 function orderItemsByDoneLast<T>(items: T[], isDone: (item: T) => boolean) {

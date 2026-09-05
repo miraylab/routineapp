@@ -1211,10 +1211,10 @@ function useStoreValue(accessToken?: string, userId?: string) {
     [remoteWeekMilestones, state.doneWeekMilestones],
   );
 
-  const addWeekMilestone = useCallback((input: { title: string; dayOfWeek: number; detail?: string }) => {
+  const addWeekMilestone = useCallback((input: { title: string; dayOfWeek: number; detail?: string; weekStart?: string }) => {
     const title = input.title.trim();
     if (!title) return false;
-    const weekStart = currentWeekStartKey(dateKeyToDate(todayKey));
+    const weekStart = input.weekStart ?? currentWeekStartKey(dateKeyToDate(todayKey));
     const optimisticId = `wm-${Date.now()}`;
     const optimisticMilestone: WeekMilestone = {
       id: optimisticId,
@@ -1250,12 +1250,13 @@ function useStoreValue(accessToken?: string, userId?: string) {
   }, [todayKey, userId]);
 
   const updateWeekMilestone = useCallback(
-    (id: string, input: { title?: string; dayOfWeek?: number; detail?: string }) => {
+    (id: string, input: { title?: string; dayOfWeek?: number; detail?: string; weekStart?: string }) => {
       const title = input.title?.trim();
       const patch = {
         ...(title !== undefined ? { title } : {}),
         ...(input.dayOfWeek !== undefined ? { dayOfWeek: input.dayOfWeek } : {}),
         ...(input.detail !== undefined ? { detail: input.detail.trim() || undefined } : {}),
+        ...(input.weekStart !== undefined ? { weekStart: input.weekStart } : {}),
       };
 
       setRemoteWeekMilestones((items) =>
@@ -1442,8 +1443,7 @@ function addDays(date: Date, amount: number) {
 }
 
 function currentWeekStartKey(date: Date) {
-  const mondayOffset = date.getDay() === 0 ? -6 : 1 - date.getDay();
-  return toDateKey(addDays(date, mondayOffset));
+  return toDateKey(addDays(date, -date.getDay()));
 }
 
 const WEEKDAY_LABELS = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"];

@@ -1,5 +1,5 @@
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronRight, Flag, Plus, User, X } from "lucide-react";
 
 import { StatusBadge } from "@/components/yuri/StatusBadge";
@@ -43,6 +43,8 @@ function ProjetosPage() {
   const { projects, tasks, fronts, toggleTask, todayKey, addFront, addProject, addTask } = useStore();
   const hierarchy = useMemo(() => buildProjectHierarchy(projects, tasks, fronts), [fronts, projects, tasks]);
   const [selectedArea, setSelectedArea] = useState<Category>(() => getProjectsFocusFromUrl().area ?? "Michelin");
+  const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const swipeHandledRef = useRef(false);
   const [addFrontOpen, setAddFrontOpen] = useState(false);
   const [frontTitle, setFrontTitle] = useState("");
   const [frontObjective, setFrontObjective] = useState("");
@@ -50,6 +52,33 @@ function ProjetosPage() {
 
   const currentArea = hierarchy.find((area) => area.area === selectedArea) ?? hierarchy[0];
   const focusedFrontId = getProjectsFocusFromUrl().frontId;
+
+  const moveArea = useCallback(
+    (direction: 1 | -1) => {
+      const currentIndex = hierarchy.findIndex((area) => area.area === selectedArea);
+      const nextArea = hierarchy[currentIndex + direction];
+      if (!nextArea) return;
+      setSelectedArea(nextArea.area);
+    },
+    [hierarchy, selectedArea],
+  );
+
+  const handleSwipeEnd = useCallback(
+    (x: number, y: number) => {
+      const start = swipeStartRef.current;
+      swipeStartRef.current = null;
+      if (!start) return;
+
+      const deltaX = x - start.x;
+      const deltaY = y - start.y;
+      const isHorizontalSwipe = Math.abs(deltaX) > 56 && Math.abs(deltaX) > Math.abs(deltaY) * 1.35;
+      if (!isHorizontalSwipe) return;
+
+      swipeHandledRef.current = true;
+      moveArea(deltaX < 0 ? 1 : -1);
+    },
+    [moveArea],
+  );
 
   useEffect(() => {
     const focus = getProjectsFocusFromUrl();
@@ -101,7 +130,31 @@ function ProjetosPage() {
       </div>
 
       {currentArea ? (
-        <div className="space-y-3">
+        <div
+          className="space-y-3 touch-pan-y"
+          onClickCapture={(event) => {
+            if (!swipeHandledRef.current) return;
+            event.preventDefault();
+            event.stopPropagation();
+            window.setTimeout(() => {
+              swipeHandledRef.current = false;
+            }, 0);
+          }}
+          onPointerDown={(event) => {
+            if (
+              (event.target as HTMLElement).closest(
+                "button,a,input,textarea,select,[data-front-card-control],[data-projects-block]",
+              )
+            ) {
+              return;
+            }
+            swipeStartRef.current = { x: event.clientX, y: event.clientY };
+          }}
+          onPointerUp={(event) => handleSwipeEnd(event.clientX, event.clientY)}
+          onPointerCancel={() => {
+            swipeStartRef.current = null;
+          }}
+        >
           {currentArea.fronts.length > 0 ? (
             currentArea.fronts.map((front) => (
               <FrontSection

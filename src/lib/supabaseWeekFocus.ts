@@ -50,11 +50,12 @@ export async function createSupabaseWeekFocus(input: {
 
 export async function updateSupabaseWeekFocus(
   id: string,
-  input: { title?: string; dayOfWeek?: number; detail?: string },
+  input: { title?: string; dayOfWeek?: number; detail?: string; weekStart?: string },
 ) {
   if (!isNumericId(id)) return false;
   await supabasePatch("week_focus", `id=eq.${id}`, {
     ...(input.title !== undefined ? { title: input.title } : {}),
+    ...(input.weekStart !== undefined ? { week_start: input.weekStart } : {}),
     ...(input.dayOfWeek !== undefined ? { day_of_week: input.dayOfWeek } : {}),
     ...(input.detail !== undefined ? { description: input.detail || null } : {}),
   });
