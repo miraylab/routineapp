@@ -31,6 +31,7 @@ export interface ScheduleBlock {
     front?: string;
     project?: string;
   };
+  location?: string;
   description?: string;
   nextAction?: string;
   activityChecklist?: ActivityChecklistItemSeed[];

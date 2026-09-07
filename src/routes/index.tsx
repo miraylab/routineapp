@@ -42,6 +42,16 @@ import type { FixedPlace } from "@/lib/supabasePlaces";
 const BEDTIME_MINUTES = toMinutes("21:30");
 const FREE_TIME_ID_PREFIX = "tempo-livre";
 const RELIEF_NOTES_ACTIVITY_ID = "pessoal-notas-de-alivio";
+const FIXED_PLACE_RADIUS_METERS = 200;
+const BRASILIA_RADIUS_METERS = 60_000;
+
+type TravelIconKind = FixedPlace["kind"] | "calendar" | "airport";
+
+interface TravelDestination {
+  place: FixedPlace;
+  iconKind: TravelIconKind;
+  reason: "time_window" | "agenda" | "away_from_home" | "brasilia";
+}
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -126,6 +136,8 @@ function HojePage() {
     longitude: number;
     accuracy?: number;
   } | null>(null);
+  const [routeTravelTimes, setRouteTravelTimes] = useState<Record<string, number>>({});
+  const [geocodedAgendaPlaces, setGeocodedAgendaPlaces] = useState<Record<string, FixedPlace>>({});
   const journalMediaRecorderRef = useRef<MediaRecorder | null>(null);
   const journalAudioChunksRef = useRef<BlobPart[]>([]);
   const journalRecordingStreamRef = useRef<MediaStream | null>(null);
@@ -311,14 +323,23 @@ function HojePage() {
 
   const weekdayLabel = WEEKDAYS[dayOfWeek];
   const fullDateLabel = `${realNow.getDate()} de ${MONTHS[realNow.getMonth()]}`;
-  const suggestedDestination = useMemo(
-    () => getSuggestedDestination(fixedPlaces, nowMinutes),
-    [fixedPlaces, nowMinutes],
+  const agendaLocationsToGeocode = useMemo(
+    () => getAgendaLocationsToGeocode(fixedPlaces, dayBlocks, todayKey, nowMinutes),
+    [dayBlocks, fixedPlaces, nowMinutes, todayKey],
   );
-  const travelHint = useMemo(
-    () => buildTravelHint(currentPosition, suggestedDestination),
-    [currentPosition, suggestedDestination],
+  const travelPlaces = useMemo(
+    () => [...fixedPlaces, ...Object.values(geocodedAgendaPlaces)],
+    [fixedPlaces, geocodedAgendaPlaces],
   );
+  const travelDestinations = useMemo(
+    () => getSuggestedTravelDestinations(travelPlaces, currentPosition, dayBlocks, todayKey, dayOfWeek, nowMinutes),
+    [currentPosition, dayBlocks, dayOfWeek, nowMinutes, todayKey, travelPlaces],
+  );
+  const travelHints = useMemo(
+    () => buildTravelHints(currentPosition, travelDestinations),
+    [currentPosition, travelDestinations],
+  );
+  const travelPositionKey = currentPosition ? buildTravelPositionKey(currentPosition) : null;
   const handleAddReliefNote = () => {
     if (!reliefNoteDraft.trim()) return;
     if (reliefNotesFront) {
@@ -505,6 +526,98 @@ function HojePage() {
     };
   }, [gpsStatus, hydrated, requestGpsLocation]);
 
+  useEffect(() => {
+    const pendingLocations = agendaLocationsToGeocode.filter(
+      (location) => !geocodedAgendaPlaces[normalizeLabel(location)],
+    );
+    if (pendingLocations.length === 0) return;
+
+    const controller = new AbortController();
+
+    Promise.all(
+      pendingLocations.map(async (location) => {
+        const url = new URL("/api/geocode", window.location.origin);
+        url.searchParams.set("address", location);
+
+        const response = await fetch(url, { signal: controller.signal });
+        if (!response.ok) return null;
+        const payload = (await response.json()) as {
+          available?: boolean;
+          formattedAddress?: string;
+          latitude?: number;
+          longitude?: number;
+        };
+        if (
+          !payload.available ||
+          typeof payload.latitude !== "number" ||
+          typeof payload.longitude !== "number"
+        ) {
+          return null;
+        }
+
+        const key = normalizeLabel(location);
+        return [
+          key,
+          {
+            id: `agenda:${key}`,
+            label: payload.formattedAddress ?? location,
+            kind: "other" as const,
+            address: payload.formattedAddress ?? location,
+            latitude: payload.latitude,
+            longitude: payload.longitude,
+            active: true,
+          },
+        ] as const;
+      }),
+    )
+      .then((entries) => {
+        const validEntries = entries.filter(Boolean) as Array<readonly [string, FixedPlace]>;
+        if (validEntries.length === 0) return;
+        setGeocodedAgendaPlaces((current) => ({
+          ...current,
+          ...Object.fromEntries(validEntries),
+        }));
+      })
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      });
+
+    return () => controller.abort();
+  }, [agendaLocationsToGeocode, geocodedAgendaPlaces]);
+
+  useEffect(() => {
+    if (travelHints.length === 0 || !currentPosition || !travelPositionKey) {
+      setRouteTravelTimes({});
+      return;
+    }
+
+    const controller = new AbortController();
+
+    Promise.all(
+      travelHints.map(async (hint) => {
+        const url = new URL("/api/travel-time", window.location.origin);
+        url.searchParams.set("originLat", String(currentPosition.latitude));
+        url.searchParams.set("originLng", String(currentPosition.longitude));
+        url.searchParams.set("destinationLat", String(hint.destination.place.latitude));
+        url.searchParams.set("destinationLng", String(hint.destination.place.longitude));
+
+        const response = await fetch(url, { signal: controller.signal });
+        if (!response.ok) return null;
+        const payload = (await response.json()) as { available?: boolean; minutes?: number };
+        if (!payload.available || typeof payload.minutes !== "number") return null;
+        return [hint.key, payload.minutes] as const;
+      }),
+    )
+      .then((entries) => {
+        setRouteTravelTimes(Object.fromEntries(entries.filter(Boolean) as Array<readonly [string, number]>));
+      })
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      });
+
+    return () => controller.abort();
+  }, [currentPosition, travelHints, travelPositionKey]);
+
   if (!hydrated) {
     return (
       <div className="space-y-3">
@@ -522,35 +635,45 @@ function HojePage() {
             <h1 className="truncate text-2xl font-semibold tracking-tight">
               {greetingFor(nowMinutes)}, Yuri
             </h1>
-            <button
-              type="button"
-              onClick={requestGpsLocation}
-              disabled={gpsStatus === "loading"}
-              className="press mt-3 inline-flex h-8 items-center gap-2 rounded-xl bg-black/10 px-2.5 text-sm font-semibold text-primary-foreground/90 transition-colors hover:bg-black/15 disabled:opacity-70"
-              aria-label={
-                travelHint
-                  ? `Tempo estimado até ${travelHint.destination.label}: ${travelHint.minutes} minutos`
-                  : "Atualizar localização"
-              }
-              title={
-                travelHint
-                  ? `${travelHint.minutes} min até ${travelHint.destination.label}`
-                  : gpsStatus === "denied"
-                    ? "GPS bloqueado"
-                    : gpsStatus === "error"
-                      ? "GPS indisponível"
-                      : "Atualizar localização"
-              }
-            >
-              {travelHint ? (
-                <TravelPlaceIcon place={travelHint.destination} className="size-4" />
-              ) : (
-                <LocateFixed className={cn("size-4", gpsStatus === "loading" && "animate-pulse")} />
-              )}
-              <span className="tabular">
-                {gpsStatus === "loading" ? "..." : travelHint ? `${travelHint.minutes} min` : "GPS"}
-              </span>
-            </button>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {travelHints.length > 0 ? (
+                travelHints.map((hint) => {
+                  const minutes = routeTravelTimes[hint.key] ?? hint.minutes;
+                  return (
+                    <button
+                      key={hint.key}
+                      type="button"
+                      onClick={requestGpsLocation}
+                      disabled={gpsStatus === "loading"}
+                      className="press inline-flex h-8 items-center gap-2 rounded-xl bg-black/10 px-2.5 text-sm font-semibold text-primary-foreground/90 transition-colors hover:bg-black/15 disabled:opacity-70"
+                      aria-label={`Tempo estimado até ${hint.destination.place.label}: ${minutes} minutos`}
+                      title={`${minutes} min até ${hint.destination.place.label}`}
+                    >
+                      <TravelPlaceIcon destination={hint.destination} className="size-4" />
+                      <span className="tabular">{gpsStatus === "loading" ? "..." : `${minutes} min`}</span>
+                    </button>
+                  );
+                })
+              ) : gpsStatus !== "ready" ? (
+                <button
+                  type="button"
+                  onClick={requestGpsLocation}
+                  disabled={gpsStatus === "loading"}
+                  className="press inline-flex h-8 items-center gap-2 rounded-xl bg-black/10 px-2.5 text-sm font-semibold text-primary-foreground/90 transition-colors hover:bg-black/15 disabled:opacity-70"
+                  aria-label="Atualizar localização"
+                  title={
+                    gpsStatus === "denied"
+                      ? "GPS bloqueado"
+                      : gpsStatus === "error"
+                        ? "GPS indisponível"
+                        : "Atualizar localização"
+                  }
+                >
+                  <LocateFixed className={cn("size-4", gpsStatus === "loading" && "animate-pulse")} />
+                  <span className="tabular">{gpsStatus === "loading" ? "..." : "GPS"}</span>
+                </button>
+              ) : null}
+            </div>
           </div>
           <div className="shrink-0 text-right">
             <p className="tabular text-2xl font-semibold tracking-tight">
@@ -1247,49 +1370,166 @@ function toDateKey(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
-function getSuggestedDestination(places: FixedPlace[], nowMinutes: number) {
+function getSuggestedTravelDestinations(
+  places: FixedPlace[],
+  position: { latitude: number; longitude: number } | null,
+  dayBlocks: ScheduleBlock[],
+  todayKey: string,
+  dayOfWeek: number,
+  nowMinutes: number,
+) {
   const home = places.find((place) => place.kind === "home");
   const work = places.find((place) => place.kind === "work");
-  if (!home || !work) return work ?? home ?? null;
+  const partnerHome = places.find((place) => place.kind === "partner_home");
+  const shuttleStop = places.find((place) => place.kind === "shuttle_stop");
+  const destinations: TravelDestination[] = [];
+  const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
+  const atHome = isAtPlace(position, home);
+  const atPartnerHome = isAtPlace(position, partnerHome);
+  const inBrasilia = isInBrasilia(position, partnerHome);
 
-  if (nowMinutes < toMinutes("12:00")) return work;
-  if (nowMinutes >= toMinutes("16:00")) return home;
-  return null;
+  if (atPartnerHome) return [];
+
+  if (inBrasilia && partnerHome) {
+    return [{ place: partnerHome, iconKind: "partner_home", reason: "brasilia" }];
+  }
+
+  if (nowMinutes >= toMinutes("05:00")) {
+    for (const block of dayBlocks) {
+      const agendaPlace = findPlaceForAgendaLocation(places, block.location);
+      if (
+        !agendaPlace ||
+        block.dateKey !== todayKey ||
+        nowMinutes > toMinutes(block.endTime) + 30
+      ) {
+        continue;
+      }
+
+      addUniqueDestination(destinations, {
+        place: agendaPlace,
+        iconKind: isAirportPlace(agendaPlace) ? "airport" : "calendar",
+        reason: "agenda",
+      });
+    }
+  }
+
+  if (isWeekday && nowMinutes >= toMinutes("05:00") && nowMinutes < toMinutes("06:30") && shuttleStop) {
+    addUniqueDestination(destinations, {
+      place: shuttleStop,
+      iconKind: "shuttle_stop",
+      reason: "time_window",
+    });
+  }
+
+  if (isWeekday && nowMinutes >= toMinutes("05:00") && nowMinutes < toMinutes("07:30") && work) {
+    addUniqueDestination(destinations, {
+      place: work,
+      iconKind: "work",
+      reason: "time_window",
+    });
+  }
+
+  if (isWeekday && nowMinutes >= toMinutes("15:30") && nowMinutes < toMinutes("19:00") && !atHome) {
+    if (shuttleStop) {
+      addUniqueDestination(destinations, {
+        place: shuttleStop,
+        iconKind: "shuttle_stop",
+        reason: "time_window",
+      });
+    }
+    if (home) {
+      addUniqueDestination(destinations, {
+        place: home,
+        iconKind: "home",
+        reason: "time_window",
+      });
+    }
+  }
+
+  const inWorkWindow = isWeekday && nowMinutes >= toMinutes("07:30") && nowMinutes < toMinutes("15:30");
+  if (!inWorkWindow && !atHome && !inBrasilia && home) {
+    addUniqueDestination(destinations, {
+      place: home,
+      iconKind: "home",
+      reason: "away_from_home",
+    });
+  }
+
+  return destinations;
 }
 
-function buildTravelHint(
-  position: { latitude: number; longitude: number } | null,
-  destination: FixedPlace | null,
+function getAgendaLocationsToGeocode(
+  places: FixedPlace[],
+  dayBlocks: ScheduleBlock[],
+  todayKey: string,
+  nowMinutes: number,
 ) {
-  if (!position || !destination) return null;
+  if (nowMinutes < toMinutes("05:00")) return [];
 
-  const distanceMeters = distanceInMeters(
-    position.latitude,
-    position.longitude,
-    destination.latitude,
-    destination.longitude,
+  return Array.from(
+    new Set(
+      dayBlocks
+        .filter(
+          (block) =>
+            block.dateKey === todayKey &&
+            block.location &&
+            nowMinutes <= toMinutes(block.endTime) + 30 &&
+            !findPlaceForAgendaLocation(places, block.location),
+        )
+        .map((block) => block.location?.trim())
+        .filter((location): location is string => Boolean(location && location.length >= 4)),
+    ),
   );
+}
 
-  return {
-    destination,
-    distanceMeters,
-    minutes: estimateTravelMinutes(distanceMeters),
-  };
+function addUniqueDestination(destinations: TravelDestination[], destination: TravelDestination) {
+  if (destinations.some((current) => current.place.id === destination.place.id)) return;
+  destinations.push(destination);
+}
+
+function buildTravelHints(
+  position: { latitude: number; longitude: number } | null,
+  destinations: TravelDestination[],
+) {
+  if (!position || destinations.length === 0) return [];
+
+  return destinations
+    .filter((destination) => !isAtPlace(position, destination.place))
+    .map((destination) => {
+      const distanceMeters = distanceInMeters(
+        position.latitude,
+        position.longitude,
+        destination.place.latitude,
+        destination.place.longitude,
+      );
+
+      return {
+        key: `${destination.place.id}:${destination.iconKind}:${buildTravelPositionKey(position)}`,
+        destination,
+        distanceMeters,
+        minutes: estimateTravelMinutes(distanceMeters),
+      };
+    });
+}
+
+function buildTravelPositionKey(position: { latitude: number; longitude: number }) {
+  return `${position.latitude.toFixed(4)},${position.longitude.toFixed(4)}`;
 }
 
 function estimateTravelMinutes(distanceMeters: number) {
   return Math.max(3, Math.round(distanceMeters / 450 + 4));
 }
 
-function TravelPlaceIcon({ place, className }: { place: FixedPlace; className?: string }) {
-  const Icon = getTravelPlaceIcon(place);
+function TravelPlaceIcon({ destination, className }: { destination: TravelDestination; className?: string }) {
+  const Icon = getTravelPlaceIcon(destination);
   return <Icon className={className} />;
 }
 
-function getTravelPlaceIcon(place: FixedPlace) {
-  if (isAirportPlace(place)) return Plane;
+function getTravelPlaceIcon(destination: TravelDestination) {
+  if (destination.iconKind === "airport") return Plane;
+  if (destination.iconKind === "calendar") return CalendarCheck;
 
-  switch (place.kind) {
+  switch (destination.iconKind) {
     case "home":
       return House;
     case "partner_home":
@@ -1307,6 +1547,55 @@ function getTravelPlaceIcon(place: FixedPlace) {
 
 function isAirportPlace(place: FixedPlace) {
   return /aeroporto|airport/i.test(`${place.label} ${place.address ?? ""}`);
+}
+
+function isAtPlace(
+  position: { latitude: number; longitude: number } | null,
+  place: FixedPlace | undefined,
+) {
+  if (!position || !place) return false;
+  return (
+    distanceInMeters(position.latitude, position.longitude, place.latitude, place.longitude) <=
+    radiusForPlace(place)
+  );
+}
+
+function isInBrasilia(
+  position: { latitude: number; longitude: number } | null,
+  partnerHome: FixedPlace | undefined,
+) {
+  if (!position || !partnerHome) return false;
+  return (
+    distanceInMeters(
+      position.latitude,
+      position.longitude,
+      partnerHome.latitude,
+      partnerHome.longitude,
+    ) <= BRASILIA_RADIUS_METERS
+  );
+}
+
+function radiusForPlace(place: FixedPlace) {
+  if (place.kind === "shuttle_stop") return 120;
+  return FIXED_PLACE_RADIUS_METERS;
+}
+
+function findPlaceForAgendaLocation(places: FixedPlace[], location: string | undefined) {
+  if (!location) return null;
+  const normalizedLocation = normalizeLabel(location);
+
+  return (
+    places.find((place) => {
+      if (place.id === `agenda:${normalizedLocation}`) return true;
+      const label = normalizeLabel(place.label);
+      const address = normalizeLabel(place.address ?? "");
+      return (
+        normalizedLocation.includes(label) ||
+        (address.length > 8 && normalizedLocation.includes(address)) ||
+        (address.length > 8 && address.includes(normalizedLocation))
+      );
+    }) ?? null
+  );
 }
 
 function distanceInMeters(lat1: number, lon1: number, lat2: number, lon2: number) {

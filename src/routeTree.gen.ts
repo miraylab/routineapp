@@ -16,6 +16,8 @@ import { Route as HabitosRouteImport } from './routes/habitos'
 import { Route as HojeRouteImport } from './routes/hoje'
 import { Route as MesRouteImport } from './routes/mes'
 import { Route as ObjetivosRouteImport } from './routes/objetivos'
+import { Route as ApiGeocodeRouteImport } from './routes/api.geocode'
+import { Route as ApiTravelTimeRouteImport } from './routes/api.travel-time'
 import { Route as MaisIndexRouteImport } from './routes/mais.index'
 import { Route as MaisFocoDaSemanaRouteImport } from './routes/mais.foco-da-semana'
 import { Route as MaisHabitosRouteImport } from './routes/mais.habitos'
@@ -60,6 +62,16 @@ const MesRoute = MesRouteImport.update({
 const ObjetivosRoute = ObjetivosRouteImport.update({
   id: '/objetivos',
   path: '/objetivos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiGeocodeRoute = ApiGeocodeRouteImport.update({
+  id: '/api/geocode',
+  path: '/api/geocode',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTravelTimeRoute = ApiTravelTimeRouteImport.update({
+  id: '/api/travel-time',
+  path: '/api/travel-time',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MaisIndexRoute = MaisIndexRouteImport.update({
@@ -121,6 +133,8 @@ export interface FileRoutesByFullPath {
   '/hoje': typeof HojeRoute
   '/mes': typeof MesRoute
   '/objetivos': typeof ObjetivosRoute
+  '/api/geocode': typeof ApiGeocodeRoute
+  '/api/travel-time': typeof ApiTravelTimeRoute
   '/mais/foco-da-semana': typeof MaisFocoDaSemanaRoute
   '/mais/habitos': typeof MaisHabitosRoute
   '/projetos/$projectId': typeof ProjetosProjectIdRoute
@@ -140,6 +154,8 @@ export interface FileRoutesByTo {
   '/hoje': typeof HojeRoute
   '/mes': typeof MesRoute
   '/objetivos': typeof ObjetivosRoute
+  '/api/geocode': typeof ApiGeocodeRoute
+  '/api/travel-time': typeof ApiTravelTimeRoute
   '/mais/foco-da-semana': typeof MaisFocoDaSemanaRoute
   '/mais/habitos': typeof MaisHabitosRoute
   '/projetos/$projectId': typeof ProjetosProjectIdRoute
@@ -160,6 +176,8 @@ export interface FileRoutesById {
   '/hoje': typeof HojeRoute
   '/mes': typeof MesRoute
   '/objetivos': typeof ObjetivosRoute
+  '/api/geocode': typeof ApiGeocodeRoute
+  '/api/travel-time': typeof ApiTravelTimeRoute
   '/mais/foco-da-semana': typeof MaisFocoDaSemanaRoute
   '/mais/habitos': typeof MaisHabitosRoute
   '/projetos/$projectId': typeof ProjetosProjectIdRoute
@@ -181,6 +199,8 @@ export interface FileRouteTypes {
     | '/hoje'
     | '/mes'
     | '/objetivos'
+    | '/api/geocode'
+    | '/api/travel-time'
     | '/mais/foco-da-semana'
     | '/mais/habitos'
     | '/projetos/$projectId'
@@ -200,6 +220,8 @@ export interface FileRouteTypes {
     | '/hoje'
     | '/mes'
     | '/objetivos'
+    | '/api/geocode'
+    | '/api/travel-time'
     | '/mais/foco-da-semana'
     | '/mais/habitos'
     | '/projetos/$projectId'
@@ -219,6 +241,8 @@ export interface FileRouteTypes {
     | '/hoje'
     | '/mes'
     | '/objetivos'
+    | '/api/geocode'
+    | '/api/travel-time'
     | '/mais/foco-da-semana'
     | '/mais/habitos'
     | '/projetos/$projectId'
@@ -239,6 +263,8 @@ export interface RootRouteChildren {
   HojeRoute: typeof HojeRoute
   MesRoute: typeof MesRoute
   ObjetivosRoute: typeof ObjetivosRoute
+  ApiGeocodeRoute: typeof ApiGeocodeRoute
+  ApiTravelTimeRoute: typeof ApiTravelTimeRoute
   MaisFocoDaSemanaRoute: typeof MaisFocoDaSemanaRoute
   MaisHabitosRoute: typeof MaisHabitosRoute
   ProjetosProjectIdRoute: typeof ProjetosProjectIdRoute
@@ -300,6 +326,20 @@ declare module '@tanstack/react-router' {
       path: '/objetivos'
       fullPath: '/objetivos'
       preLoaderRoute: typeof ObjetivosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/geocode': {
+      id: '/api/geocode'
+      path: '/api/geocode'
+      fullPath: '/api/geocode'
+      preLoaderRoute: typeof ApiGeocodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/travel-time': {
+      id: '/api/travel-time'
+      path: '/api/travel-time'
+      fullPath: '/api/travel-time'
+      preLoaderRoute: typeof ApiTravelTimeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mais/': {
@@ -383,6 +423,8 @@ const rootRouteChildren: RootRouteChildren = {
   HojeRoute: HojeRoute,
   MesRoute: MesRoute,
   ObjetivosRoute: ObjetivosRoute,
+  ApiGeocodeRoute: ApiGeocodeRoute,
+  ApiTravelTimeRoute: ApiTravelTimeRoute,
   MaisFocoDaSemanaRoute: MaisFocoDaSemanaRoute,
   MaisHabitosRoute: MaisHabitosRoute,
   ProjetosProjectIdRoute: ProjetosProjectIdRoute,

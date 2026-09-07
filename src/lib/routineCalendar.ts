@@ -14,6 +14,7 @@ interface GoogleCalendarEvent {
   id: string;
   summary?: string;
   description?: string;
+  location?: string;
   start?: { dateTime?: string; date?: string; timeZone?: string };
   end?: { dateTime?: string; date?: string; timeZone?: string };
 }
@@ -119,6 +120,7 @@ function mapCalendarEventToScheduleBlock(event: GoogleCalendarEvent): ScheduleBl
     title: parsedTitle.title,
     subtitle: parsedTitle.subtitle,
     scope: parsedTitle.scope,
+    location: event.location?.trim() || undefined,
     description: event.description?.replace(/<[^>]+>/g, "").trim() || undefined,
     cardType: parsedTitle.cardType,
   };
