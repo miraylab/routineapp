@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Check, ChevronDown, Flag, Pencil, Plus, X } from "lucide-react";
+import { Check, ChevronDown, Flag, Pencil, Plus, Trash2, X } from "lucide-react";
 
 import { PageHeader } from "@/components/yuri/PageHeader";
 import { StatusBadge } from "@/components/yuri/StatusBadge";
@@ -36,7 +36,15 @@ export const Route = createFileRoute("/projetos/$projectId")({
 function ProjetoDetalhe() {
   const { projectId } = Route.useParams();
   const navigate = useNavigate();
-  const { projects, todayKey, toggleProjectAction, addProjectAction, setProjectStatus, updateProjectDetails } = useStore();
+  const {
+    projects,
+    todayKey,
+    toggleProjectAction,
+    addProjectAction,
+    setProjectStatus,
+    updateProjectDetails,
+    removeProject,
+  } = useStore();
   const [draft, setDraft] = useState("");
   const [draftQuick, setDraftQuick] = useState(false);
   const [draftVisibleFrom, setDraftVisibleFrom] = useState("");
@@ -47,6 +55,7 @@ function ProjetoDetalhe() {
   const [addActionOpen, setAddActionOpen] = useState(false);
   const [editProjectOpen, setEditProjectOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
+  const [deleteProjectConfirm, setDeleteProjectConfirm] = useState(false);
 
   const project = projects.find((p) => p.id === projectId);
   const visibleActions = orderActionsByDoneLast(project?.actions ?? []);
@@ -155,7 +164,7 @@ function ProjetoDetalhe() {
               <X className="size-3.5" />
             </button>
           ) : showActions || visibleActions.length === 0 ? (
-            <p className="tabular text-xs text-muted-foreground">{openActions} abertas</p>
+            <p className="tabular text-xs text-muted-foreground">{openActions} tasks</p>
           ) : null}
         </div>
 
@@ -294,7 +303,13 @@ function ProjetoDetalhe() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={editProjectOpen} onOpenChange={setEditProjectOpen}>
+      <Dialog
+        open={editProjectOpen}
+        onOpenChange={(open) => {
+          setEditProjectOpen(open);
+          if (!open) setDeleteProjectConfirm(false);
+        }}
+      >
         <DialogContent className="w-[calc(100vw-2rem)] max-w-[430px] rounded-3xl border-border/60 bg-card p-5">
           <DialogHeader className="space-y-1 text-left">
             <DialogTitle className="text-base">Editar projeto</DialogTitle>
@@ -330,6 +345,26 @@ function ProjetoDetalhe() {
               className="press flex h-11 w-full items-center justify-center rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground"
             >
               Salvar projeto
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!deleteProjectConfirm) {
+                  setDeleteProjectConfirm(true);
+                  return;
+                }
+                removeProject(project.id);
+                setEditProjectOpen(false);
+                setDeleteProjectConfirm(false);
+                navigate({
+                  to: "/projetos/",
+                  search: { area: project.category, front: project.frontId },
+                });
+              }}
+              className="press flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-destructive/25 bg-destructive/10 px-4 text-sm font-medium text-destructive"
+            >
+              <Trash2 className="size-4" />
+              {deleteProjectConfirm ? "Confirmar apagar projeto" : "Apagar projeto"}
             </button>
           </form>
         </DialogContent>

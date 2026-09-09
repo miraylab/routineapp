@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronRight, Flag, Plus, User, X } from "lucide-react";
 
 import { StatusBadge } from "@/components/yuri/StatusBadge";
-import type { Category, Project, Task } from "@/data/mockData";
+import type { Category, Project, ProjectStatus, Task } from "@/data/mockData";
 import {
   Dialog,
   DialogContent,
@@ -39,18 +39,35 @@ export const Route = createFileRoute("/projetos/")({
   component: ProjetosPage,
 });
 
+const PROJECTS_SELECTED_AREA_STORAGE_KEY = "routineapp:projects:selected-area";
+
 function ProjetosPage() {
   const { projects, tasks, fronts, toggleTask, todayKey, addFront, addProject, addTask } = useStore();
-  const hierarchy = useMemo(() => buildProjectHierarchy(projects, tasks, fronts), [fronts, projects, tasks]);
-  const [selectedArea, setSelectedArea] = useState<Category>(() => getProjectsFocusFromUrl().area ?? "Michelin");
+  const hierarchy = useMemo(
+    () => buildProjectHierarchy(projects, tasks, fronts, todayKey),
+    [fronts, projects, tasks, todayKey],
+  );
+  const [selectedArea, setSelectedArea] = useState<Category>(
+    () => getProjectsFocusFromUrl().area ?? getSavedProjectsArea() ?? "Michelin",
+  );
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const swipeHandledRef = useRef(false);
   const [addFrontOpen, setAddFrontOpen] = useState(false);
   const [frontTitle, setFrontTitle] = useState("");
   const [frontObjective, setFrontObjective] = useState("");
   const [frontError, setFrontError] = useState("");
+  const [showCompletedProjects, setShowCompletedProjects] = useState(false);
 
   const currentArea = hierarchy.find((area) => area.area === selectedArea) ?? hierarchy[0];
+  const activeArea = useMemo(
+    () => (currentArea ? filterActiveProjectArea(currentArea) : undefined),
+    [currentArea],
+  );
+  const completedArea = useMemo(
+    () => (currentArea ? filterCompletedProjectArea(currentArea) : undefined),
+    [currentArea],
+  );
+  const hasHiddenCompletedProjects = currentArea ? hasCompletedProjectContent(currentArea) : false;
   const focusedFrontId = getProjectsFocusFromUrl().frontId;
 
   const moveArea = useCallback(
@@ -87,7 +104,15 @@ function ProjetosPage() {
   }, []);
 
   useEffect(() => {
-    if (!focusedFrontId || !currentArea?.fronts.some((front) => front.id === focusedFrontId)) return;
+    saveProjectsArea(selectedArea);
+  }, [selectedArea]);
+
+  useEffect(() => {
+    setShowCompletedProjects(false);
+  }, [selectedArea]);
+
+  useEffect(() => {
+    if (!focusedFrontId || !activeArea?.fronts.some((front) => front.id === focusedFrontId)) return;
 
     const frame = window.requestAnimationFrame(() => {
       document
@@ -96,7 +121,7 @@ function ProjetosPage() {
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [currentArea?.fronts, focusedFrontId]);
+  }, [activeArea?.fronts, focusedFrontId]);
 
   return (
     <div className="space-y-3">
@@ -155,8 +180,8 @@ function ProjetosPage() {
             swipeStartRef.current = null;
           }}
         >
-          {currentArea.fronts.length > 0 ? (
-            currentArea.fronts.map((front) => (
+          {activeArea?.fronts.length ? (
+            activeArea.fronts.map((front) => (
               <FrontSection
                 key={front.id}
                 front={front}
@@ -169,10 +194,34 @@ function ProjetosPage() {
           ) : (
             <section className="rounded-3xl border border-border/60 bg-card p-5">
               <p className="text-sm leading-snug text-muted-foreground">
-                Nenhuma frente carregada para esta area.
+                Nenhuma frente carregada para esta área.
               </p>
             </section>
           )}
+          {hasHiddenCompletedProjects ? (
+            <button
+              type="button"
+              onClick={() => setShowCompletedProjects((value) => !value)}
+              className="press flex h-11 w-full items-center justify-center rounded-2xl bg-card px-4 text-sm font-medium text-muted-foreground"
+            >
+              {showCompletedProjects ? "Ocultar Projetos Concluídos" : "Ver Projetos Concluídos"}
+            </button>
+          ) : null}
+          {showCompletedProjects && completedArea?.fronts.length ? (
+            <div className="space-y-3">
+              {completedArea.fronts.map((front) => (
+                <FrontSection
+                  key={`completed-${front.id}`}
+                  front={front}
+                  todayKey={todayKey}
+                  onToggleTask={toggleTask}
+                  onAddTask={addTask}
+                  onAddProject={addProject}
+                  showStatus
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -270,6 +319,7 @@ function FrontSection({
   onToggleTask,
   onAddTask,
   onAddProject,
+  showStatus = false,
 }: {
   front: ProjectFront;
   todayKey: string;
@@ -291,6 +341,7 @@ function FrontSection({
     objective?: string;
     deadline?: string;
   }) => boolean;
+  showStatus?: boolean;
 }) {
   const navigate = useNavigate();
   const [tasksDismissed, setTasksDismissed] = useState(false);
@@ -354,14 +405,23 @@ function FrontSection({
       )}
     >
       <div className="flex items-center justify-between gap-3">
-        <h2
-          className={cn(
-            "min-w-0 truncate font-semibold tracking-tight",
-            hasFrontContent ? "text-xl" : "text-base",
-          )}
-        >
-          {front.title}
-        </h2>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <h2
+              className={cn(
+                "min-w-0 truncate font-semibold tracking-tight",
+                hasFrontContent ? "text-xl" : "text-base",
+              )}
+            >
+              {front.title}
+            </h2>
+            {showStatus && front.status !== "Em andamento" ? (
+              <StatusBadge tone={front.status === "Concluído" ? "done" : "neutral"} className="shrink-0 px-2 py-0.5 text-[10px]">
+                {front.status}
+              </StatusBadge>
+            ) : null}
+          </div>
+        </div>
         <div className="flex shrink-0 items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -433,7 +493,7 @@ function FrontSection({
                 </button>
               ) : openDirectTasks.length > 0 ? (
                 <p className="tabular text-xs text-muted-foreground">
-                  {openDirectTasks.length} abertas
+                  {openDirectTasks.length} tasks
                 </p>
               ) : null}
             </div>
@@ -498,9 +558,9 @@ function FrontSection({
               PROJETOS
             </p>
           </div>
-          <div className="mt-2 space-y-2">
+          <div className="app-scrollbar mt-2 max-h-[258px] space-y-2 overflow-y-auto pr-1">
             {front.projects.map((project) => (
-              <ProjectRow key={project.id} project={project} todayKey={todayKey} />
+              <ProjectRow key={project.id} project={project} todayKey={todayKey} showStatus={showStatus} />
             ))}
           </div>
         </div>
@@ -678,6 +738,17 @@ function getProjectsFocusFromUrl(): { area?: Category; frontId?: string } {
   };
 }
 
+function getSavedProjectsArea(): Category | undefined {
+  if (typeof window === "undefined") return undefined;
+  const saved = window.localStorage.getItem(PROJECTS_SELECTED_AREA_STORAGE_KEY);
+  return isCategory(saved) ? saved : undefined;
+}
+
+function saveProjectsArea(area: Category) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(PROJECTS_SELECTED_AREA_STORAGE_KEY, area);
+}
+
 function isCategory(value: string | null): value is Category {
   return value === "Michelin" || value === "Miray" || value === "Estudos" || value === "Pessoal";
 }
@@ -686,7 +757,15 @@ function frontElementId(frontId: string) {
   return `front-card-${frontId}`;
 }
 
-function ProjectRow({ project, todayKey }: { project: Project; todayKey: string }) {
+function ProjectRow({
+  project,
+  todayKey,
+  showStatus = false,
+}: {
+  project: Project;
+  todayKey: string;
+  showStatus?: boolean;
+}) {
   const openActions = project.actions.filter(
     (action) => !action.dueDate,
   ).length;
@@ -698,22 +777,33 @@ function ProjectRow({ project, todayKey }: { project: Project; todayKey: string 
       className="press flex items-stretch gap-3 rounded-2xl border border-border/60 bg-elevated/45 px-3.5 py-3"
     >
       <div className="min-w-0 flex-1 py-0.5">
-        <h4 className="min-w-0 truncate text-base font-semibold leading-tight">{project.title}</h4>
+        <h4 className="min-w-0 break-words text-base font-semibold leading-snug">{project.title}</h4>
         <div className="mt-1.5 flex items-center">
           <StatusBadge tone="active" className="px-2 py-0.5 text-[10px]">
             {formatDeadlineDistance(project.deadline)}
           </StatusBadge>
+          {showStatus && project.status !== "Em andamento" ? (
+            <StatusBadge
+              tone={project.status === "Concluído" ? "done" : "neutral"}
+              className="ml-2 px-2 py-0.5 text-[10px]"
+            >
+              {project.status}
+            </StatusBadge>
+          ) : null}
         </div>
       </div>
       <span
         className={cn(
-          "tabular grid w-12 shrink-0 place-items-center rounded-xl bg-card/65 text-base font-semibold text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]",
+          "tabular flex w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-card/65 py-2 text-center text-base font-semibold text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]",
           openActions === 0 && "text-muted-foreground",
         )}
         aria-label={`${openActions} tarefas em aberto`}
         title={openActions === 0 ? "Nenhuma tarefa em aberto" : `${openActions} tarefas em aberto`}
       >
-        {openActions}
+        <span className="leading-none">{openActions}</span>
+        <span className="mt-0.5 text-[7px] font-medium uppercase leading-none tracking-[0.04em] text-muted-foreground">
+          tasks
+        </span>
       </span>
       <span className="sr-only">
         {openActions === 0 ? "Nenhuma tarefa em aberto" : `${openActions} tarefas em aberto`}
@@ -726,8 +816,10 @@ interface ProjectFront {
   id: string;
   area: Category;
   title: string;
+  status: ProjectStatus;
   projects: Project[];
   directTasks: Task[];
+  sortOrder?: number;
 }
 
 interface ProjectArea {
@@ -738,13 +830,25 @@ interface ProjectArea {
 
 const AREA_ORDER: Category[] = ["Michelin", "Miray", "Estudos", "Pessoal"];
 
-function buildProjectHierarchy(projects: Project[], tasks: Task[], fronts: ManagedFront[]): ProjectArea[] {
+function buildProjectHierarchy(
+  projects: Project[],
+  tasks: Task[],
+  fronts: ManagedFront[],
+  todayKey: string,
+): ProjectArea[] {
   const areas = AREA_ORDER.map((area) => {
     const areaId = toFatherSegment(area);
-    const areaProjects = projects.filter((project) => project.category === area);
+    const activeFrontIds = new Set(fronts.filter((front) => front.area === area).map((front) => front.id));
+    const areaProjects = projects.filter(
+      (project) => project.category === area && activeFrontIds.has(project.frontId),
+    );
     const directTasks = tasks.filter((task) => {
       const father = parseFatherId(task.fatherId);
-      return father.areaId === areaId && !father.projectId;
+      return (
+        father.areaId === areaId &&
+        !father.projectId &&
+        (!father.frontId || activeFrontIds.has(father.frontId))
+      );
     });
     const frontMap = new Map<string, ProjectFront>();
 
@@ -753,8 +857,10 @@ function buildProjectHierarchy(projects: Project[], tasks: Task[], fronts: Manag
         id: project.frontId,
         area,
         title: project.frontTitle,
+        status: "Em andamento",
         projects: [],
         directTasks: [],
+        sortOrder: undefined,
       };
       front.projects.push(project);
       frontMap.set(project.frontId, front);
@@ -767,8 +873,10 @@ function buildProjectHierarchy(projects: Project[], tasks: Task[], fronts: Manag
         id: frontId,
         area,
         title: father.frontId ? formatFatherSegment(father.frontId) : "Geral",
+        status: "Em andamento",
         projects: [],
         directTasks: [],
+        sortOrder: undefined,
       };
       front.directTasks.push(task);
       frontMap.set(frontId, front);
@@ -783,6 +891,8 @@ function buildProjectHierarchy(projects: Project[], tasks: Task[], fronts: Manag
             ...existingFront,
             area: front.area,
             title: front.title,
+            status: front.status,
+            sortOrder: front.sortOrder,
           });
           return;
         }
@@ -790,19 +900,149 @@ function buildProjectHierarchy(projects: Project[], tasks: Task[], fronts: Manag
           id: front.id,
           area: front.area,
           title: front.title,
+          status: front.status,
           projects: [],
           directTasks: [],
+          sortOrder: front.sortOrder,
         });
       });
+
+    const orderedFronts = Array.from(frontMap.values())
+      .map((front) => ({
+        ...front,
+        projects: [...front.projects].sort((a, b) =>
+          compareProjectsByOperationalPriority(a, b, todayKey),
+        ),
+      }))
+      .sort((a, b) => compareFrontsByOperationalPriority(a, b, todayKey));
 
     return {
       area,
       projects: areaProjects,
-      fronts: Array.from(frontMap.values()).sort((a, b) => a.title.localeCompare(b.title)),
+      fronts: orderedFronts,
     };
   });
 
   return areas;
+}
+
+function filterActiveProjectArea(area: ProjectArea): ProjectArea {
+  return {
+    ...area,
+    projects: area.projects.filter((project) => project.status === "Em andamento"),
+    fronts: area.fronts
+      .filter((front) => front.status === "Em andamento")
+      .map((front) => ({
+        ...front,
+        projects: front.projects.filter((project) => project.status === "Em andamento"),
+      })),
+  };
+}
+
+function filterCompletedProjectArea(area: ProjectArea): ProjectArea {
+  const hiddenFronts = area.fronts
+    .filter((front) => front.status !== "Em andamento")
+    .map((front) => ({
+      ...front,
+      projects: front.projects.filter((project) => project.status !== "Em andamento"),
+    }));
+  const frontsWithHiddenProjects = area.fronts
+    .filter((front) => front.status === "Em andamento")
+    .map((front) => ({
+      ...front,
+      projects: front.projects.filter((project) => project.status !== "Em andamento"),
+      directTasks: [],
+    }))
+    .filter((front) => front.projects.length > 0);
+
+  return {
+    ...area,
+    projects: area.projects.filter((project) => project.status !== "Em andamento"),
+    fronts: [...hiddenFronts, ...frontsWithHiddenProjects].sort((a, b) =>
+      compareFrontsByManualOrder(a, b),
+    ),
+  };
+}
+
+function hasCompletedProjectContent(area: ProjectArea) {
+  return area.fronts.some(
+    (front) =>
+      front.status !== "Em andamento" ||
+      front.projects.some((project) => project.status !== "Em andamento"),
+  );
+}
+
+function compareFrontsByOperationalPriority(a: ProjectFront, b: ProjectFront, todayKey: string) {
+  const priorityA = getFrontOperationalPriority(a, todayKey);
+  const priorityB = getFrontOperationalPriority(b, todayKey);
+  if (priorityA !== priorityB) return priorityA - priorityB;
+  return compareFrontsByManualOrder(a, b);
+}
+
+function getFrontOperationalPriority(front: ProjectFront, todayKey: string) {
+  const directTaskPriority = getTaskCollectionOperationalPriority(front.directTasks, todayKey);
+  const projectPriority = front.projects.reduce(
+    (priority, project) =>
+      Math.min(priority, getProjectOperationalPriority(project, todayKey)),
+    Number.MAX_SAFE_INTEGER,
+  );
+
+  return Math.min(directTaskPriority, projectPriority, 4);
+}
+
+function compareProjectsByOperationalPriority(a: Project, b: Project, todayKey: string) {
+  const priorityA = getProjectOperationalPriority(a, todayKey);
+  const priorityB = getProjectOperationalPriority(b, todayKey);
+  if (priorityA !== priorityB) return priorityA - priorityB;
+  return compareProjectsByManualOrder(a, b);
+}
+
+function getProjectOperationalPriority(project: Project, todayKey: string) {
+  const taskPriority = getTaskCollectionOperationalPriority(project.actions, todayKey);
+  const deadlinePriority = getDeadlineOperationalPriority(project, todayKey);
+  return Math.min(taskPriority, deadlinePriority);
+}
+
+function getTaskCollectionOperationalPriority(
+  tasks: Array<Pick<Task, "visibleFrom" | "dueDate">>,
+  todayKey: string,
+) {
+  const openTasks = tasks.filter((task) => !task.dueDate);
+
+  if (openTasks.some((task) => task.visibleFrom && task.visibleFrom < todayKey)) return 0;
+  if (openTasks.some((task) => !task.visibleFrom || task.visibleFrom === todayKey)) return 1;
+  if (openTasks.some((task) => task.visibleFrom && task.visibleFrom > todayKey)) return 2;
+  return 4;
+}
+
+function getDeadlineOperationalPriority(project: Project, todayKey: string) {
+  if (project.status !== "Em andamento") return 4;
+
+  const deadline = parseShortPortugueseDate(project.deadline);
+  if (!deadline) return 3;
+
+  const deadlineKey = toDateKey(deadline);
+  if (deadlineKey < todayKey) return 0;
+  if (deadlineKey === todayKey) return 1;
+  return 2;
+}
+
+function compareFrontsByManualOrder(a: ProjectFront, b: ProjectFront) {
+  const orderA = a.sortOrder ?? Number.MAX_SAFE_INTEGER;
+  const orderB = b.sortOrder ?? Number.MAX_SAFE_INTEGER;
+  if (orderA !== orderB) return orderA - orderB;
+  const titleComparison = a.title.localeCompare(b.title);
+  if (titleComparison !== 0) return titleComparison;
+  return a.id.localeCompare(b.id);
+}
+
+function compareProjectsByManualOrder(a: Project, b: Project) {
+  const orderA = a.sortOrder ?? Number.MAX_SAFE_INTEGER;
+  const orderB = b.sortOrder ?? Number.MAX_SAFE_INTEGER;
+  if (orderA !== orderB) return orderA - orderB;
+  const titleComparison = a.title.localeCompare(b.title);
+  if (titleComparison !== 0) return titleComparison;
+  return a.id.localeCompare(b.id);
 }
 
 function parseFatherId(fatherId: string) {
@@ -838,6 +1078,10 @@ function parseInputDate(value: string) {
   const parsed = new Date(year, month - 1, day);
   parsed.setHours(0, 0, 0, 0);
   return parsed;
+}
+
+function toDateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function formatDeadlineDistance(deadline: string) {

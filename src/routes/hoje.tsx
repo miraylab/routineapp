@@ -47,7 +47,7 @@ function HojePage() {
             RESULTADOS DE HOJE
           </p>
           <p className="tabular text-sm text-muted-foreground">
-            {openTasks} abertas
+            {openTasks} tasks
           </p>
         </div>
 

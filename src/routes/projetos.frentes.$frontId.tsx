@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Check, ChevronDown, Flag, Pencil, Plus, X } from "lucide-react";
+import { Check, ChevronDown, Flag, Pencil, Plus, Trash2, X } from "lucide-react";
 
 import { PageHeader } from "@/components/yuri/PageHeader";
 import { StatusBadge } from "@/components/yuri/StatusBadge";
@@ -42,6 +42,7 @@ function FrenteDetalhe() {
     addProject,
     setFrontStatus,
     updateFrontObjective,
+    removeFront,
   } = useStore();
   const front = useMemo(
     () => buildFrontDetail(frontId, fronts, projects, tasks, frontStatuses),
@@ -60,6 +61,7 @@ function FrenteDetalhe() {
   const [editObjectiveOpen, setEditObjectiveOpen] = useState(false);
   const [addProjectOpen, setAddProjectOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
+  const [deleteFrontConfirm, setDeleteFrontConfirm] = useState(false);
   const [recurrence, setRecurrence] =
     useState<NonNullable<Task["recurrence"]>>("none");
 
@@ -77,6 +79,10 @@ function FrenteDetalhe() {
   const visibleTasks = orderTasksByDoneLast(front.tasks);
   const openTasks = visibleTasks.filter((task) => !task.dueDate);
   const showTasks = visibleTasks.length > 0 && !(tasksDismissed && openTasks.length === 0);
+  const orderedProjects = useMemo(
+    () => [...front.projects].sort((a, b) => compareProjectsByOperationalPriority(a, b, todayKey)),
+    [front.projects, todayKey],
+  );
 
   return (
     <div className="space-y-3">
@@ -167,7 +173,7 @@ function FrenteDetalhe() {
               <X className="size-3.5" />
             </button>
           ) : showTasks || visibleTasks.length === 0 ? (
-            <p className="tabular text-xs text-muted-foreground">{openTasks.length} abertas</p>
+            <p className="tabular text-xs text-muted-foreground">{openTasks.length} tasks</p>
           ) : null}
         </div>
 
@@ -318,9 +324,9 @@ function FrenteDetalhe() {
         <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">
           PROJETOS
         </p>
-        {front.projects.length > 0 ? (
+        {orderedProjects.length > 0 ? (
           <div className="mt-3 space-y-2">
-            {front.projects.map((project) => (
+            {orderedProjects.map((project) => (
               <ProjectRow key={project.id} project={project} todayKey={todayKey} />
             ))}
           </div>
@@ -342,7 +348,13 @@ function FrenteDetalhe() {
         </button>
       </section>
 
-      <Dialog open={editObjectiveOpen} onOpenChange={setEditObjectiveOpen}>
+      <Dialog
+        open={editObjectiveOpen}
+        onOpenChange={(open) => {
+          setEditObjectiveOpen(open);
+          if (!open) setDeleteFrontConfirm(false);
+        }}
+      >
         <DialogContent className="w-[calc(100vw-2rem)] max-w-[430px] rounded-3xl border-border/60 bg-card p-5">
           <DialogHeader className="space-y-1 text-left">
             <DialogTitle className="text-base">Editar objetivo</DialogTitle>
@@ -368,6 +380,26 @@ function FrenteDetalhe() {
               className="press flex h-11 w-full items-center justify-center rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground"
             >
               Salvar objetivo
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!deleteFrontConfirm) {
+                  setDeleteFrontConfirm(true);
+                  return;
+                }
+                removeFront(front.id);
+                setEditObjectiveOpen(false);
+                setDeleteFrontConfirm(false);
+                navigate({
+                  to: "/projetos/",
+                  search: { area: front.area },
+                });
+              }}
+              className="press flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-destructive/25 bg-destructive/10 px-4 text-sm font-medium text-destructive"
+            >
+              <Trash2 className="size-4" />
+              {deleteFrontConfirm ? "Confirmar apagar frente" : "Apagar frente"}
             </button>
           </form>
         </DialogContent>
@@ -464,7 +496,7 @@ function ProjectRow({ project, todayKey }: { project: Project; todayKey: string 
       className="press flex items-stretch gap-3 rounded-2xl border border-border/60 bg-elevated/45 px-3.5 py-3"
     >
       <div className="min-w-0 flex-1 py-0.5">
-        <h4 className="min-w-0 truncate text-base font-semibold leading-tight">{project.title}</h4>
+        <h4 className="min-w-0 break-words text-base font-semibold leading-snug">{project.title}</h4>
         <div className="mt-1.5 flex items-center">
           <StatusBadge tone="active" className="px-2 py-0.5 text-[10px]">
             {formatDeadlineDistance(project.deadline)}
@@ -473,13 +505,16 @@ function ProjectRow({ project, todayKey }: { project: Project; todayKey: string 
       </div>
       <span
         className={cn(
-          "tabular grid w-12 shrink-0 place-items-center rounded-xl bg-card/65 text-base font-semibold text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]",
+          "tabular flex w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-card/65 py-2 text-center text-base font-semibold text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]",
           openActions === 0 && "text-muted-foreground",
         )}
         aria-label={`${openActions} tarefas em aberto`}
         title={openActions === 0 ? "Nenhuma tarefa em aberto" : `${openActions} tarefas em aberto`}
       >
-        {openActions}
+        <span className="leading-none">{openActions}</span>
+        <span className="mt-0.5 text-[7px] font-medium uppercase leading-none tracking-[0.04em] text-muted-foreground">
+          tasks
+        </span>
       </span>
       <span className="sr-only">
         {openActions === 0 ? "Nenhuma tarefa em aberto" : `${openActions} tarefas em aberto`}
@@ -580,6 +615,52 @@ function orderTasksByDoneLast(tasks: Task[]) {
   return [...tasks].sort((a, b) => Number(Boolean(a.dueDate)) - Number(Boolean(b.dueDate)));
 }
 
+function compareProjectsByOperationalPriority(a: Project, b: Project, todayKey: string) {
+  const priorityA = getProjectOperationalPriority(a, todayKey);
+  const priorityB = getProjectOperationalPriority(b, todayKey);
+  if (priorityA !== priorityB) return priorityA - priorityB;
+  return compareProjectsByManualOrder(a, b);
+}
+
+function getProjectOperationalPriority(project: Project, todayKey: string) {
+  const taskPriority = getTaskCollectionOperationalPriority(project.actions, todayKey);
+  const deadlinePriority = getDeadlineOperationalPriority(project, todayKey);
+  return Math.min(taskPriority, deadlinePriority);
+}
+
+function getTaskCollectionOperationalPriority(
+  tasks: Array<Pick<Task, "visibleFrom" | "dueDate">>,
+  todayKey: string,
+) {
+  const openTasks = tasks.filter((task) => !task.dueDate);
+
+  if (openTasks.some((task) => task.visibleFrom && task.visibleFrom < todayKey)) return 0;
+  if (openTasks.some((task) => !task.visibleFrom || task.visibleFrom === todayKey)) return 1;
+  if (openTasks.some((task) => task.visibleFrom && task.visibleFrom > todayKey)) return 2;
+  return 4;
+}
+
+function getDeadlineOperationalPriority(project: Project, todayKey: string) {
+  if (project.status !== "Em andamento") return 4;
+
+  const deadline = parseShortPortugueseDate(project.deadline);
+  if (!deadline) return 3;
+
+  const deadlineKey = toDateKey(deadline);
+  if (deadlineKey < todayKey) return 0;
+  if (deadlineKey === todayKey) return 1;
+  return 2;
+}
+
+function compareProjectsByManualOrder(a: Project, b: Project) {
+  const orderA = a.sortOrder ?? Number.MAX_SAFE_INTEGER;
+  const orderB = b.sortOrder ?? Number.MAX_SAFE_INTEGER;
+  if (orderA !== orderB) return orderA - orderB;
+  const titleComparison = a.title.localeCompare(b.title);
+  if (titleComparison !== 0) return titleComparison;
+  return a.id.localeCompare(b.id);
+}
+
 function formatVisibleFromDistance(visibleFrom: string | undefined, todayKey: string) {
   if (!visibleFrom || visibleFrom <= todayKey) return null;
 
@@ -599,6 +680,10 @@ function parseInputDate(value: string) {
   const parsed = new Date(year, month - 1, day);
   parsed.setHours(0, 0, 0, 0);
   return parsed;
+}
+
+function toDateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 const PROJECT_STATUSES: ProjectStatus[] = ["Em andamento", "Concluído", "Arquivado"];

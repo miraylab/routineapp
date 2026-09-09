@@ -42,7 +42,7 @@ import type { FixedPlace } from "@/lib/supabasePlaces";
 const BEDTIME_MINUTES = toMinutes("21:30");
 const FREE_TIME_ID_PREFIX = "tempo-livre";
 const RELIEF_NOTES_ACTIVITY_ID = "pessoal-notas-de-alivio";
-const FIXED_PLACE_RADIUS_METERS = 200;
+const FIXED_PLACE_RADIUS_METERS = 300;
 const BRASILIA_RADIUS_METERS = 60_000;
 
 type TravelIconKind = FixedPlace["kind"] | "calendar" | "airport";
@@ -115,6 +115,7 @@ function HojePage() {
   const [reliefNoteComposerOpen, setReliefNoteComposerOpen] = useState(false);
   const [reliefNoteDraft, setReliefNoteDraft] = useState("");
   const [reliefNoteQuick, setReliefNoteQuick] = useState(false);
+  const [reliefNoteVisibleFrom, setReliefNoteVisibleFrom] = useState("");
   const [isRecordingReliefAudio, setIsRecordingReliefAudio] = useState(false);
   const [pendingReliefAudio, setPendingReliefAudio] = useState<{
     blob: Blob;
@@ -342,13 +343,18 @@ function HojePage() {
   const travelPositionKey = currentPosition ? buildTravelPositionKey(currentPosition) : null;
   const handleAddReliefNote = () => {
     if (!reliefNoteDraft.trim()) return;
+    const visibleFrom = reliefNoteVisibleFrom || todayKey;
     if (reliefNotesFront) {
-      addTask(reliefNoteDraft.trim(), `pessoal.${reliefNotesFront.id}`, { quick: reliefNoteQuick });
+      addTask(reliefNoteDraft.trim(), `pessoal.${reliefNotesFront.id}`, {
+        quick: reliefNoteQuick,
+        visibleFrom,
+      });
     } else {
       addActivityChecklistItem(RELIEF_NOTES_ACTIVITY_ID, reliefNoteDraft.trim(), reliefNoteQuick);
     }
     setReliefNoteDraft("");
     setReliefNoteQuick(false);
+    setReliefNoteVisibleFrom("");
     setReliefNoteComposerOpen(false);
   };
   const handleToggleReliefAudioRecording = useCallback(async () => {
@@ -404,11 +410,16 @@ function HojePage() {
   }, []);
   const handleSendReliefAudio = useCallback(() => {
     if (!pendingReliefAudio) return;
-    addReliefNoteAudioEntry(pendingReliefAudio.blob, pendingReliefAudio.mimeType);
+    addReliefNoteAudioEntry(
+      pendingReliefAudio.blob,
+      pendingReliefAudio.mimeType,
+      reliefNoteVisibleFrom || todayKey,
+    );
     URL.revokeObjectURL(pendingReliefAudio.url);
     setPendingReliefAudio(null);
+    setReliefNoteVisibleFrom("");
     setReliefNoteComposerOpen(false);
-  }, [addReliefNoteAudioEntry, pendingReliefAudio]);
+  }, [addReliefNoteAudioEntry, pendingReliefAudio, reliefNoteVisibleFrom, todayKey]);
   const handleDeleteReliefAudio = useCallback(() => {
     if (!pendingReliefAudio) return;
     URL.revokeObjectURL(pendingReliefAudio.url);
@@ -639,6 +650,7 @@ function HojePage() {
               {travelHints.length > 0 ? (
                 travelHints.map((hint) => {
                   const minutes = routeTravelTimes[hint.key] ?? hint.minutes;
+                  const formattedMinutes = formatTravelDuration(minutes);
                   return (
                     <button
                       key={hint.key}
@@ -646,11 +658,11 @@ function HojePage() {
                       onClick={requestGpsLocation}
                       disabled={gpsStatus === "loading"}
                       className="press inline-flex h-8 items-center gap-2 rounded-xl bg-black/10 px-2.5 text-sm font-semibold text-primary-foreground/90 transition-colors hover:bg-black/15 disabled:opacity-70"
-                      aria-label={`Tempo estimado até ${hint.destination.place.label}: ${minutes} minutos`}
-                      title={`${minutes} min até ${hint.destination.place.label}`}
+                      aria-label={`Tempo estimado até ${hint.destination.place.label}: ${formattedMinutes}`}
+                      title={`${formattedMinutes} até ${hint.destination.place.label}`}
                     >
                       <TravelPlaceIcon destination={hint.destination} className="size-4" />
-                      <span className="tabular">{gpsStatus === "loading" ? "..." : `${minutes} min`}</span>
+                      <span className="tabular">{gpsStatus === "loading" ? "..." : formattedMinutes}</span>
                     </button>
                   );
                 })
@@ -704,7 +716,7 @@ function HojePage() {
                 <X className="size-4" />
               </button>
             ) : (
-              <p className="tabular text-sm text-muted-foreground">{openFastTasks} abertas</p>
+              <p className="tabular text-sm text-muted-foreground">{openFastTasks} tasks</p>
             )}
           </div>
 
@@ -844,12 +856,15 @@ function HojePage() {
                 </span>
                 <span
                   className={cn(
-                    "tabular grid size-10 shrink-0 place-items-center rounded-xl bg-card/65 text-sm font-semibold text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]",
+                    "tabular flex h-10 w-14 shrink-0 flex-col items-center justify-center rounded-xl bg-card/65 text-center text-sm font-semibold text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]",
                     done && "bg-primary/15 text-primary",
                   )}
                   aria-label={`${streakDays} dias consecutivos`}
                 >
-                  {streakDays}
+                  <span className="leading-none">{streakDays}</span>
+                  <span className="mt-0.5 text-[8px] font-medium leading-none text-muted-foreground">
+                    dias
+                  </span>
                 </span>
               </button>
             );
@@ -1116,6 +1131,13 @@ function HojePage() {
                 onChange={(event) => setReliefNoteDraft(event.target.value)}
                 placeholder="Nova nota de alívio"
                 className="app-scrollbar h-24 w-full resize-none rounded-2xl bg-elevated/60 px-3.5 py-3 text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+              />
+              <input
+                type="date"
+                value={reliefNoteVisibleFrom}
+                onChange={(event) => setReliefNoteVisibleFrom(event.target.value)}
+                className="mt-2 h-10 w-full rounded-2xl bg-elevated/60 px-3.5 text-[13px] text-foreground outline-none focus:ring-1 focus:ring-ring"
+                aria-label="Data da nota"
               />
               <div className="mt-2 flex gap-2">
                 <button
@@ -1518,6 +1540,15 @@ function buildTravelPositionKey(position: { latitude: number; longitude: number 
 
 function estimateTravelMinutes(distanceMeters: number) {
   return Math.max(3, Math.round(distanceMeters / 450 + 4));
+}
+
+function formatTravelDuration(minutes: number) {
+  if (minutes < 60) return `${minutes} min`;
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  if (remainingMinutes === 0) return `${hours}h`;
+  return `${hours}h${remainingMinutes}min`;
 }
 
 function TravelPlaceIcon({ destination, className }: { destination: TravelDestination; className?: string }) {

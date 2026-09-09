@@ -69,6 +69,7 @@ export interface SupabaseManagedFront {
   title: string;
   objective: string;
   status: ProjectStatus;
+  sortOrder?: number;
 }
 
 export interface CreateProjectInput {
@@ -158,10 +159,17 @@ export async function createSupabaseFront(
 
 export async function updateSupabaseFront(
   frontId: string,
-  values: Partial<Pick<FrontRow, "objective" | "status">>,
+  values: Partial<Pick<FrontRow, "objective" | "status" | "active">>,
 ) {
   if (!isNumericId(frontId)) return false;
   await supabasePatch("fronts", `id=eq.${frontId}`, values);
+  return true;
+}
+
+export async function archiveSupabaseFront(frontId: string) {
+  if (!isNumericId(frontId)) return false;
+  await supabasePatch("fronts", `id=eq.${frontId}`, { active: false });
+  await supabasePatch("projects", `front_id=eq.${frontId}`, { active: false });
   return true;
 }
 
@@ -200,10 +208,16 @@ export async function createSupabaseProject(input: CreateProjectInput): Promise<
 
 export async function updateSupabaseProject(
   projectId: string,
-  values: Partial<Pick<ProjectRow, "objective" | "deadline" | "status">>,
+  values: Partial<Pick<ProjectRow, "objective" | "deadline" | "status" | "active">>,
 ) {
   if (!isNumericId(projectId)) return false;
   await supabasePatch("projects", `id=eq.${projectId}`, values);
+  return true;
+}
+
+export async function archiveSupabaseProject(projectId: string) {
+  if (!isNumericId(projectId)) return false;
+  await supabasePatch("projects", `id=eq.${projectId}`, { active: false });
   return true;
 }
 
@@ -307,6 +321,7 @@ function mapFront(front: FrontRow, areaById: Map<number, AreaRow>): SupabaseMana
     title: front.title,
     objective: front.objective ?? "",
     status: normalizeStatus(front.status),
+    sortOrder: front.sort_order,
   };
 }
 
@@ -346,6 +361,7 @@ function mapProject(
     nextMilestone: "",
     nextAction: "",
     deadline: formatDeadlineForUi(project.deadline),
+    sortOrder: project.sort_order,
     actions,
   };
 }

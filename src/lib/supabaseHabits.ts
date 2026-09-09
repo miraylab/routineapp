@@ -54,12 +54,13 @@ export async function createSupabaseHabit(input: {
   userId: string;
   title: string;
   daysOfWeek: number[];
+  accessToken?: string;
 }): Promise<DailyHabit> {
   const [row] = await supabasePost<HabitRow>("habits", {
     user_id: input.userId,
     title: input.title,
     days_of_week: input.daysOfWeek,
-  });
+  }, "", "return=representation", input.accessToken);
 
   return mapHabit(row);
 }
@@ -156,13 +157,14 @@ async function supabasePost<T>(
   body: Record<string, unknown>,
   query = "",
   prefer = "return=representation",
+  accessToken?: string,
 ): Promise<T[]> {
   const suffix = query ? `?${query}` : "";
   const response = await fetch(`${normalizeRestUrl(SUPABASE_REST_URL)}/${table}${suffix}`, {
     method: "POST",
     headers: {
       apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${getSupabaseAccessToken() ?? SUPABASE_ANON_KEY}`,
+      Authorization: `Bearer ${accessToken ?? getSupabaseAccessToken() ?? SUPABASE_ANON_KEY}`,
       "Content-Type": "application/json",
       Prefer: prefer,
     },

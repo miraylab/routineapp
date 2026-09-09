@@ -674,7 +674,7 @@ function ActivityCardPanel({
             </p>
             {!hasConfigurationNotice ? (
               <span className="tabular text-xs font-medium text-muted-foreground">
-                {openChecklistItems} abertas
+                {openChecklistItems} tasks
               </span>
             ) : null}
           </div>

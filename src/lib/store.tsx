@@ -34,6 +34,8 @@ import {
   type SupabaseHabitData,
 } from "@/lib/supabaseHabits";
 import {
+  archiveSupabaseFront,
+  archiveSupabaseProject,
   createSupabaseFront,
   createSupabaseProject,
   createSupabaseTask,
@@ -76,6 +78,7 @@ export interface ManagedFront {
   title: string;
   objective: string;
   status: ProjectStatus;
+  sortOrder?: number;
 }
 
 interface PersistedState {
@@ -539,7 +542,7 @@ function useStoreValue(accessToken?: string, userId?: string) {
     }));
 
     if (userId) {
-      void createSupabaseHabit({ userId, title: trimmed, daysOfWeek }).then((created) => {
+      void createSupabaseHabit({ userId, title: trimmed, daysOfWeek, accessToken }).then((created) => {
         setRemoteHabitData((data) => ({
           habits: (data?.habits ?? []).map((habit) =>
             habit.id === optimisticId ? created : habit,
@@ -556,7 +559,7 @@ function useStoreValue(accessToken?: string, userId?: string) {
     }
 
     return true;
-  }, [dailyHabitSettings, doneDailyHabits, todayKey, userId]);
+  }, [accessToken, dailyHabitSettings, doneDailyHabits, todayKey, userId]);
 
   const removeDailyHabit = useCallback((id: string) => {
     setRemoteHabitData((data) => ({
@@ -926,6 +929,28 @@ function useStoreValue(accessToken?: string, userId?: string) {
     [],
   );
 
+  const removeFront = useCallback((frontId: string) => {
+    setState((s) => ({
+      ...s,
+      extraFronts: (s.extraFronts ?? []).filter((front) => front.id !== frontId),
+      extraProjects: (s.extraProjects ?? []).filter((project) => project.frontId !== frontId),
+      extraTasks: (s.extraTasks ?? []).filter((task) => !task.fatherId.split(".").includes(frontId)),
+    }));
+    setRemoteProjectData((data) =>
+      data
+        ? {
+            ...data,
+            fronts: data.fronts.filter((front) => front.id !== frontId),
+            projects: data.projects.filter((project) => project.frontId !== frontId),
+            tasks: data.tasks.filter((task) => !task.fatherId.split(".").includes(frontId)),
+          }
+        : data,
+    );
+    void archiveSupabaseFront(frontId).catch((error) =>
+      console.warn("Supabase front archive failed after optimistic delete", error),
+    );
+  }, []);
+
   const updateProjectDetails = useCallback(
     (projectId: string, details: { objective?: string; deadline?: string }) => {
       const objective = details.objective?.trim();
@@ -972,6 +997,30 @@ function useStoreValue(accessToken?: string, userId?: string) {
     },
     [],
   );
+
+  const removeProject = useCallback((projectId: string) => {
+    setState((s) => ({
+      ...s,
+      extraProjects: (s.extraProjects ?? []).filter((project) => project.id !== projectId),
+      projectActions: Object.fromEntries(
+        Object.entries(s.projectActions ?? {}).filter(([id]) => id !== projectId),
+      ),
+      extraActions: Object.fromEntries(
+        Object.entries(s.extraActions ?? {}).filter(([id]) => id !== projectId),
+      ),
+    }));
+    setRemoteProjectData((data) =>
+      data
+        ? {
+            ...data,
+            projects: data.projects.filter((project) => project.id !== projectId),
+          }
+        : data,
+    );
+    void archiveSupabaseProject(projectId).catch((error) =>
+      console.warn("Supabase project archive failed after optimistic delete", error),
+    );
+  }, []);
 
   const addProject = useCallback(
     (input: CreateProjectInput) => {
@@ -1113,12 +1162,12 @@ function useStoreValue(accessToken?: string, userId?: string) {
   );
 
   const addReliefNoteAudioEntry = useCallback(
-    (audioBlob: Blob, mimeType: string) => {
+    (audioBlob: Blob, mimeType: string, entryDate = todayKey) => {
       if (!audioBlob.size || !userId || !isSupabaseAudioConfigured()) return;
 
       void createReliefNoteAudio({
         userId,
-        entryDate: todayKey,
+        entryDate,
         audioBlob,
         mimeType,
       }).catch((error) =>
@@ -1402,7 +1451,9 @@ function useStoreValue(accessToken?: string, userId?: string) {
     setFrontStatus,
     addFront,
     updateFrontObjective,
+    removeFront,
     updateProjectDetails,
+    removeProject,
     addProject,
     addProjectAction,
     addTask,

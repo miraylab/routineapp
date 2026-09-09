@@ -77,6 +77,7 @@ export interface Project {
   nextMilestone: string;
   nextAction: string;
   deadline: string;
+  sortOrder?: number;
   actions: ProjectAction[];
 }
 

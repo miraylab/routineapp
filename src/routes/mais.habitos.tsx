@@ -146,10 +146,13 @@ function HabitConfigCard({
           </p>
         </div>
         <div
-          className="tabular grid size-11 shrink-0 place-items-center rounded-xl bg-elevated/60 text-base font-semibold text-primary"
+          className="tabular flex h-11 w-14 shrink-0 flex-col items-center justify-center rounded-xl bg-elevated/60 text-center text-sm font-semibold text-primary"
           aria-label={`${habit.streakDays ?? 0} dias consecutivos`}
         >
-          {habit.streakDays ?? 0}
+          <span className="leading-none">{habit.streakDays ?? 0}</span>
+          <span className="mt-1 text-[9px] font-medium leading-none text-muted-foreground">
+            dias
+          </span>
         </div>
         <button
           type="button"
