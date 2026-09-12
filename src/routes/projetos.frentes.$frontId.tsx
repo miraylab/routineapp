@@ -15,8 +15,9 @@ import type { Category, Project, ProjectStatus, ScheduleBlock, Task } from "@/da
 import { useStore, type ManagedFront } from "@/lib/store";
 import {
   findProjectEffectiveDeadlineKey,
-  findProjectAgendaDeadlineKey,
-  formatAgendaDeadlineDistance,
+  findProjectEffectiveDeadlineSortKey,
+  findProjectAgendaOccurrence,
+  formatAgendaOccurrenceDistance,
 } from "@/lib/projectAgendaDeadline";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +43,7 @@ function FrenteDetalhe() {
     fronts,
     scheduleBlocks,
     todayKey,
+    nowMinutes,
     frontStatuses,
     toggleTask,
     addTask,
@@ -87,9 +89,9 @@ function FrenteDetalhe() {
   const showTasks = visibleTasks.length > 0 && !(tasksDismissed && openTasks.length === 0);
   const orderedProjects = useMemo(
     () => [...front.projects].sort((a, b) =>
-      compareProjectsByOperationalPriority(a, b, scheduleBlocks, todayKey),
+      compareProjectsByOperationalPriority(a, b, scheduleBlocks, todayKey, nowMinutes),
     ),
-    [front.projects, scheduleBlocks, todayKey],
+    [front.projects, nowMinutes, scheduleBlocks, todayKey],
   );
 
   return (
@@ -339,6 +341,7 @@ function FrenteDetalhe() {
                 key={project.id}
                 project={project}
                 todayKey={todayKey}
+                nowMinutes={nowMinutes}
                 scheduleBlocks={scheduleBlocks}
               />
             ))}
@@ -500,18 +503,20 @@ function FrenteDetalhe() {
 function ProjectRow({
   project,
   todayKey,
+  nowMinutes,
   scheduleBlocks,
 }: {
   project: Project;
   todayKey: string;
+  nowMinutes: number;
   scheduleBlocks: ScheduleBlock[];
 }) {
   const openActions = project.actions.filter(
     (action) => !action.dueDate && (!action.visibleFrom || action.visibleFrom <= todayKey),
   ).length;
-  const agendaDeadlineKey = findProjectAgendaDeadlineKey(project, scheduleBlocks, todayKey);
+  const agendaOccurrence = findProjectAgendaOccurrence(project, scheduleBlocks, todayKey, nowMinutes);
   const deadlineLabel = formatDeadlineDistance(project.deadline) ??
-    (agendaDeadlineKey ? formatAgendaDeadlineDistance(agendaDeadlineKey, todayKey) : null);
+    (agendaOccurrence ? formatAgendaOccurrenceDistance(agendaOccurrence, todayKey, nowMinutes) : null);
 
   return (
     <Link
@@ -646,9 +651,10 @@ function compareProjectsByOperationalPriority(
   b: Project,
   scheduleBlocks: ScheduleBlock[],
   todayKey: string,
+  nowMinutes: number,
 ) {
-  const sortA = getProjectDeadlineSort(a, scheduleBlocks, todayKey);
-  const sortB = getProjectDeadlineSort(b, scheduleBlocks, todayKey);
+  const sortA = getProjectDeadlineSort(a, scheduleBlocks, todayKey, nowMinutes);
+  const sortB = getProjectDeadlineSort(b, scheduleBlocks, todayKey, nowMinutes);
   if (sortA.group !== sortB.group) return sortA.group - sortB.group;
   if (sortA.deadlineKey && sortB.deadlineKey && sortA.deadlineKey !== sortB.deadlineKey) {
     return sortA.deadlineKey.localeCompare(sortB.deadlineKey);
@@ -656,8 +662,13 @@ function compareProjectsByOperationalPriority(
   return compareProjectsByManualOrder(a, b);
 }
 
-function getProjectDeadlineSort(project: Project, scheduleBlocks: ScheduleBlock[], todayKey: string) {
-  const deadlineKey = findProjectEffectiveDeadlineKey(project, scheduleBlocks, todayKey);
+function getProjectDeadlineSort(
+  project: Project,
+  scheduleBlocks: ScheduleBlock[],
+  todayKey: string,
+  nowMinutes: number,
+) {
+  const deadlineKey = findProjectEffectiveDeadlineSortKey(project, scheduleBlocks, todayKey, nowMinutes);
   if (deadlineKey) return { group: 1, deadlineKey };
   if (projectHasOpenTask(project)) return { group: 0, deadlineKey: null };
   return { group: 2, deadlineKey: null };
@@ -691,7 +702,7 @@ function getDeadlineOperationalPriority(project: Project, scheduleBlocks: Schedu
   const deadline = parseShortPortugueseDate(project.deadline);
   const deadlineKey = deadline
     ? toDateKey(deadline)
-    : findProjectAgendaDeadlineKey(project, scheduleBlocks, todayKey);
+    : findProjectEffectiveDeadlineKey(project, scheduleBlocks, todayKey);
   if (!deadlineKey) return 3;
 
   if (deadlineKey < todayKey) return 0;

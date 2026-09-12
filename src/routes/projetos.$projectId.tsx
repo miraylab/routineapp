@@ -13,8 +13,8 @@ import {
 } from "@/components/ui/dialog";
 import type { ProjectStatus, Task } from "@/data/mockData";
 import {
-  findProjectAgendaDeadlineKey,
-  formatAgendaDeadlineDistance,
+  findProjectAgendaOccurrence,
+  formatAgendaOccurrenceDistance,
 } from "@/lib/projectAgendaDeadline";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -44,6 +44,7 @@ function ProjetoDetalhe() {
     projects,
     scheduleBlocks,
     todayKey,
+    nowMinutes,
     toggleProjectAction,
     addProjectAction,
     setProjectStatus,
@@ -69,12 +70,12 @@ function ProjetoDetalhe() {
   const visibleActions = orderActionsByDoneLast(project?.actions ?? []);
   const openActions = visibleActions.filter((action) => !action.dueDate).length;
   const showActions = visibleActions.length > 0 && !(actionsDismissed && openActions === 0);
-  const agendaDeadlineKey = project
-    ? findProjectAgendaDeadlineKey(project, scheduleBlocks, todayKey)
+  const agendaOccurrence = project
+    ? findProjectAgendaOccurrence(project, scheduleBlocks, todayKey, nowMinutes)
     : null;
   const deadlineLabel = project
     ? formatDeadlineDistance(project.deadline) ??
-      (agendaDeadlineKey ? formatAgendaDeadlineDistance(agendaDeadlineKey, todayKey) : null)
+      (agendaOccurrence ? formatAgendaOccurrenceDistance(agendaOccurrence, todayKey, nowMinutes) : null)
     : null;
 
   if (!project) {

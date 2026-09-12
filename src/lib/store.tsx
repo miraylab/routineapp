@@ -178,6 +178,7 @@ function useStoreValue(accessToken?: string, userId?: string) {
   const [remoteWeekMilestones, setRemoteWeekMilestones] = useState<WeekMilestone[]>([]);
   const [remoteSchedule, setRemoteSchedule] = useState<ScheduleBlock[] | null>(null);
   const [fixedPlaces, setFixedPlaces] = useState<FixedPlace[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(isSupabaseProjectsConfigured());
   const [hydrated, setHydrated] = useState(false);
   const [realNow, setRealNow] = useState(HYDRATION_CLOCK_FALLBACK);
 
@@ -223,9 +224,13 @@ function useStoreValue(accessToken?: string, userId?: string) {
   }, []);
 
   useEffect(() => {
-    if (isSupabaseProjectsConfigured() && !accessToken) return;
+    if (isSupabaseProjectsConfigured() && !accessToken) {
+      setProjectsLoading(true);
+      return;
+    }
 
     let active = true;
+    setProjectsLoading(true);
 
     retryAsync(() => fetchSupabaseProjectData(accessToken))
       .then((data) => {
@@ -234,6 +239,9 @@ function useStoreValue(accessToken?: string, userId?: string) {
       .catch((error) => {
         console.warn("Supabase project data unavailable", error);
         if (active) setRemoteProjectData(null);
+      })
+      .finally(() => {
+        if (active) setProjectsLoading(false);
       });
 
     return () => {
@@ -1403,6 +1411,7 @@ function useStoreValue(accessToken?: string, userId?: string) {
     nowMinutes,
     context,
     scheduleBlocks,
+    projectsLoading,
     tasks,
     projects,
     fronts,
