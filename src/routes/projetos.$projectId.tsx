@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { ProjectStatus } from "@/data/mockData";
+import type { ProjectStatus, Task } from "@/data/mockData";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -48,6 +48,8 @@ function ProjetoDetalhe() {
   const [draft, setDraft] = useState("");
   const [draftQuick, setDraftQuick] = useState(false);
   const [draftVisibleFrom, setDraftVisibleFrom] = useState("");
+  const [draftRecurrence, setDraftRecurrence] =
+    useState<NonNullable<Task["recurrence"]>>("none");
   const [draftNote, setDraftNote] = useState("");
   const [titleDraft, setTitleDraft] = useState("");
   const [objectiveDraft, setObjectiveDraft] = useState("");
@@ -251,11 +253,13 @@ function ProjetoDetalhe() {
               addProjectAction(project.id, draft.trim(), {
                 quick: draftQuick,
                 visibleFrom: draftVisibleFrom || undefined,
+                recurrence: draftRecurrence,
                 note: draftNote.trim() || undefined,
               });
               setDraft("");
               setDraftQuick(false);
               setDraftVisibleFrom("");
+              setDraftRecurrence("none");
               setDraftNote("");
               setAddActionOpen(false);
             }}
@@ -287,6 +291,19 @@ function ProjetoDetalhe() {
                 aria-label="Data de aparição"
               />
             </div>
+            <select
+              value={draftRecurrence}
+              onChange={(event) =>
+                setDraftRecurrence(event.target.value as NonNullable<Task["recurrence"]>)
+              }
+              className="h-12 w-full min-w-0 rounded-2xl bg-elevated/50 px-3.5 text-[13px] text-foreground outline-none focus:ring-1 focus:ring-ring"
+              aria-label="Recorrência"
+            >
+              <option value="none">Sem recorrência</option>
+              <option value="daily">Diária</option>
+              <option value="weekly">Semanal</option>
+              <option value="monthly">Mensal</option>
+            </select>
             <textarea
               value={draftNote}
               onChange={(e) => setDraftNote(e.target.value)}

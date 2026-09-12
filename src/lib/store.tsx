@@ -882,8 +882,7 @@ function useStoreValue(accessToken?: string, userId?: string) {
         console.warn("Supabase front create skipped: duplicated front path", { area, title: trimmed });
         return false;
       }
-      const finalObjective =
-        objective.trim() || "Frente operacional para agrupar tarefas soltas e próximos movimentos.";
+      const finalObjective = objective.trim();
 
       void createSupabaseFront(area, trimmed, finalObjective)
         .then((front) => {

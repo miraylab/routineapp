@@ -570,7 +570,7 @@ function buildFrontDetail(
       area: firstProject.category,
       fatherId: `${toFatherSegment(firstProject.category)}.${frontId}`,
       status,
-      objective: `Frente para organizar iniciativas, tarefas soltas e projetos ligados a ${firstProject.frontTitle}.`,
+      objective: "",
       tasks: directTasks,
       projects: frontProjects,
     };
@@ -597,7 +597,7 @@ function buildFrontDetail(
       area: father.areaId ? (formatArea(father.areaId) as Category) : "Pessoal",
       fatherId: `${father.areaId ?? "pessoal"}.${frontId}`,
       status,
-      objective: "Frente operacional para agrupar tarefas soltas e próximos movimentos.",
+      objective: "",
       tasks: directTasks,
       projects: [],
     };
