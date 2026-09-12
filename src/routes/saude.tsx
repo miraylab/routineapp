@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { Camera, Footprints, Images, Moon, Scale } from "lucide-react";
+import { Camera, Dumbbell, Footprints, Images, Moon } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -152,7 +152,7 @@ function BodyProgressCard({
     event.preventDefault();
     if (!userId || savingWeight) return;
 
-    const weightKg = Number(weightDraft.replace(",", "."));
+    const weightKg = parseWeightDraftKg(weightDraft);
     if (!Number.isFinite(weightKg) || weightKg <= 0) {
       setMessage("Informe um peso válido.");
       return;
@@ -200,17 +200,22 @@ function BodyProgressCard({
             {latestWeight ? `${formatWeight(latestWeight)} kg` : "Sem peso registrado"}
           </h2>
         </div>
-        <Scale className="size-5 shrink-0 text-primary" strokeWidth={1.9} />
+        <Dumbbell className="size-5 shrink-0 text-primary" strokeWidth={1.9} />
       </div>
 
       <form className="mt-5 flex gap-2" onSubmit={handleWeightSubmit}>
-        <input
-          value={weightDraft}
-          onChange={(event) => setWeightDraft(event.target.value)}
-          inputMode="decimal"
-          placeholder="Peso atual"
-          className="min-w-0 flex-1 rounded-2xl border border-border/70 bg-background px-4 text-sm outline-none focus:border-primary"
-        />
+        <label className="relative min-w-0 flex-1">
+          <input
+            value={weightDraft}
+            onChange={(event) => setWeightDraft(formatWeightDraft(event.target.value))}
+            inputMode="numeric"
+            placeholder="000.000"
+            className="h-11 w-full rounded-2xl border border-border/70 bg-background px-4 pr-10 text-sm outline-none focus:border-primary"
+          />
+          <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground">
+            kg
+          </span>
+        </label>
         <button
           type="submit"
           disabled={!userId || savingWeight}
@@ -514,6 +519,22 @@ function formatWeight(value: number) {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   });
+}
+
+function formatWeightDraft(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 6);
+  if (!digits) return "";
+
+  const padded = digits.padStart(4, "0");
+  const kg = padded.slice(0, -3).replace(/^0+(?=\d)/, "");
+  const grams = padded.slice(-3);
+  return `${kg}.${grams}`;
+}
+
+function parseWeightDraftKg(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return Number.NaN;
+  return Number(digits) / 1000;
 }
 
 function formatDateShort(date: string | undefined) {
