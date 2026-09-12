@@ -18,6 +18,7 @@ import {
   findProjectEffectiveDeadlineSortKey,
   findProjectAgendaOccurrence,
   formatAgendaOccurrenceDistance,
+  projectUsesHourlyAgendaLabel,
 } from "@/lib/projectAgendaDeadline";
 import { cn } from "@/lib/utils";
 
@@ -516,7 +517,11 @@ function ProjectRow({
   ).length;
   const agendaOccurrence = findProjectAgendaOccurrence(project, scheduleBlocks, todayKey, nowMinutes);
   const deadlineLabel = formatDeadlineDistance(project.deadline) ??
-    (agendaOccurrence ? formatAgendaOccurrenceDistance(agendaOccurrence, todayKey, nowMinutes) : null);
+    (agendaOccurrence
+      ? formatAgendaOccurrenceDistance(agendaOccurrence, todayKey, nowMinutes, {
+          hourly: projectUsesHourlyAgendaLabel(project),
+        })
+      : null);
 
   return (
     <Link

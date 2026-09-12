@@ -1251,6 +1251,12 @@ interface FastTask extends ActivityChecklistItem {
   done?: boolean;
 }
 
+const FREE_TIME_FRONT_TITLES = new Set([
+  "notas de alivio",
+  "responsabilidades",
+  "responsabiliades",
+]);
+
 function buildFastTasks(
   dayBlocks: ScheduleBlock[],
   extraItemsByActivity: Record<string, ActivityChecklistItem[]>,
@@ -1326,7 +1332,14 @@ function buildPersonalTaskItems(
   return tasks
     .filter((task) => {
       const fatherId = task.fatherId ?? "";
-      return fatherId.startsWith("pessoal.") && taskIsVisibleToday(task, todayKey);
+      const [, frontId] = fatherId.split(".");
+      const front = frontId ? fronts.find((item) => item.id === frontId) : undefined;
+      return (
+        fatherId.startsWith("pessoal.") &&
+        front &&
+        FREE_TIME_FRONT_TITLES.has(normalizeLabel(front.title)) &&
+        taskIsVisibleToday(task, todayKey)
+      );
     })
     .map((task) => ({
       id: `task:${task.id}`,

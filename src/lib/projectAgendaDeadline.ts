@@ -80,7 +80,10 @@ export function formatAgendaOccurrenceDistance(
   occurrence: AgendaOccurrence,
   todayKey: string,
   nowMinutes: number,
+  options: { hourly?: boolean } = {},
 ) {
+  if (!options.hourly) return formatAgendaDeadlineDistance(occurrence.dateKey, todayKey);
+
   const diffInDays = diffDateKeysInDays(occurrence.dateKey, todayKey);
   const startMinutes = toMinutes(occurrence.startTime);
   if (diffInDays === null || startMinutes === null) return formatAgendaDeadlineDistance(occurrence.dateKey, todayKey);
@@ -91,6 +94,11 @@ export function formatAgendaOccurrenceDistance(
   if (totalMinutes < 24 * 60) return `Daqui ${formatHourDistance(totalMinutes)}`;
   if (diffInDays === 1) return "Amanhã";
   return `Daqui ${diffInDays} dias`;
+}
+
+export function projectUsesHourlyAgendaLabel(project: Project) {
+  return normalizeAgendaName(project.category) === "alimentacao" ||
+    normalizeAgendaName(project.frontTitle) === "alimentacao";
 }
 
 function getBlockNameCandidates(block: ScheduleBlock) {

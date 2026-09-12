@@ -15,6 +15,7 @@ import type { ProjectStatus, Task } from "@/data/mockData";
 import {
   findProjectAgendaOccurrence,
   formatAgendaOccurrenceDistance,
+  projectUsesHourlyAgendaLabel,
 } from "@/lib/projectAgendaDeadline";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -75,7 +76,11 @@ function ProjetoDetalhe() {
     : null;
   const deadlineLabel = project
     ? formatDeadlineDistance(project.deadline) ??
-      (agendaOccurrence ? formatAgendaOccurrenceDistance(agendaOccurrence, todayKey, nowMinutes) : null)
+      (agendaOccurrence
+        ? formatAgendaOccurrenceDistance(agendaOccurrence, todayKey, nowMinutes, {
+            hourly: projectUsesHourlyAgendaLabel(project),
+          })
+        : null)
     : null;
 
   if (!project) {

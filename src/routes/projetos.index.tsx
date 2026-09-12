@@ -23,6 +23,7 @@ import {
   findProjectEffectiveDeadlineSortKey,
   findProjectAgendaOccurrence,
   formatAgendaOccurrenceDistance,
+  projectUsesHourlyAgendaLabel,
 } from "@/lib/projectAgendaDeadline";
 import { cn } from "@/lib/utils";
 
@@ -840,7 +841,11 @@ function ProjectRow({
   ).length;
   const agendaOccurrence = findProjectAgendaOccurrence(project, scheduleBlocks, todayKey, nowMinutes);
   const deadlineLabel = formatDeadlineDistance(project.deadline) ??
-    (agendaOccurrence ? formatAgendaOccurrenceDistance(agendaOccurrence, todayKey, nowMinutes) : null);
+    (agendaOccurrence
+      ? formatAgendaOccurrenceDistance(agendaOccurrence, todayKey, nowMinutes, {
+          hourly: projectUsesHourlyAgendaLabel(project),
+        })
+      : null);
 
   return (
     <Link
@@ -905,6 +910,13 @@ interface ProjectArea {
 }
 
 const AREA_ORDER: Category[] = ["Michelin", "Miray", "Estudos", "Pessoal"];
+const PERSONAL_FRONT_ORDER = [
+  "notas-de-alivio",
+  "responsabilidades",
+  "responsabiliades",
+  "saude",
+  "alimentacao",
+];
 
 function buildProjectHierarchy(
   projects: Project[],
@@ -992,7 +1004,11 @@ function buildProjectHierarchy(
           compareProjectsByOperationalPriority(a, b, scheduleBlocks, todayKey, nowMinutes),
         ),
       }))
-      .sort((a, b) => compareFrontsByOperationalPriority(a, b, scheduleBlocks, todayKey, nowMinutes));
+      .sort((a, b) =>
+        area === "Pessoal"
+          ? comparePersonalFronts(a, b, scheduleBlocks, todayKey, nowMinutes)
+          : compareFrontsByOperationalPriority(a, b, scheduleBlocks, todayKey, nowMinutes),
+      );
 
     return {
       area,
@@ -1002,6 +1018,25 @@ function buildProjectHierarchy(
   });
 
   return areas;
+}
+
+function comparePersonalFronts(
+  a: ProjectFront,
+  b: ProjectFront,
+  scheduleBlocks: ScheduleBlock[],
+  todayKey: string,
+  nowMinutes: number,
+) {
+  const orderA = getPersonalFrontOrder(a.title);
+  const orderB = getPersonalFrontOrder(b.title);
+  if (orderA !== orderB) return orderA - orderB;
+  if (orderA !== Number.MAX_SAFE_INTEGER) return compareFrontsByManualOrder(a, b);
+  return compareFrontsByOperationalPriority(a, b, scheduleBlocks, todayKey, nowMinutes);
+}
+
+function getPersonalFrontOrder(title: string) {
+  const index = PERSONAL_FRONT_ORDER.indexOf(toFatherSegment(title));
+  return index >= 0 ? index : Number.MAX_SAFE_INTEGER;
 }
 
 function filterActiveProjectArea(area: ProjectArea): ProjectArea {
