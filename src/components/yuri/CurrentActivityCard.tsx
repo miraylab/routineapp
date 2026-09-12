@@ -46,6 +46,11 @@ interface Props {
   onMaterializeScheduleScope?: (block: ScheduleBlock) => Promise<void> | void;
   onAddLearningNote?: (text: string) => void;
   onAddLearningAudio?: (audioBlob: Blob, mimeType: string) => void;
+  onAddRunWorkout?: (input: {
+    block: ScheduleBlock;
+    durationMinutes: number;
+    distanceKm: number;
+  }) => Promise<void> | void;
   onSetRoutineRating?: (id: string, rating: number) => void;
   viewMode?: "current" | "past" | "future";
   previousSlide?: ActivitySlide | null;
@@ -79,6 +84,7 @@ export function CurrentActivityCard({
   onMaterializeScheduleScope,
   onAddLearningNote,
   onAddLearningAudio,
+  onAddRunWorkout,
   onSetRoutineRating,
   viewMode = "current",
   previousSlide = null,
@@ -91,6 +97,9 @@ export function CurrentActivityCard({
   const [draft, setDraft] = useState("");
   const [draftPriority, setDraftPriority] = useState(false);
   const [learningDraft, setLearningDraft] = useState("");
+  const [runDurationDraft, setRunDurationDraft] = useState("");
+  const [runDistanceDraft, setRunDistanceDraft] = useState("");
+  const [runSaveState, setRunSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [pendingLearningAudio, setPendingLearningAudio] = useState<{
     blob: Blob;
     mimeType: string;
@@ -123,6 +132,27 @@ export function CurrentActivityCard({
     : [];
   const firstPendingId = checklist.find((item) => !checklistItemDone(item.id))?.id;
   const [stageWidth, setStageWidth] = useState(0);
+
+  async function handleAddRunWorkout(block: ScheduleBlock) {
+    if (!onAddRunWorkout || runSaveState === "saving") return;
+
+    const durationMinutes = Number(runDurationDraft.replace(",", "."));
+    const distanceKm = Number(runDistanceDraft.replace(",", "."));
+    if (!Number.isFinite(durationMinutes) || durationMinutes <= 0 || !Number.isFinite(distanceKm) || distanceKm <= 0) {
+      setRunSaveState("error");
+      return;
+    }
+
+    setRunSaveState("saving");
+    try {
+      await onAddRunWorkout({ block, durationMinutes, distanceKm });
+      setRunDurationDraft("");
+      setRunDistanceDraft("");
+      setRunSaveState("saved");
+    } catch {
+      setRunSaveState("error");
+    }
+  }
 
   useLayoutEffect(() => {
     const stage = stageRef.current;
@@ -430,6 +460,12 @@ export function CurrentActivityCard({
           onMaterializeScheduleScope={onMaterializeScheduleScope}
           onAddLearningNote={onAddLearningNote}
           onToggleLearningAudioRecording={handleToggleLearningAudioRecording}
+          runDurationDraft={runDurationDraft}
+          setRunDurationDraft={setRunDurationDraft}
+          runDistanceDraft={runDistanceDraft}
+          setRunDistanceDraft={setRunDistanceDraft}
+          runSaveState={runSaveState}
+          onAddRunWorkout={handleAddRunWorkout}
           isRecordingLearningAudio={isRecordingLearningAudio}
           pendingLearningAudio={pendingLearningAudio}
           onSendPendingLearningAudio={sendPendingLearningAudio}
@@ -496,6 +532,12 @@ function ActivityCardPanel({
   onMaterializeScheduleScope,
   onAddLearningNote,
   onToggleLearningAudioRecording,
+  runDurationDraft = "",
+  setRunDurationDraft,
+  runDistanceDraft = "",
+  setRunDistanceDraft,
+  runSaveState = "idle",
+  onAddRunWorkout,
   isRecordingLearningAudio = false,
   pendingLearningAudio = null,
   onSendPendingLearningAudio,
@@ -530,6 +572,12 @@ function ActivityCardPanel({
   onMaterializeScheduleScope?: (block: ScheduleBlock) => Promise<void> | void;
   onAddLearningNote?: (text: string) => void;
   onToggleLearningAudioRecording?: () => void;
+  runDurationDraft?: string;
+  setRunDurationDraft?: (draft: string) => void;
+  runDistanceDraft?: string;
+  setRunDistanceDraft?: (draft: string) => void;
+  runSaveState?: "idle" | "saving" | "saved" | "error";
+  onAddRunWorkout?: (block: ScheduleBlock) => void;
   isRecordingLearningAudio?: boolean;
   pendingLearningAudio?: { blob: Blob; mimeType: string; url: string } | null;
   onSendPendingLearningAudio?: () => void;
@@ -552,6 +600,7 @@ function ActivityCardPanel({
   const activityHeading = getActivityHeading(current);
   const isRoutine = current.cardType === "routine";
   const isStudy = current.category === "Estudos";
+  const isRun = isRunningBlock(current);
   const checklistTitle = getOperationalBoxTitle(current);
   const routineRating = routineRatings[current.id];
   const titleFontSize = useFitText(titleRef, activityHeading.title, 28, 18);
@@ -868,41 +917,87 @@ function ActivityCardPanel({
               ) : null}
             </div>
           ) : (
-            <form
-              className="mt-2 flex gap-2"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (!draft.trim()) return;
-                onAddChecklistItem(draft.trim(), draftPriority);
-                setDraft?.("");
-                setDraftPriority?.(false);
-              }}
-            >
-              <input
-                value={draft}
-                onChange={(event) => setDraft?.(event.target.value)}
-                placeholder="Adicionar item"
-                className="h-11 min-w-0 flex-1 rounded-2xl bg-card/70 px-3.5 text-[13px] outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
-              />
-              <button
-                type="button"
-                onClick={() => setDraftPriority?.((value) => !value)}
-                className={cn(
-                  "press grid size-11 shrink-0 place-items-center rounded-2xl border",
-                  draftPriority ? "border-primary text-primary" : "border-border text-muted-foreground",
-                )}
-                aria-label="Marcar novo item como prioridade"
+            <div className="mt-2 space-y-2">
+              {isRun ? (
+                <form
+                  className="grid grid-cols-[1fr_1fr_44px] gap-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    onAddRunWorkout?.(current);
+                  }}
+                >
+                  <input
+                    value={runDurationDraft}
+                    onChange={(event) => {
+                      setRunDurationDraft?.(event.target.value.replace(/[^\d,.]/g, ""));
+                    }}
+                    inputMode="decimal"
+                    placeholder="Tempo min"
+                    className="h-11 min-w-0 rounded-2xl bg-card/70 px-3.5 text-[13px] outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+                  />
+                  <input
+                    value={runDistanceDraft}
+                    onChange={(event) => {
+                      setRunDistanceDraft?.(event.target.value.replace(/[^\d,.]/g, ""));
+                    }}
+                    inputMode="decimal"
+                    placeholder="Km"
+                    className="h-11 min-w-0 rounded-2xl bg-card/70 px-3.5 text-[13px] outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+                  />
+                  <button
+                    type="submit"
+                    disabled={runSaveState === "saving"}
+                    className={cn(
+                      "press grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground disabled:bg-muted disabled:text-muted-foreground",
+                      runSaveState === "saved" && "bg-primary/80",
+                    )}
+                    aria-label="Registrar corrida"
+                  >
+                    {runSaveState === "saved" ? <Check className="size-4" /> : <Send className="size-4" />}
+                  </button>
+                </form>
+              ) : null}
+              <form
+                className="flex gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (!draft.trim()) return;
+                  onAddChecklistItem(draft.trim(), draftPriority);
+                  setDraft?.("");
+                  setDraftPriority?.(false);
+                }}
               >
-                <Flag className="size-4" />
-              </button>
-              <button
-                type="submit"
-                className="press grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground"
-                aria-label="Adicionar item ao checklist"
-              >
-                <Plus className="size-4" />
-              </button>
-            </form>
+                <input
+                  value={draft}
+                  onChange={(event) => setDraft?.(event.target.value)}
+                  placeholder={isRun ? "Nota da corrida" : "Adicionar item"}
+                  className="h-11 min-w-0 flex-1 rounded-2xl bg-card/70 px-3.5 text-[13px] outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+                />
+                <button
+                  type="button"
+                  onClick={() => setDraftPriority?.((value) => !value)}
+                  className={cn(
+                    "press grid size-11 shrink-0 place-items-center rounded-2xl border",
+                    draftPriority ? "border-primary text-primary" : "border-border text-muted-foreground",
+                  )}
+                  aria-label="Marcar novo item como prioridade"
+                >
+                  <Flag className="size-4" />
+                </button>
+                <button
+                  type="submit"
+                  className="press grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground"
+                  aria-label="Adicionar item ao checklist"
+                >
+                  <Plus className="size-4" />
+                </button>
+              </form>
+              {isRun && runSaveState === "error" ? (
+                <p className="px-1 text-[11px] text-destructive">
+                  Informe tempo e km para registrar a corrida.
+                </p>
+              ) : null}
+            </div>
           )}
         </div>
       )}
@@ -1003,6 +1098,20 @@ function getOperationalBoxTitle(block: ScheduleBlock) {
     return "ROTINA";
   }
   return block.category === "Tempo livre" ? "NOTAS DE ALÍVIO" : "CHECKLIST";
+}
+
+function isRunningBlock(block: ScheduleBlock) {
+  if (block.category !== "Saúde") return false;
+  return normalizeSearchText([block.title, block.subtitle, block.description].filter(Boolean).join(" ")).includes(
+    "corrida",
+  );
+}
+
+function normalizeSearchText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 }
 
 function getActivityHeading(block: ScheduleBlock) {

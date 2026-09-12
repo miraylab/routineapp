@@ -38,6 +38,8 @@ import {
 import { cn } from "@/lib/utils";
 import { type ScheduleBlock, type Task } from "@/data/mockData";
 import type { FixedPlace } from "@/lib/supabasePlaces";
+import { useAuth } from "@/lib/supabaseAuth";
+import { createRunningWorkout } from "@/lib/supabaseRunning";
 
 const BEDTIME_MINUTES = toMinutes("21:30");
 const FREE_TIME_ID_PREFIX = "tempo-livre";
@@ -73,6 +75,7 @@ export const Route = createFileRoute("/")({
 });
 
 function HojePage() {
+  const { session } = useAuth();
   const {
     hydrated,
     context,
@@ -798,6 +801,16 @@ function HojePage() {
             formatMinutes(nowMinutes),
           )
         }
+        onAddRunWorkout={({ block, durationMinutes, distanceKm }) => {
+          if (!session?.user.id) return;
+          return createRunningWorkout({
+            userId: session.user.id,
+            workoutDate: block.dateKey ?? todayKey,
+            title: block.title,
+            durationSeconds: Math.round(durationMinutes * 60),
+            distanceKm,
+          });
+        }}
         onSetRoutineRating={setRoutineRating}
         viewMode={focusedMode}
         previousSlide={previousFocusedSlide}

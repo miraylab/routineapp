@@ -24,6 +24,10 @@ import {
   type BodyWeightGoal,
   type BodyWeightEntry,
 } from "@/lib/supabaseBodyProgress";
+import {
+  fetchRunningWorkouts,
+  type RunningWorkout,
+} from "@/lib/supabaseRunning";
 import { useAuth } from "@/lib/supabaseAuth";
 import { cn } from "@/lib/utils";
 
@@ -58,6 +62,8 @@ function SaudePage() {
   const [weightGoal, setWeightGoal] = useState<BodyWeightGoal | null>(null);
   const [bodyImages, setBodyImages] = useState<BodyImageEntry[]>([]);
   const [weightStatus, setWeightStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [runningWorkouts, setRunningWorkouts] = useState<RunningWorkout[]>([]);
+  const [runningStatus, setRunningStatus] = useState<"loading" | "ready" | "error">("loading");
 
   useEffect(() => {
     let active = true;
@@ -115,6 +121,26 @@ function SaudePage() {
     };
   }, [session?.accessToken]);
 
+  useEffect(() => {
+    let active = true;
+    setRunningStatus("loading");
+
+    fetchRunningWorkouts(session?.accessToken)
+      .then((workouts) => {
+        if (!active) return;
+        setRunningWorkouts(workouts);
+        setRunningStatus("ready");
+      })
+      .catch(() => {
+        if (!active) return;
+        setRunningStatus("error");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [session?.accessToken]);
+
   return (
     <div className="space-y-3">
       <PageHeader title="Saúde" subtitle="Semana atual" back />
@@ -133,6 +159,7 @@ function SaudePage() {
         }}
         onImageCreated={(image) => setBodyImages((current) => [image, ...current])}
       />
+      <RunningEvolutionCard workouts={runningWorkouts} status={runningStatus} />
     </div>
   );
 }
@@ -371,6 +398,112 @@ function WeightDelta({
         )}
       >
         {formatDelta(value)}
+      </p>
+    </div>
+  );
+}
+
+function RunningEvolutionCard({
+  workouts,
+  status,
+}: {
+  workouts: RunningWorkout[];
+  status: "loading" | "ready" | "error";
+}) {
+  const currentYear = new Date().getFullYear();
+  const workoutsThisYear = workouts.filter((workout) => {
+    const date = parseDateKey(workout.workoutDate);
+    return date?.getFullYear() === currentYear;
+  });
+  const bestPace = workouts.length
+    ? Math.min(...workouts.map((workout) => workout.paceSecondsPerKm))
+    : null;
+  const yearlyKm = workoutsThisYear.reduce((total, workout) => total + workout.distanceKm, 0);
+  const weeklyData = useMemo(() => buildRunningWeeklyData(workouts), [workouts]);
+  const latestWeek = weeklyData.at(-1);
+  const previousWeek = weeklyData.length > 1 ? weeklyData.at(-2) : undefined;
+  const weeklyPaceDelta =
+    latestWeek && previousWeek ? latestWeek.paceSecondsPerKm - previousWeek.paceSecondsPerKm : null;
+
+  return (
+    <section className="rounded-3xl border border-border/60 bg-card p-5">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+          Evolução de corrida
+        </p>
+        <Footprints className="size-4 shrink-0 text-primary" strokeWidth={1.9} />
+      </div>
+
+      <div className="mt-5 grid grid-cols-3 gap-2">
+        <RunningMetric label="Melhor pace" value={bestPace ? formatPace(bestPace) : "--"} />
+        <RunningMetric
+          label="Semana"
+          value={weeklyPaceDelta === null ? "--" : formatPaceDelta(weeklyPaceDelta)}
+          tone={weeklyPaceDelta === null ? "muted" : weeklyPaceDelta <= 0 ? "good" : "bad"}
+        />
+        <RunningMetric label={`${currentYear}`} value={`${formatKm(yearlyKm)} km`} />
+      </div>
+
+      <div className="mt-5 h-28 rounded-2xl bg-background/60 p-3">
+        {status === "loading" ? (
+          <div className="grid h-full place-items-center text-xs text-muted-foreground">
+            Carregando corridas
+          </div>
+        ) : weeklyData.length > 1 ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={weeklyData} margin={{ top: 8, right: 8, bottom: 6, left: 8 }}>
+              <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
+              <YAxis hide domain={getRunningPaceDomain(weeklyData)} />
+              <Line
+                type="monotone"
+                dataKey="paceSecondsPerKm"
+                stroke="var(--color-primary)"
+                strokeWidth={2}
+                dot={{ r: 3, fill: "var(--color-primary)" }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="grid h-full place-items-center text-center text-xs text-muted-foreground">
+            O gráfico aparece quando houver corridas em pelo menos duas semanas.
+          </div>
+        )}
+      </div>
+
+      <p className="mt-3 text-xs text-muted-foreground">
+        {status === "error"
+          ? "Não consegui carregar os registros de corrida."
+          : workouts.length
+            ? `${workouts.length} treino${workouts.length === 1 ? "" : "s"} registrado${workouts.length === 1 ? "" : "s"}.`
+            : "Nenhuma corrida registrada ainda."}
+      </p>
+    </section>
+  );
+}
+
+function RunningMetric({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "good" | "bad" | "muted";
+}) {
+  return (
+    <div className="rounded-2xl bg-elevated/50 px-3 py-3">
+      <p className="truncate text-[9px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+        {label}
+      </p>
+      <p
+        className={cn(
+          "tabular mt-2 truncate text-sm font-semibold",
+          tone === "good" && "text-primary",
+          tone === "bad" && "text-destructive",
+          tone === "muted" && "text-muted-foreground",
+        )}
+      >
+        {value}
       </p>
     </div>
   );
@@ -646,6 +779,93 @@ function getWeightChartDomain(entries: BodyWeightEntry[], targetWeightKg?: numbe
     number,
     number,
   ];
+}
+
+function buildRunningWeeklyData(workouts: RunningWorkout[]) {
+  const groups = new Map<
+    string,
+    {
+      weekStart: Date;
+      distanceKm: number;
+      durationSeconds: number;
+    }
+  >();
+
+  workouts.forEach((workout) => {
+    const workoutDate = parseDateKey(workout.workoutDate);
+    if (!workoutDate) return;
+
+    const weekStart = getSundayWeekStart(workoutDate);
+    const weekKey = toDateKey(weekStart);
+    const current = groups.get(weekKey) ?? {
+      weekStart,
+      distanceKm: 0,
+      durationSeconds: 0,
+    };
+    current.distanceKm += workout.distanceKm;
+    current.durationSeconds += workout.durationSeconds;
+    groups.set(weekKey, current);
+  });
+
+  return Array.from(groups.values())
+    .sort((a, b) => a.weekStart.getTime() - b.weekStart.getTime())
+    .map((week) => ({
+      label: formatDateShort(toDateKey(week.weekStart)),
+      paceSecondsPerKm: Math.round(week.durationSeconds / week.distanceKm),
+      distanceKm: week.distanceKm,
+    }));
+}
+
+function getRunningPaceDomain(data: Array<{ paceSecondsPerKm: number }>) {
+  const values = data.map((point) => point.paceSecondsPerKm);
+  if (!values.length) return ["dataMin - 30", "dataMax + 30"] as const;
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  if (min === max) return [min - 30, max + 30] as [number, number];
+  const padding = Math.max(15, (max - min) * 0.2);
+  return [Math.max(0, Math.floor(min - padding)), Math.ceil(max + padding)] as [number, number];
+}
+
+function getSundayWeekStart(date: Date) {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - start.getDay());
+  return start;
+}
+
+function parseDateKey(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  const date = new Date(year, month - 1, day);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+}
+
+function toDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatPace(secondsPerKm: number) {
+  const minutes = Math.floor(secondsPerKm / 60);
+  const seconds = secondsPerKm % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}/km`;
+}
+
+function formatPaceDelta(seconds: number) {
+  if (seconds === 0) return "0:00";
+  const sign = seconds > 0 ? "+" : "-";
+  return `${sign}${formatPace(Math.abs(seconds)).replace("/km", "")}`;
+}
+
+function formatKm(value: number) {
+  return value.toLocaleString("pt-BR", {
+    maximumFractionDigits: value >= 100 ? 0 : 1,
+    minimumFractionDigits: value > 0 && value < 10 ? 1 : 0,
+  });
 }
 
 function formatDateShort(date: string | undefined) {
