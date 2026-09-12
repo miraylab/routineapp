@@ -12,10 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as FinanceiroRouteImport } from './routes/financeiro'
-import { Route as HabitosRouteImport } from './routes/habitos'
 import { Route as HojeRouteImport } from './routes/hoje'
 import { Route as MesRouteImport } from './routes/mes'
 import { Route as ObjetivosRouteImport } from './routes/objetivos'
+import { Route as SaudeRouteImport } from './routes/saude'
 import { Route as ApiGeocodeRouteImport } from './routes/api.geocode'
 import { Route as ApiTravelTimeRouteImport } from './routes/api.travel-time'
 import { Route as MaisIndexRouteImport } from './routes/mais.index'
@@ -23,6 +23,7 @@ import { Route as MaisFocoDaSemanaRouteImport } from './routes/mais.foco-da-sema
 import { Route as MaisHabitosRouteImport } from './routes/mais.habitos'
 import { Route as ProjetosIndexRouteImport } from './routes/projetos.index'
 import { Route as ProjetosProjectIdRouteImport } from './routes/projetos.$projectId'
+import { Route as SaudeImagensRouteImport } from './routes/saude.imagens'
 import { Route as ApiHealthDebugRouteImport } from './routes/api.health.debug'
 import { Route as ApiHealthRecentRouteImport } from './routes/api.health.recent'
 import { Route as ApiHealthTodayRouteImport } from './routes/api.health.today'
@@ -44,11 +45,6 @@ const FinanceiroRoute = FinanceiroRouteImport.update({
   path: '/financeiro',
   getParentRoute: () => rootRouteImport,
 } as any)
-const HabitosRoute = HabitosRouteImport.update({
-  id: '/habitos',
-  path: '/habitos',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const HojeRoute = HojeRouteImport.update({
   id: '/hoje',
   path: '/hoje',
@@ -62,6 +58,11 @@ const MesRoute = MesRouteImport.update({
 const ObjetivosRoute = ObjetivosRouteImport.update({
   id: '/objetivos',
   path: '/objetivos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SaudeRoute = SaudeRouteImport.update({
+  id: '/saude',
+  path: '/saude',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiGeocodeRoute = ApiGeocodeRouteImport.update({
@@ -99,6 +100,11 @@ const ProjetosProjectIdRoute = ProjetosProjectIdRouteImport.update({
   path: '/projetos/$projectId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SaudeImagensRoute = SaudeImagensRouteImport.update({
+  id: '/imagens',
+  path: '/imagens',
+  getParentRoute: () => SaudeRoute,
+} as any)
 const ApiHealthDebugRoute = ApiHealthDebugRouteImport.update({
   id: '/api/health/debug',
   path: '/api/health/debug',
@@ -129,15 +135,16 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/configuracoes': typeof ConfiguracoesRoute
   '/financeiro': typeof FinanceiroRoute
-  '/habitos': typeof HabitosRoute
   '/hoje': typeof HojeRoute
   '/mes': typeof MesRoute
   '/objetivos': typeof ObjetivosRoute
+  '/saude': typeof SaudeRouteWithChildren
   '/api/geocode': typeof ApiGeocodeRoute
   '/api/travel-time': typeof ApiTravelTimeRoute
   '/mais/foco-da-semana': typeof MaisFocoDaSemanaRoute
   '/mais/habitos': typeof MaisHabitosRoute
   '/projetos/$projectId': typeof ProjetosProjectIdRoute
+  '/saude/imagens': typeof SaudeImagensRoute
   '/mais/': typeof MaisIndexRoute
   '/projetos/': typeof ProjetosIndexRoute
   '/api/health/debug': typeof ApiHealthDebugRoute
@@ -150,15 +157,16 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/configuracoes': typeof ConfiguracoesRoute
   '/financeiro': typeof FinanceiroRoute
-  '/habitos': typeof HabitosRoute
   '/hoje': typeof HojeRoute
   '/mes': typeof MesRoute
   '/objetivos': typeof ObjetivosRoute
+  '/saude': typeof SaudeRouteWithChildren
   '/api/geocode': typeof ApiGeocodeRoute
   '/api/travel-time': typeof ApiTravelTimeRoute
   '/mais/foco-da-semana': typeof MaisFocoDaSemanaRoute
   '/mais/habitos': typeof MaisHabitosRoute
   '/projetos/$projectId': typeof ProjetosProjectIdRoute
+  '/saude/imagens': typeof SaudeImagensRoute
   '/mais': typeof MaisIndexRoute
   '/projetos': typeof ProjetosIndexRoute
   '/api/health/debug': typeof ApiHealthDebugRoute
@@ -172,15 +180,16 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/configuracoes': typeof ConfiguracoesRoute
   '/financeiro': typeof FinanceiroRoute
-  '/habitos': typeof HabitosRoute
   '/hoje': typeof HojeRoute
   '/mes': typeof MesRoute
   '/objetivos': typeof ObjetivosRoute
+  '/saude': typeof SaudeRouteWithChildren
   '/api/geocode': typeof ApiGeocodeRoute
   '/api/travel-time': typeof ApiTravelTimeRoute
   '/mais/foco-da-semana': typeof MaisFocoDaSemanaRoute
   '/mais/habitos': typeof MaisHabitosRoute
   '/projetos/$projectId': typeof ProjetosProjectIdRoute
+  '/saude/imagens': typeof SaudeImagensRoute
   '/mais/': typeof MaisIndexRoute
   '/projetos/': typeof ProjetosIndexRoute
   '/api/health/debug': typeof ApiHealthDebugRoute
@@ -195,15 +204,16 @@ export interface FileRouteTypes {
     | '/'
     | '/configuracoes'
     | '/financeiro'
-    | '/habitos'
     | '/hoje'
     | '/mes'
     | '/objetivos'
+    | '/saude'
     | '/api/geocode'
     | '/api/travel-time'
     | '/mais/foco-da-semana'
     | '/mais/habitos'
     | '/projetos/$projectId'
+    | '/saude/imagens'
     | '/mais/'
     | '/projetos/'
     | '/api/health/debug'
@@ -216,15 +226,16 @@ export interface FileRouteTypes {
     | '/'
     | '/configuracoes'
     | '/financeiro'
-    | '/habitos'
     | '/hoje'
     | '/mes'
     | '/objetivos'
+    | '/saude'
     | '/api/geocode'
     | '/api/travel-time'
     | '/mais/foco-da-semana'
     | '/mais/habitos'
     | '/projetos/$projectId'
+    | '/saude/imagens'
     | '/mais'
     | '/projetos'
     | '/api/health/debug'
@@ -237,15 +248,16 @@ export interface FileRouteTypes {
     | '/'
     | '/configuracoes'
     | '/financeiro'
-    | '/habitos'
     | '/hoje'
     | '/mes'
     | '/objetivos'
+    | '/saude'
     | '/api/geocode'
     | '/api/travel-time'
     | '/mais/foco-da-semana'
     | '/mais/habitos'
     | '/projetos/$projectId'
+    | '/saude/imagens'
     | '/mais/'
     | '/projetos/'
     | '/api/health/debug'
@@ -259,10 +271,10 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ConfiguracoesRoute: typeof ConfiguracoesRoute
   FinanceiroRoute: typeof FinanceiroRoute
-  HabitosRoute: typeof HabitosRoute
   HojeRoute: typeof HojeRoute
   MesRoute: typeof MesRoute
   ObjetivosRoute: typeof ObjetivosRoute
+  SaudeRoute: typeof SaudeRouteWithChildren
   ApiGeocodeRoute: typeof ApiGeocodeRoute
   ApiTravelTimeRoute: typeof ApiTravelTimeRoute
   MaisFocoDaSemanaRoute: typeof MaisFocoDaSemanaRoute
@@ -300,13 +312,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FinanceiroRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/habitos': {
-      id: '/habitos'
-      path: '/habitos'
-      fullPath: '/habitos'
-      preLoaderRoute: typeof HabitosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/hoje': {
       id: '/hoje'
       path: '/hoje'
@@ -326,6 +331,13 @@ declare module '@tanstack/react-router' {
       path: '/objetivos'
       fullPath: '/objetivos'
       preLoaderRoute: typeof ObjetivosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/saude': {
+      id: '/saude'
+      path: '/saude'
+      fullPath: '/saude'
+      preLoaderRoute: typeof SaudeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/geocode': {
@@ -377,6 +389,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjetosProjectIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/saude/imagens': {
+      id: '/saude/imagens'
+      path: '/imagens'
+      fullPath: '/saude/imagens'
+      preLoaderRoute: typeof SaudeImagensRouteImport
+      parentRoute: typeof SaudeRoute
+    }
     '/api/health/debug': {
       id: '/api/health/debug'
       path: '/api/health/debug'
@@ -415,14 +434,24 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface SaudeRouteChildren {
+  SaudeImagensRoute: typeof SaudeImagensRoute
+}
+
+const SaudeRouteChildren: SaudeRouteChildren = {
+  SaudeImagensRoute: SaudeImagensRoute,
+}
+
+const SaudeRouteWithChildren = SaudeRoute._addFileChildren(SaudeRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ConfiguracoesRoute: ConfiguracoesRoute,
   FinanceiroRoute: FinanceiroRoute,
-  HabitosRoute: HabitosRoute,
   HojeRoute: HojeRoute,
   MesRoute: MesRoute,
   ObjetivosRoute: ObjetivosRoute,
+  SaudeRoute: SaudeRouteWithChildren,
   ApiGeocodeRoute: ApiGeocodeRoute,
   ApiTravelTimeRoute: ApiTravelTimeRoute,
   MaisFocoDaSemanaRoute: MaisFocoDaSemanaRoute,
