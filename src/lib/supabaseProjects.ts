@@ -9,6 +9,7 @@ import { getSupabaseAccessToken } from "@/lib/supabaseAuth";
 
 const SUPABASE_REST_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const PROJECT_COVERS_BUCKET = "project-covers";
 
 const STATUS_VALUES: ProjectStatus[] = ["Em andamento", "Concluído", "Arquivado"];
 
@@ -17,6 +18,7 @@ interface AreaRow {
   title: string;
   sort_order: number;
   active: boolean | null;
+  cover_image_path?: string | null;
 }
 
 interface FrontRow {
@@ -61,6 +63,7 @@ export interface SupabaseProjectData {
   projects: Project[];
   tasks: Task[];
   frontStatuses: Record<string, ProjectStatus>;
+  areaCovers: Partial<Record<Category, string>>;
 }
 
 export interface SupabaseManagedFront {
@@ -91,11 +94,7 @@ export async function fetchSupabaseProjectData(
   if (!isSupabaseProjectsConfigured()) return null;
 
   const [areas, fronts, projects, tasks] = await Promise.all([
-    supabaseGet<AreaRow>(
-      "areas",
-      "select=id,title,sort_order,active&order=sort_order.asc",
-      accessToken,
-    ),
+    fetchAreas(accessToken),
     supabaseGet<FrontRow>(
       "fronts",
       "select=id,area_id,title,objective,status,sort_order,active,completed_at&order=sort_order.asc",
@@ -138,7 +137,68 @@ export async function fetchSupabaseProjectData(
     frontStatuses: Object.fromEntries(
       activeFronts.map((front) => [String(front.id), normalizeStatus(front.status)]),
     ),
+    areaCovers: mapAreaCovers(activeAreas),
   };
+}
+
+async function fetchAreas(accessToken?: string) {
+  try {
+    return await supabaseGet<AreaRow>(
+      "areas",
+      "select=id,title,sort_order,active,cover_image_path&order=sort_order.asc",
+      accessToken,
+    );
+  } catch {
+    return supabaseGet<AreaRow>(
+      "areas",
+      "select=id,title,sort_order,active&order=sort_order.asc",
+      accessToken,
+    );
+  }
+}
+
+function mapAreaCovers(areas: AreaRow[]) {
+  return Object.fromEntries(
+    areas
+      .filter((area) => area.cover_image_path)
+      .map((area) => [
+        normalizeCategory(area.title, area.id),
+        getPublicStorageUrl(area.cover_image_path ?? ""),
+      ]),
+  ) as Partial<Record<Category, string>>;
+}
+
+export async function updateSupabaseAreaCover(area: Category, imageFile: File) {
+  const areaId = categoryToAreaId(area);
+  const storagePath = [
+    toFatherSegment(area),
+    `${crypto.randomUUID()}.${extensionForMimeType(imageFile.type)}`,
+  ].join("/");
+
+  await uploadCoverObject(storagePath, imageFile);
+  await supabasePatch("areas", `id=eq.${areaId}`, { cover_image_path: storagePath });
+
+  return getPublicStorageUrl(storagePath);
+}
+
+async function uploadCoverObject(storagePath: string, imageFile: File) {
+  const response = await fetch(
+    `${normalizeProjectUrl(SUPABASE_REST_URL)}/storage/v1/object/${PROJECT_COVERS_BUCKET}/${storagePath}`,
+    {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${getSupabaseAccessToken() ?? SUPABASE_ANON_KEY}`,
+        "Content-Type": imageFile.type || "image/jpeg",
+        "x-upsert": "false",
+      },
+      body: imageFile,
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Supabase project cover upload: ${response.status} ${response.statusText}`);
+  }
 }
 
 export async function createSupabaseFront(
@@ -400,6 +460,14 @@ function normalizeRestUrl(value: string | undefined) {
   return url.endsWith("/rest/v1") ? url : `${url}/rest/v1`;
 }
 
+function normalizeProjectUrl(value: string | undefined) {
+  return normalizeRestUrl(value).replace(/\/rest\/v1$/, "");
+}
+
+function getPublicStorageUrl(storagePath: string) {
+  return `${normalizeProjectUrl(SUPABASE_REST_URL)}/storage/v1/object/public/${PROJECT_COVERS_BUCKET}/${storagePath}`;
+}
+
 function normalizeCategory(value: string | undefined, areaId?: number): Category {
   const title = value?.trim();
   if (
@@ -458,6 +526,13 @@ function categoryToAreaId(area: Category) {
 function currentDateKey() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+function extensionForMimeType(mimeType: string) {
+  if (mimeType === "image/png") return "png";
+  if (mimeType === "image/webp") return "webp";
+  if (mimeType === "image/gif") return "gif";
+  return "jpg";
 }
 
 function toFatherSegment(value: string) {

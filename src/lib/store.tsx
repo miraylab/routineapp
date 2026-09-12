@@ -44,6 +44,7 @@ import {
   isSupabaseProjectsConfigured,
   isNumericId,
   updateSupabaseFront,
+  updateSupabaseAreaCover,
   updateSupabaseProject,
   updateSupabaseTaskDone,
   type CreateProjectInput,
@@ -958,6 +959,23 @@ function useStoreValue(accessToken?: string, userId?: string) {
     );
   }, []);
 
+  const updateProjectAreaCover = useCallback(async (area: Category, imageFile: File) => {
+    const imageUrl = await updateSupabaseAreaCover(area, imageFile);
+
+    setRemoteProjectData((data) => {
+      if (!data) return data;
+      return {
+        ...data,
+        areaCovers: {
+          ...(data.areaCovers ?? {}),
+          [area]: imageUrl,
+        },
+      };
+    });
+
+    return imageUrl;
+  }, []);
+
   const updateProjectDetails = useCallback(
     (projectId: string, details: { title?: string; objective?: string; deadline?: string }) => {
       const title = details.title?.trim();
@@ -1435,6 +1453,7 @@ function useStoreValue(accessToken?: string, userId?: string) {
     fixedPlaces,
     simulation: state.simulation,
     frontStatuses: { ...(remoteProjectData?.frontStatuses ?? {}), ...(state.frontStatuses ?? {}) },
+    projectAreaCovers: remoteProjectData?.areaCovers ?? {},
     blockDone,
     activityChecklistItemDone,
     activityChecklistItemCompletedAt,
@@ -1462,6 +1481,7 @@ function useStoreValue(accessToken?: string, userId?: string) {
     setFrontStatus,
     addFront,
     updateFrontObjective,
+    updateProjectAreaCover,
     removeFront,
     updateProjectDetails,
     removeProject,

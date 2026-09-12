@@ -10,16 +10,16 @@ const items = [
     match: (p: string) => p.startsWith("/projetos"),
   },
   {
-    to: "/financeiro",
-    label: "Financeiro",
-    icon: Wallet,
-    match: (p: string) => p.startsWith("/financeiro"),
-  },
-  {
     to: "/saude",
     label: "Saúde",
     icon: HeartPlus,
     match: (p: string) => p.startsWith("/saude"),
+  },
+  {
+    to: "/financeiro",
+    label: "Financeiro",
+    icon: Wallet,
+    match: (p: string) => p.startsWith("/financeiro"),
   },
   {
     to: "/mais",

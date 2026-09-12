@@ -61,6 +61,8 @@ function ProjetosPage() {
     addFront,
     addProject,
     addTask,
+    projectAreaCovers,
+    updateProjectAreaCover,
   } = useStore();
   const hierarchy = useMemo(
     () => buildProjectHierarchy(projects, tasks, fronts, scheduleBlocks, todayKey, nowMinutes),
@@ -76,6 +78,7 @@ function ProjetosPage() {
   const [frontObjective, setFrontObjective] = useState("");
   const [frontError, setFrontError] = useState("");
   const [showCompletedProjects, setShowCompletedProjects] = useState(false);
+  const [coverUploadingArea, setCoverUploadingArea] = useState<Category | null>(null);
 
   const currentArea = hierarchy.find((area) => area.area === selectedArea) ?? hierarchy[0];
   const activeArea = useMemo(
@@ -147,9 +150,15 @@ function ProjetosPage() {
       {currentArea ? (
         <ProjectOverview
           area={currentArea}
-          onAddFront={() => {
-            setFrontError("");
-            setAddFrontOpen(true);
+          coverImageUrl={projectAreaCovers[currentArea.area]}
+          uploading={coverUploadingArea === currentArea.area}
+          onCoverSelected={async (file) => {
+            setCoverUploadingArea(currentArea.area);
+            try {
+              await updateProjectAreaCover(currentArea.area, file);
+            } finally {
+              setCoverUploadingArea(null);
+            }
           }}
         />
       ) : null}
@@ -346,23 +355,58 @@ function ProjectsLoadingSkeleton() {
 
 function ProjectOverview({
   area,
-  onAddFront,
+  coverImageUrl,
+  uploading,
+  onCoverSelected,
 }: {
   area: ProjectArea;
-  onAddFront: () => void;
+  coverImageUrl?: string;
+  uploading: boolean;
+  onCoverSelected: (file: File) => void;
 }) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
   return (
     <section
-      className="relative min-h-32 rounded-3xl bg-primary shadow-[0_18px_40px_rgba(0,0,0,0.18)]"
+      className={cn(
+        "relative min-h-32 overflow-hidden rounded-3xl shadow-[0_18px_40px_rgba(0,0,0,0.18)]",
+        coverImageUrl ? "bg-card" : "bg-primary",
+      )}
       aria-label={`Resumo visual de ${area.area}`}
     >
+      {coverImageUrl ? (
+        <img
+          src={coverImageUrl}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+          draggable={false}
+        />
+      ) : null}
+      <div className="absolute inset-0 bg-black/0" />
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = "";
+          if (!file) return;
+          onCoverSelected(file);
+        }}
+      />
       <button
         type="button"
-        onClick={onAddFront}
-        className="press absolute right-4 top-4 grid size-8 place-items-center rounded-xl bg-background/12 text-primary-foreground backdrop-blur-sm"
-        aria-label={`Adicionar frente em ${area.area}`}
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading}
+        className="press absolute right-4 top-4 z-10 grid size-8 place-items-center rounded-xl bg-background/15 text-primary-foreground backdrop-blur-sm disabled:cursor-wait disabled:opacity-70"
+        aria-label={`Trocar imagem de ${area.area}`}
       >
-        <Plus className="size-4" />
+        {uploading ? (
+          <span className="size-3 rounded-full border-2 border-primary-foreground/40 border-t-primary-foreground animate-spin" />
+        ) : (
+          <Plus className="size-4" />
+        )}
       </button>
     </section>
   );
