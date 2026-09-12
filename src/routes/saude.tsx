@@ -16,7 +16,12 @@ import { ProgressBar } from "@/components/yuri/ProgressBar";
 import {
   createBodyImageEntry,
   createBodyWeightEntry,
+  fetchBodyImageEntries,
   fetchBodyWeightEntries,
+  fetchBodyWeightGoal,
+  upsertBodyWeightGoal,
+  type BodyImageEntry,
+  type BodyWeightGoal,
   type BodyWeightEntry,
 } from "@/lib/supabaseBodyProgress";
 import { useAuth } from "@/lib/supabaseAuth";
@@ -50,6 +55,8 @@ function SaudePage() {
     "loading",
   );
   const [weightEntries, setWeightEntries] = useState<BodyWeightEntry[]>([]);
+  const [weightGoal, setWeightGoal] = useState<BodyWeightGoal | null>(null);
+  const [bodyImages, setBodyImages] = useState<BodyImageEntry[]>([]);
   const [weightStatus, setWeightStatus] = useState<"loading" | "ready" | "error">("loading");
 
   useEffect(() => {
@@ -86,10 +93,16 @@ function SaudePage() {
     let active = true;
     setWeightStatus("loading");
 
-    fetchBodyWeightEntries(session?.accessToken)
-      .then((entries) => {
+    Promise.all([
+      fetchBodyWeightEntries(session?.accessToken),
+      fetchBodyWeightGoal(session?.accessToken),
+      fetchBodyImageEntries(session?.accessToken, { signedUrls: false }),
+    ])
+      .then(([entries, goal, images]) => {
         if (!active) return;
         setWeightEntries(entries);
+        setWeightGoal(goal);
+        setBodyImages(images);
         setWeightStatus("ready");
       })
       .catch(() => {
@@ -109,6 +122,8 @@ function SaudePage() {
       <BodyProgressCard
         userId={session?.user.id}
         entries={weightEntries}
+        goal={weightGoal}
+        images={bodyImages}
         status={weightStatus}
         onWeightCreated={(entry) => {
           setWeightEntries((current) =>
@@ -116,6 +131,8 @@ function SaudePage() {
           );
           setWeightStatus("ready");
         }}
+        onGoalSaved={setWeightGoal}
+        onImageCreated={(image) => setBodyImages((current) => [image, ...current])}
       />
     </div>
   );
@@ -124,17 +141,27 @@ function SaudePage() {
 function BodyProgressCard({
   userId,
   entries,
+  goal,
+  images,
   status,
   onWeightCreated,
+  onGoalSaved,
+  onImageCreated,
 }: {
   userId: string | undefined;
   entries: BodyWeightEntry[];
+  goal: BodyWeightGoal | null;
+  images: BodyImageEntry[];
   status: "loading" | "ready" | "error";
   onWeightCreated: (entry: BodyWeightEntry) => void;
+  onGoalSaved: (goal: BodyWeightGoal) => void;
+  onImageCreated: (image: BodyImageEntry) => void;
 }) {
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const [weightDraft, setWeightDraft] = useState("");
+  const [goalDraft, setGoalDraft] = useState("");
   const [savingWeight, setSavingWeight] = useState(false);
+  const [savingGoal, setSavingGoal] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -147,6 +174,23 @@ function BodyProgressCard({
     [entries],
   );
   const latestWeight = entries.at(-1)?.weightKg;
+  const previousWeight = entries.length > 1 ? entries.at(-2)?.weightKg : undefined;
+  const firstWeight = entries[0]?.weightKg;
+  const weeklyDelta = latestWeight !== undefined && previousWeight !== undefined
+    ? latestWeight - previousWeight
+    : null;
+  const totalDelta = latestWeight !== undefined && firstWeight !== undefined && entries.length > 1
+    ? latestWeight - firstWeight
+    : null;
+  const goalDelta = latestWeight !== undefined && goal?.targetWeightKg !== undefined
+    ? latestWeight - goal.targetWeightKg
+    : null;
+  const checkedInThisWeek = entries.some((entry) => dateIsInCurrentMondayWeek(entry.measuredAt));
+  const latestImage = images[0];
+
+  useEffect(() => {
+    setGoalDraft(goal ? formatWeightDraft(String(Math.round(goal.targetWeightKg * 1000))) : "");
+  }, [goal]);
 
   async function handleWeightSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -172,6 +216,33 @@ function BodyProgressCard({
     }
   }
 
+  async function handleGoalSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!userId || savingGoal) return;
+
+    const targetWeightKg = parseWeightDraftKg(goalDraft);
+    if (!Number.isFinite(targetWeightKg) || targetWeightKg <= 0) {
+      setMessage("Informe uma meta válida.");
+      return;
+    }
+
+    setSavingGoal(true);
+    setMessage("");
+    try {
+      const nextGoal = await upsertBodyWeightGoal({
+        userId,
+        targetWeightKg,
+        currentGoalId: goal?.id,
+      });
+      onGoalSaved(nextGoal);
+      setMessage("Meta salva.");
+    } catch {
+      setMessage("Não consegui salvar a meta agora.");
+    } finally {
+      setSavingGoal(false);
+    }
+  }
+
   async function handleImageSelected(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -180,7 +251,8 @@ function BodyProgressCard({
     setUploadingImage(true);
     setMessage("");
     try {
-      await createBodyImageEntry({ userId, imageFile: file });
+      const image = await createBodyImageEntry({ userId, imageFile: file });
+      onImageCreated(image);
       setMessage("Imagem registrada no histórico.");
     } catch {
       setMessage("Não consegui salvar a imagem agora.");
@@ -200,7 +272,22 @@ function BodyProgressCard({
             {latestWeight ? `${formatWeight(latestWeight)} kg` : "Sem peso registrado"}
           </h2>
         </div>
-        <Dumbbell className="size-5 shrink-0 text-primary" strokeWidth={1.9} />
+        <Dumbbell className="size-4 shrink-0 text-primary" strokeWidth={1.9} />
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <BodyStat label="Semana" value={formatDelta(weeklyDelta)} muted={weeklyDelta === null} />
+        <BodyStat label="Desde início" value={formatDelta(totalDelta)} muted={totalDelta === null} />
+        <BodyStat
+          label="Meta"
+          value={goalDelta === null ? "Definir" : formatGoalDistance(goalDelta)}
+          muted={goalDelta === null}
+        />
+        <BodyStat
+          label="Check-in"
+          value={checkedInThisWeek ? "Feito" : "Pesar hoje"}
+          muted={!checkedInThisWeek}
+        />
       </div>
 
       <form className="mt-5 flex gap-2" onSubmit={handleWeightSubmit}>
@@ -222,6 +309,28 @@ function BodyProgressCard({
           className="press h-11 rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground disabled:bg-muted disabled:text-muted-foreground"
         >
           {savingWeight ? "Salvando" : "Salvar"}
+        </button>
+      </form>
+
+      <form className="mt-2 flex gap-2" onSubmit={handleGoalSubmit}>
+        <label className="relative min-w-0 flex-1">
+          <input
+            value={goalDraft}
+            onChange={(event) => setGoalDraft(formatWeightDraft(event.target.value))}
+            inputMode="numeric"
+            placeholder="Meta"
+            className="h-10 w-full rounded-2xl border border-border/70 bg-background px-4 pr-10 text-sm outline-none focus:border-primary"
+          />
+          <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground">
+            kg
+          </span>
+        </label>
+        <button
+          type="submit"
+          disabled={!userId || savingGoal}
+          className="press h-10 rounded-2xl bg-elevated/70 px-4 text-sm font-medium text-foreground disabled:text-muted-foreground"
+        >
+          {savingGoal ? "..." : "Meta"}
         </button>
       </form>
 
@@ -259,24 +368,31 @@ function BodyProgressCard({
         onChange={handleImageSelected}
       />
 
-      <div className="mt-4 grid grid-cols-2 gap-2">
+      <div className="mt-4 flex gap-2">
         <button
           type="button"
           disabled={!userId || uploadingImage}
           onClick={() => imageInputRef.current?.click()}
-          className="press flex h-11 items-center justify-center gap-2 rounded-2xl bg-elevated/70 px-3 text-sm font-medium text-foreground disabled:text-muted-foreground"
+          className="press flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl bg-elevated/70 px-3 text-sm font-medium text-foreground disabled:text-muted-foreground"
         >
           <Camera className="size-4" strokeWidth={1.9} />
           {uploadingImage ? "Enviando" : "Foto"}
         </button>
         <Link
           to="/saude/imagens"
-          className="press flex h-11 items-center justify-center gap-2 rounded-2xl bg-elevated/70 px-3 text-sm font-medium text-foreground"
+          aria-label="Histórico de imagens"
+          title="Histórico de imagens"
+          className="press grid size-11 shrink-0 place-items-center rounded-2xl bg-elevated/70 text-foreground"
         >
           <Images className="size-4" strokeWidth={1.9} />
-          Histórico
         </Link>
       </div>
+
+      <p className="mt-3 text-xs text-muted-foreground">
+        {images.length
+          ? `${images.length} foto${images.length === 1 ? "" : "s"} · última em ${formatDateShort(latestImage?.capturedAt.slice(0, 10))}`
+          : "Nenhuma foto registrada ainda."}
+      </p>
 
       {message ? (
         <p
@@ -291,6 +407,27 @@ function BodyProgressCard({
         </p>
       ) : null}
     </section>
+  );
+}
+
+function BodyStat({
+  label,
+  value,
+  muted = false,
+}: {
+  label: string;
+  value: string;
+  muted?: boolean;
+}) {
+  return (
+    <div className="rounded-2xl bg-background/60 px-3 py-2">
+      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+        {label}
+      </p>
+      <p className={cn("mt-1 text-sm font-semibold", muted && "text-muted-foreground")}>
+        {value}
+      </p>
+    </div>
   );
 }
 
@@ -521,6 +658,18 @@ function formatWeight(value: number) {
   });
 }
 
+function formatDelta(value: number | null) {
+  if (value === null) return "--";
+  const prefix = value > 0 ? "+" : "";
+  return `${prefix}${formatWeight(value)} kg`;
+}
+
+function formatGoalDistance(value: number) {
+  if (Math.abs(value) < 0.05) return "Na meta";
+  if (value > 0) return `Faltam ${formatWeight(value)} kg`;
+  return `${formatWeight(Math.abs(value))} kg abaixo`;
+}
+
 function formatWeightDraft(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 6);
   if (!digits) return "";
@@ -535,6 +684,26 @@ function parseWeightDraftKg(value: string) {
   const digits = value.replace(/\D/g, "");
   if (!digits) return Number.NaN;
   return Number(digits) / 1000;
+}
+
+function dateIsInCurrentMondayWeek(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+
+  const now = new Date();
+  const start = startOfMondayWeek(now);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 7);
+  return date >= start && date < end;
+}
+
+function startOfMondayWeek(date: Date) {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  const day = start.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  start.setDate(start.getDate() + diff);
+  return start;
 }
 
 function formatDateShort(date: string | undefined) {

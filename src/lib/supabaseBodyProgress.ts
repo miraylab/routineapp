@@ -17,6 +17,11 @@ export interface BodyImageEntry {
   imageUrl?: string;
 }
 
+export interface BodyWeightGoal {
+  id: string;
+  targetWeightKg: number;
+}
+
 interface BodyWeightRow {
   id: number;
   measured_at: string;
@@ -27,6 +32,11 @@ interface BodyImageRow {
   id: number;
   captured_at: string;
   storage_path: string;
+}
+
+interface BodyWeightGoalRow {
+  id: number;
+  target_weight_kg: number;
 }
 
 interface SignedUrlResponse {
@@ -50,6 +60,18 @@ export async function fetchBodyWeightEntries(accessToken?: string): Promise<Body
   return rows.map(mapWeightEntry);
 }
 
+export async function fetchBodyWeightGoal(accessToken?: string): Promise<BodyWeightGoal | null> {
+  if (!isSupabaseBodyProgressConfigured()) return null;
+
+  const rows = await supabaseGet<BodyWeightGoalRow>(
+    "body_weight_goals",
+    "select=id,target_weight_kg&limit=1",
+    accessToken,
+  );
+
+  return rows[0] ? mapWeightGoal(rows[0]) : null;
+}
+
 export async function createBodyWeightEntry(input: {
   userId: string;
   weightKg: number;
@@ -62,7 +84,32 @@ export async function createBodyWeightEntry(input: {
   return mapWeightEntry(row);
 }
 
-export async function fetchBodyImageEntries(accessToken?: string): Promise<BodyImageEntry[]> {
+export async function upsertBodyWeightGoal(input: {
+  userId: string;
+  targetWeightKg: number;
+  currentGoalId?: string;
+}): Promise<BodyWeightGoal> {
+  if (input.currentGoalId) {
+    const [row] = await supabasePatch<BodyWeightGoalRow>(
+      "body_weight_goals",
+      `id=eq.${input.currentGoalId}`,
+      { target_weight_kg: input.targetWeightKg },
+    );
+    return mapWeightGoal(row);
+  }
+
+  const [row] = await supabasePost<BodyWeightGoalRow>("body_weight_goals", {
+    user_id: input.userId,
+    target_weight_kg: input.targetWeightKg,
+  });
+
+  return mapWeightGoal(row);
+}
+
+export async function fetchBodyImageEntries(
+  accessToken?: string,
+  options: { signedUrls?: boolean } = { signedUrls: true },
+): Promise<BodyImageEntry[]> {
   if (!isSupabaseBodyProgressConfigured()) return [];
 
   const rows = await supabaseGet<BodyImageRow>(
@@ -72,6 +119,8 @@ export async function fetchBodyImageEntries(accessToken?: string): Promise<BodyI
   );
 
   const entries = rows.map(mapImageEntry);
+  if (!options.signedUrls) return entries;
+
   return Promise.all(
     entries.map(async (entry) => ({
       ...entry,
@@ -187,11 +236,41 @@ async function supabasePost<T>(table: string, body: Record<string, unknown>): Pr
   return (await response.json()) as T[];
 }
 
+async function supabasePatch<T>(
+  table: string,
+  filter: string,
+  body: Record<string, unknown>,
+): Promise<T[]> {
+  const response = await fetch(`${normalizeRestUrl(SUPABASE_REST_URL)}/${table}?${filter}`, {
+    method: "PATCH",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${getSupabaseAccessToken() ?? SUPABASE_ANON_KEY}`,
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Supabase ${table}: ${response.status} ${response.statusText}`);
+  }
+
+  return (await response.json()) as T[];
+}
+
 function mapWeightEntry(row: BodyWeightRow): BodyWeightEntry {
   return {
     id: String(row.id),
     measuredAt: row.measured_at,
     weightKg: Number(row.weight_kg),
+  };
+}
+
+function mapWeightGoal(row: BodyWeightGoalRow): BodyWeightGoal {
+  return {
+    id: String(row.id),
+    targetWeightKg: Number(row.target_weight_kg),
   };
 }
 
