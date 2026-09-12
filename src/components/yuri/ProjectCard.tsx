@@ -6,6 +6,8 @@ import { StatusBadge, healthTone } from "./StatusBadge";
 import type { Project } from "@/data/mockData";
 
 export function ProjectCard({ project }: { project: Project }) {
+  const hasDeadline = Boolean(project.deadline.trim());
+
   return (
     <Link
       to="/projetos/$projectId"
@@ -41,7 +43,7 @@ export function ProjectCard({ project }: { project: Project }) {
         <StatusBadge tone={healthTone(project.health)}>
           {project.health}
         </StatusBadge>
-        <StatusBadge>{project.deadline}</StatusBadge>
+        {hasDeadline ? <StatusBadge>{project.deadline}</StatusBadge> : null}
       </div>
     </Link>
   );

@@ -12,6 +12,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { ProjectStatus, Task } from "@/data/mockData";
+import {
+  findProjectAgendaDeadlineKey,
+  formatAgendaDeadlineDistance,
+} from "@/lib/projectAgendaDeadline";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +42,7 @@ function ProjetoDetalhe() {
   const navigate = useNavigate();
   const {
     projects,
+    scheduleBlocks,
     todayKey,
     toggleProjectAction,
     addProjectAction,
@@ -64,6 +69,13 @@ function ProjetoDetalhe() {
   const visibleActions = orderActionsByDoneLast(project?.actions ?? []);
   const openActions = visibleActions.filter((action) => !action.dueDate).length;
   const showActions = visibleActions.length > 0 && !(actionsDismissed && openActions === 0);
+  const agendaDeadlineKey = project
+    ? findProjectAgendaDeadlineKey(project, scheduleBlocks, todayKey)
+    : null;
+  const deadlineLabel = project
+    ? formatDeadlineDistance(project.deadline) ??
+      (agendaDeadlineKey ? formatAgendaDeadlineDistance(agendaDeadlineKey, todayKey) : null)
+    : null;
 
   if (!project) {
     return (
@@ -91,9 +103,13 @@ function ProjetoDetalhe() {
       />
 
       <div className="flex items-center justify-between gap-3">
-        <StatusBadge tone="active" className="px-3 py-1.5 text-xs">
-          {formatDeadlineDistance(project.deadline)}
-        </StatusBadge>
+        {deadlineLabel ? (
+          <StatusBadge tone="active" className="px-3 py-1.5 text-xs">
+            {deadlineLabel}
+          </StatusBadge>
+        ) : (
+          <span />
+        )}
         <div className="relative">
           <button
             type="button"
@@ -439,7 +455,7 @@ function statusToneClass(status: ProjectStatus) {
 
 function formatDeadlineDistance(deadline: string) {
   const parsed = parseShortPortugueseDate(deadline);
-  if (!parsed) return "A definir";
+  if (!parsed) return null;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);

@@ -11,8 +11,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { Category, Project, ProjectStatus, Task } from "@/data/mockData";
+import type { Category, Project, ProjectStatus, ScheduleBlock, Task } from "@/data/mockData";
 import { useStore, type ManagedFront } from "@/lib/store";
+import {
+  findProjectAgendaDeadlineKey,
+  formatAgendaDeadlineDistance,
+} from "@/lib/projectAgendaDeadline";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/projetos/frentes/$frontId")({
@@ -35,6 +39,7 @@ function FrenteDetalhe() {
     projects,
     tasks,
     fronts,
+    scheduleBlocks,
     todayKey,
     frontStatuses,
     toggleTask,
@@ -80,8 +85,10 @@ function FrenteDetalhe() {
   const openTasks = visibleTasks.filter((task) => !task.dueDate);
   const showTasks = visibleTasks.length > 0 && !(tasksDismissed && openTasks.length === 0);
   const orderedProjects = useMemo(
-    () => [...front.projects].sort((a, b) => compareProjectsByOperationalPriority(a, b, todayKey)),
-    [front.projects, todayKey],
+    () => [...front.projects].sort((a, b) =>
+      compareProjectsByOperationalPriority(a, b, scheduleBlocks, todayKey),
+    ),
+    [front.projects, scheduleBlocks, todayKey],
   );
 
   return (
@@ -327,7 +334,12 @@ function FrenteDetalhe() {
         {orderedProjects.length > 0 ? (
           <div className="mt-3 space-y-2">
             {orderedProjects.map((project) => (
-              <ProjectRow key={project.id} project={project} todayKey={todayKey} />
+              <ProjectRow
+                key={project.id}
+                project={project}
+                todayKey={todayKey}
+                scheduleBlocks={scheduleBlocks}
+              />
             ))}
           </div>
         ) : (
@@ -484,10 +496,21 @@ function FrenteDetalhe() {
   );
 }
 
-function ProjectRow({ project, todayKey }: { project: Project; todayKey: string }) {
+function ProjectRow({
+  project,
+  todayKey,
+  scheduleBlocks,
+}: {
+  project: Project;
+  todayKey: string;
+  scheduleBlocks: ScheduleBlock[];
+}) {
   const openActions = project.actions.filter(
     (action) => !action.dueDate && (!action.visibleFrom || action.visibleFrom <= todayKey),
   ).length;
+  const agendaDeadlineKey = findProjectAgendaDeadlineKey(project, scheduleBlocks, todayKey);
+  const deadlineLabel = formatDeadlineDistance(project.deadline) ??
+    (agendaDeadlineKey ? formatAgendaDeadlineDistance(agendaDeadlineKey, todayKey) : null);
 
   return (
     <Link
@@ -497,11 +520,13 @@ function ProjectRow({ project, todayKey }: { project: Project; todayKey: string 
     >
       <div className="min-w-0 flex-1 py-0.5">
         <h4 className="min-w-0 break-words text-base font-semibold leading-snug">{project.title}</h4>
-        <div className="mt-1.5 flex items-center">
-          <StatusBadge tone="active" className="px-2 py-0.5 text-[10px]">
-            {formatDeadlineDistance(project.deadline)}
-          </StatusBadge>
-        </div>
+        {deadlineLabel ? (
+          <div className="mt-1.5 flex items-center">
+            <StatusBadge tone="active" className="px-2 py-0.5 text-[10px]">
+              {deadlineLabel}
+            </StatusBadge>
+          </div>
+        ) : null}
       </div>
       <span
         className={cn(
@@ -615,16 +640,21 @@ function orderTasksByDoneLast(tasks: Task[]) {
   return [...tasks].sort((a, b) => Number(Boolean(a.dueDate)) - Number(Boolean(b.dueDate)));
 }
 
-function compareProjectsByOperationalPriority(a: Project, b: Project, todayKey: string) {
-  const priorityA = getProjectOperationalPriority(a, todayKey);
-  const priorityB = getProjectOperationalPriority(b, todayKey);
+function compareProjectsByOperationalPriority(
+  a: Project,
+  b: Project,
+  scheduleBlocks: ScheduleBlock[],
+  todayKey: string,
+) {
+  const priorityA = getProjectOperationalPriority(a, scheduleBlocks, todayKey);
+  const priorityB = getProjectOperationalPriority(b, scheduleBlocks, todayKey);
   if (priorityA !== priorityB) return priorityA - priorityB;
   return compareProjectsByManualOrder(a, b);
 }
 
-function getProjectOperationalPriority(project: Project, todayKey: string) {
+function getProjectOperationalPriority(project: Project, scheduleBlocks: ScheduleBlock[], todayKey: string) {
   const taskPriority = getTaskCollectionOperationalPriority(project.actions, todayKey);
-  const deadlinePriority = getDeadlineOperationalPriority(project, todayKey);
+  const deadlinePriority = getDeadlineOperationalPriority(project, scheduleBlocks, todayKey);
   return Math.min(taskPriority, deadlinePriority);
 }
 
@@ -640,13 +670,15 @@ function getTaskCollectionOperationalPriority(
   return 4;
 }
 
-function getDeadlineOperationalPriority(project: Project, todayKey: string) {
+function getDeadlineOperationalPriority(project: Project, scheduleBlocks: ScheduleBlock[], todayKey: string) {
   if (project.status !== "Em andamento") return 4;
 
   const deadline = parseShortPortugueseDate(project.deadline);
-  if (!deadline) return 3;
+  const deadlineKey = deadline
+    ? toDateKey(deadline)
+    : findProjectAgendaDeadlineKey(project, scheduleBlocks, todayKey);
+  if (!deadlineKey) return 3;
 
-  const deadlineKey = toDateKey(deadline);
   if (deadlineKey < todayKey) return 0;
   if (deadlineKey === todayKey) return 1;
   return 2;
@@ -696,7 +728,7 @@ function statusToneClass(status: ProjectStatus) {
 
 function formatDeadlineDistance(deadline: string) {
   const parsed = parseShortPortugueseDate(deadline);
-  if (!parsed) return "A definir";
+  if (!parsed) return null;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);

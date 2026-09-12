@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronRight, Flag, Plus, User, X } from "lucide-react";
 
 import { StatusBadge } from "@/components/yuri/StatusBadge";
-import type { Category, Project, ProjectStatus, Task } from "@/data/mockData";
+import type { Category, Project, ProjectStatus, ScheduleBlock, Task } from "@/data/mockData";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +18,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useStore, type ManagedFront } from "@/lib/store";
+import {
+  findProjectAgendaDeadlineKey,
+  formatAgendaDeadlineDistance,
+} from "@/lib/projectAgendaDeadline";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/projetos/")({
@@ -42,10 +46,10 @@ export const Route = createFileRoute("/projetos/")({
 const PROJECTS_SELECTED_AREA_STORAGE_KEY = "routineapp:projects:selected-area";
 
 function ProjetosPage() {
-  const { projects, tasks, fronts, toggleTask, todayKey, addFront, addProject, addTask } = useStore();
+  const { projects, tasks, fronts, scheduleBlocks, toggleTask, todayKey, addFront, addProject, addTask } = useStore();
   const hierarchy = useMemo(
-    () => buildProjectHierarchy(projects, tasks, fronts, todayKey),
-    [fronts, projects, tasks, todayKey],
+    () => buildProjectHierarchy(projects, tasks, fronts, scheduleBlocks, todayKey),
+    [fronts, projects, scheduleBlocks, tasks, todayKey],
   );
   const [selectedArea, setSelectedArea] = useState<Category>(
     () => getProjectsFocusFromUrl().area ?? getSavedProjectsArea() ?? "Michelin",
@@ -186,6 +190,7 @@ function ProjetosPage() {
                 key={front.id}
                 front={front}
                 todayKey={todayKey}
+                scheduleBlocks={scheduleBlocks}
                 onToggleTask={toggleTask}
                 onAddTask={addTask}
                 onAddProject={addProject}
@@ -214,6 +219,7 @@ function ProjetosPage() {
                   key={`completed-${front.id}`}
                   front={front}
                   todayKey={todayKey}
+                  scheduleBlocks={scheduleBlocks}
                   onToggleTask={toggleTask}
                   onAddTask={addTask}
                   onAddProject={addProject}
@@ -316,6 +322,7 @@ function ProjectOverview({
 function FrontSection({
   front,
   todayKey,
+  scheduleBlocks,
   onToggleTask,
   onAddTask,
   onAddProject,
@@ -323,6 +330,7 @@ function FrontSection({
 }: {
   front: ProjectFront;
   todayKey: string;
+  scheduleBlocks: ScheduleBlock[];
   onToggleTask: (id: string) => void;
   onAddTask: (
     title: string,
@@ -560,7 +568,13 @@ function FrontSection({
           </div>
           <div className="app-scrollbar mt-2 max-h-[258px] space-y-2 overflow-y-auto pr-1">
             {front.projects.map((project) => (
-              <ProjectRow key={project.id} project={project} todayKey={todayKey} showStatus={showStatus} />
+              <ProjectRow
+                key={project.id}
+                project={project}
+                todayKey={todayKey}
+                scheduleBlocks={scheduleBlocks}
+                showStatus={showStatus}
+              />
             ))}
           </div>
         </div>
@@ -760,15 +774,20 @@ function frontElementId(frontId: string) {
 function ProjectRow({
   project,
   todayKey,
+  scheduleBlocks,
   showStatus = false,
 }: {
   project: Project;
   todayKey: string;
+  scheduleBlocks: ScheduleBlock[];
   showStatus?: boolean;
 }) {
   const openActions = project.actions.filter(
     (action) => !action.dueDate,
   ).length;
+  const agendaDeadlineKey = findProjectAgendaDeadlineKey(project, scheduleBlocks, todayKey);
+  const deadlineLabel = formatDeadlineDistance(project.deadline) ??
+    (agendaDeadlineKey ? formatAgendaDeadlineDistance(agendaDeadlineKey, todayKey) : null);
 
   return (
     <Link
@@ -778,19 +797,23 @@ function ProjectRow({
     >
       <div className="min-w-0 flex-1 py-0.5">
         <h4 className="min-w-0 break-words text-base font-semibold leading-snug">{project.title}</h4>
-        <div className="mt-1.5 flex items-center">
-          <StatusBadge tone="active" className="px-2 py-0.5 text-[10px]">
-            {formatDeadlineDistance(project.deadline)}
-          </StatusBadge>
-          {showStatus && project.status !== "Em andamento" ? (
-            <StatusBadge
-              tone={project.status === "Concluído" ? "done" : "neutral"}
-              className="ml-2 px-2 py-0.5 text-[10px]"
-            >
-              {project.status}
-            </StatusBadge>
-          ) : null}
-        </div>
+        {deadlineLabel || (showStatus && project.status !== "Em andamento") ? (
+          <div className="mt-1.5 flex items-center">
+            {deadlineLabel ? (
+              <StatusBadge tone="active" className="px-2 py-0.5 text-[10px]">
+                {deadlineLabel}
+              </StatusBadge>
+            ) : null}
+            {showStatus && project.status !== "Em andamento" ? (
+              <StatusBadge
+                tone={project.status === "Concluído" ? "done" : "neutral"}
+                className={cn(deadlineLabel && "ml-2", "px-2 py-0.5 text-[10px]")}
+              >
+                {project.status}
+              </StatusBadge>
+            ) : null}
+          </div>
+        ) : null}
       </div>
       <span
         className={cn(
@@ -834,6 +857,7 @@ function buildProjectHierarchy(
   projects: Project[],
   tasks: Task[],
   fronts: ManagedFront[],
+  scheduleBlocks: ScheduleBlock[],
   todayKey: string,
 ): ProjectArea[] {
   const areas = AREA_ORDER.map((area) => {
@@ -911,10 +935,10 @@ function buildProjectHierarchy(
       .map((front) => ({
         ...front,
         projects: [...front.projects].sort((a, b) =>
-          compareProjectsByOperationalPriority(a, b, todayKey),
+          compareProjectsByOperationalPriority(a, b, scheduleBlocks, todayKey),
         ),
       }))
-      .sort((a, b) => compareFrontsByOperationalPriority(a, b, todayKey));
+      .sort((a, b) => compareFrontsByOperationalPriority(a, b, scheduleBlocks, todayKey));
 
     return {
       area,
@@ -972,34 +996,44 @@ function hasCompletedProjectContent(area: ProjectArea) {
   );
 }
 
-function compareFrontsByOperationalPriority(a: ProjectFront, b: ProjectFront, todayKey: string) {
-  const priorityA = getFrontOperationalPriority(a, todayKey);
-  const priorityB = getFrontOperationalPriority(b, todayKey);
+function compareFrontsByOperationalPriority(
+  a: ProjectFront,
+  b: ProjectFront,
+  scheduleBlocks: ScheduleBlock[],
+  todayKey: string,
+) {
+  const priorityA = getFrontOperationalPriority(a, scheduleBlocks, todayKey);
+  const priorityB = getFrontOperationalPriority(b, scheduleBlocks, todayKey);
   if (priorityA !== priorityB) return priorityA - priorityB;
   return compareFrontsByManualOrder(a, b);
 }
 
-function getFrontOperationalPriority(front: ProjectFront, todayKey: string) {
+function getFrontOperationalPriority(front: ProjectFront, scheduleBlocks: ScheduleBlock[], todayKey: string) {
   const directTaskPriority = getTaskCollectionOperationalPriority(front.directTasks, todayKey);
   const projectPriority = front.projects.reduce(
     (priority, project) =>
-      Math.min(priority, getProjectOperationalPriority(project, todayKey)),
+      Math.min(priority, getProjectOperationalPriority(project, scheduleBlocks, todayKey)),
     Number.MAX_SAFE_INTEGER,
   );
 
   return Math.min(directTaskPriority, projectPriority, 4);
 }
 
-function compareProjectsByOperationalPriority(a: Project, b: Project, todayKey: string) {
-  const priorityA = getProjectOperationalPriority(a, todayKey);
-  const priorityB = getProjectOperationalPriority(b, todayKey);
+function compareProjectsByOperationalPriority(
+  a: Project,
+  b: Project,
+  scheduleBlocks: ScheduleBlock[],
+  todayKey: string,
+) {
+  const priorityA = getProjectOperationalPriority(a, scheduleBlocks, todayKey);
+  const priorityB = getProjectOperationalPriority(b, scheduleBlocks, todayKey);
   if (priorityA !== priorityB) return priorityA - priorityB;
   return compareProjectsByManualOrder(a, b);
 }
 
-function getProjectOperationalPriority(project: Project, todayKey: string) {
+function getProjectOperationalPriority(project: Project, scheduleBlocks: ScheduleBlock[], todayKey: string) {
   const taskPriority = getTaskCollectionOperationalPriority(project.actions, todayKey);
-  const deadlinePriority = getDeadlineOperationalPriority(project, todayKey);
+  const deadlinePriority = getDeadlineOperationalPriority(project, scheduleBlocks, todayKey);
   return Math.min(taskPriority, deadlinePriority);
 }
 
@@ -1015,13 +1049,15 @@ function getTaskCollectionOperationalPriority(
   return 4;
 }
 
-function getDeadlineOperationalPriority(project: Project, todayKey: string) {
+function getDeadlineOperationalPriority(project: Project, scheduleBlocks: ScheduleBlock[], todayKey: string) {
   if (project.status !== "Em andamento") return 4;
 
   const deadline = parseShortPortugueseDate(project.deadline);
-  if (!deadline) return 3;
+  const deadlineKey = deadline
+    ? toDateKey(deadline)
+    : findProjectAgendaDeadlineKey(project, scheduleBlocks, todayKey);
+  if (!deadlineKey) return 3;
 
-  const deadlineKey = toDateKey(deadline);
   if (deadlineKey < todayKey) return 0;
   if (deadlineKey === todayKey) return 1;
   return 2;
@@ -1086,7 +1122,7 @@ function toDateKey(date: Date) {
 
 function formatDeadlineDistance(deadline: string) {
   const parsed = parseShortPortugueseDate(deadline);
-  if (!parsed) return "A definir";
+  if (!parsed) return null;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);

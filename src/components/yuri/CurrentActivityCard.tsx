@@ -586,7 +586,8 @@ function ActivityCardPanel({
       : viewMode === "future"
         ? `Duração ${formatDuration(duration)}`
         : "Finalizada";
-  const hasDeliveryDetail = Boolean(project?.deadline);
+  const deadlineLabel = project?.deadline ? formatDeadlineDistance(project.deadline) : null;
+  const hasDeliveryDetail = Boolean(deadlineLabel);
   const isCurrentLiveCard = viewMode === "current" && !done;
 
   return (
@@ -640,7 +641,7 @@ function ActivityCardPanel({
       {hasDeliveryDetail ? (
         <div className="mt-4 flex">
           <StatusBadge tone="active" className="shrink-0">
-            {formatDeadlineDistance(project.deadline)}
+            {deadlineLabel}
           </StatusBadge>
         </div>
       ) : null}
@@ -1428,7 +1429,7 @@ function toDateKey(date: Date) {
 
 function formatDeadlineDistance(deadline: string) {
   const parsed = parseShortPortugueseDate(deadline);
-  if (!parsed) return "A definir";
+  if (!parsed) return null;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
