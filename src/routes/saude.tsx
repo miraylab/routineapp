@@ -6,6 +6,7 @@ import {
   BarChart,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   XAxis,
   YAxis,
@@ -19,7 +20,6 @@ import {
   fetchBodyImageEntries,
   fetchBodyWeightEntries,
   fetchBodyWeightGoal,
-  upsertBodyWeightGoal,
   type BodyImageEntry,
   type BodyWeightGoal,
   type BodyWeightEntry,
@@ -131,7 +131,6 @@ function SaudePage() {
           );
           setWeightStatus("ready");
         }}
-        onGoalSaved={setWeightGoal}
         onImageCreated={(image) => setBodyImages((current) => [image, ...current])}
       />
     </div>
@@ -145,7 +144,6 @@ function BodyProgressCard({
   images,
   status,
   onWeightCreated,
-  onGoalSaved,
   onImageCreated,
 }: {
   userId: string | undefined;
@@ -154,14 +152,11 @@ function BodyProgressCard({
   images: BodyImageEntry[];
   status: "loading" | "ready" | "error";
   onWeightCreated: (entry: BodyWeightEntry) => void;
-  onGoalSaved: (goal: BodyWeightGoal) => void;
   onImageCreated: (image: BodyImageEntry) => void;
 }) {
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const [weightDraft, setWeightDraft] = useState("");
-  const [goalDraft, setGoalDraft] = useState("");
   const [savingWeight, setSavingWeight] = useState(false);
-  const [savingGoal, setSavingGoal] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -175,22 +170,15 @@ function BodyProgressCard({
   );
   const latestWeight = entries.at(-1)?.weightKg;
   const previousWeight = entries.length > 1 ? entries.at(-2)?.weightKg : undefined;
-  const firstWeight = entries[0]?.weightKg;
+  const firstWeightOfYear = getFirstWeightEntryOfCurrentYear(entries)?.weightKg;
   const weeklyDelta = latestWeight !== undefined && previousWeight !== undefined
     ? latestWeight - previousWeight
     : null;
-  const totalDelta = latestWeight !== undefined && firstWeight !== undefined && entries.length > 1
-    ? latestWeight - firstWeight
+  const ytdDelta = latestWeight !== undefined && firstWeightOfYear !== undefined
+    ? latestWeight - firstWeightOfYear
     : null;
-  const goalDelta = latestWeight !== undefined && goal?.targetWeightKg !== undefined
-    ? latestWeight - goal.targetWeightKg
-    : null;
-  const checkedInThisWeek = entries.some((entry) => dateIsInCurrentMondayWeek(entry.measuredAt));
   const latestImage = images[0];
-
-  useEffect(() => {
-    setGoalDraft(goal ? formatWeightDraft(String(Math.round(goal.targetWeightKg * 1000))) : "");
-  }, [goal]);
+  const chartDomain = getWeightChartDomain(entries, goal?.targetWeightKg);
 
   async function handleWeightSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -213,33 +201,6 @@ function BodyProgressCard({
       setMessage("Não consegui salvar o peso agora.");
     } finally {
       setSavingWeight(false);
-    }
-  }
-
-  async function handleGoalSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!userId || savingGoal) return;
-
-    const targetWeightKg = parseWeightDraftKg(goalDraft);
-    if (!Number.isFinite(targetWeightKg) || targetWeightKg <= 0) {
-      setMessage("Informe uma meta válida.");
-      return;
-    }
-
-    setSavingGoal(true);
-    setMessage("");
-    try {
-      const nextGoal = await upsertBodyWeightGoal({
-        userId,
-        targetWeightKg,
-        currentGoalId: goal?.id,
-      });
-      onGoalSaved(nextGoal);
-      setMessage("Meta salva.");
-    } catch {
-      setMessage("Não consegui salvar a meta agora.");
-    } finally {
-      setSavingGoal(false);
     }
   }
 
@@ -271,23 +232,12 @@ function BodyProgressCard({
           <h2 className="mt-2 text-xl font-semibold">
             {latestWeight ? `${formatWeight(latestWeight)} kg` : "Sem peso registrado"}
           </h2>
+          <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
+            <WeightDelta label="WoW" value={weeklyDelta} />
+            <WeightDelta label="YTD" value={ytdDelta} />
+          </div>
         </div>
         <Dumbbell className="size-4 shrink-0 text-primary" strokeWidth={1.9} />
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <BodyStat label="Semana" value={formatDelta(weeklyDelta)} muted={weeklyDelta === null} />
-        <BodyStat label="Desde início" value={formatDelta(totalDelta)} muted={totalDelta === null} />
-        <BodyStat
-          label="Meta"
-          value={goalDelta === null ? "Definir" : formatGoalDistance(goalDelta)}
-          muted={goalDelta === null}
-        />
-        <BodyStat
-          label="Check-in"
-          value={checkedInThisWeek ? "Feito" : "Pesar hoje"}
-          muted={!checkedInThisWeek}
-        />
       </div>
 
       <form className="mt-5 flex gap-2" onSubmit={handleWeightSubmit}>
@@ -312,28 +262,6 @@ function BodyProgressCard({
         </button>
       </form>
 
-      <form className="mt-2 flex gap-2" onSubmit={handleGoalSubmit}>
-        <label className="relative min-w-0 flex-1">
-          <input
-            value={goalDraft}
-            onChange={(event) => setGoalDraft(formatWeightDraft(event.target.value))}
-            inputMode="numeric"
-            placeholder="Meta"
-            className="h-10 w-full rounded-2xl border border-border/70 bg-background px-4 pr-10 text-sm outline-none focus:border-primary"
-          />
-          <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground">
-            kg
-          </span>
-        </label>
-        <button
-          type="submit"
-          disabled={!userId || savingGoal}
-          className="press h-10 rounded-2xl bg-elevated/70 px-4 text-sm font-medium text-foreground disabled:text-muted-foreground"
-        >
-          {savingGoal ? "..." : "Meta"}
-        </button>
-      </form>
-
       <div className="mt-5 h-28 rounded-2xl bg-background/60 p-3">
         {status === "loading" ? (
           <div className="grid h-full place-items-center text-xs text-muted-foreground">
@@ -343,7 +271,15 @@ function BodyProgressCard({
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 8, right: 8, bottom: 6, left: 8 }}>
               <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
-              <YAxis hide domain={["dataMin - 1", "dataMax + 1"]} />
+              <YAxis hide domain={chartDomain} />
+              {goal ? (
+                <ReferenceLine
+                  y={goal.targetWeightKg}
+                  stroke="var(--color-primary)"
+                  strokeDasharray="4 4"
+                  strokeOpacity={0.7}
+                />
+              ) : null}
               <Line
                 type="monotone"
                 dataKey="weight"
@@ -410,22 +346,31 @@ function BodyProgressCard({
   );
 }
 
-function BodyStat({
+function WeightDelta({
   label,
   value,
-  muted = false,
 }: {
   label: string;
-  value: string;
-  muted?: boolean;
+  value: number | null;
 }) {
+  const isEmpty = value === null;
+  const isPositive = (value ?? 0) > 0;
+  const isNegative = (value ?? 0) < 0;
+
   return (
-    <div className="rounded-2xl bg-background/60 px-3 py-2">
-      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+    <div>
+      <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
         {label}
       </p>
-      <p className={cn("mt-1 text-sm font-semibold", muted && "text-muted-foreground")}>
-        {value}
+      <p
+        className={cn(
+          "tabular mt-0.5 text-sm font-semibold",
+          isEmpty && "text-muted-foreground",
+          isNegative && "text-primary",
+          isPositive && "text-destructive",
+        )}
+      >
+        {formatDelta(value)}
       </p>
     </div>
   );
@@ -652,22 +597,13 @@ function formatSleep(minutes: number | null | undefined) {
 }
 
 function formatWeight(value: number) {
-  return value.toLocaleString("pt-BR", {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  });
+  return value.toFixed(3);
 }
 
 function formatDelta(value: number | null) {
   if (value === null) return "--";
   const prefix = value > 0 ? "+" : "";
   return `${prefix}${formatWeight(value)} kg`;
-}
-
-function formatGoalDistance(value: number) {
-  if (Math.abs(value) < 0.05) return "Na meta";
-  if (value > 0) return `Faltam ${formatWeight(value)} kg`;
-  return `${formatWeight(Math.abs(value))} kg abaixo`;
 }
 
 function formatWeightDraft(value: string) {
@@ -686,24 +622,30 @@ function parseWeightDraftKg(value: string) {
   return Number(digits) / 1000;
 }
 
-function dateIsInCurrentMondayWeek(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return false;
-
-  const now = new Date();
-  const start = startOfMondayWeek(now);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 7);
-  return date >= start && date < end;
+function getFirstWeightEntryOfCurrentYear(entries: BodyWeightEntry[]) {
+  const currentYear = new Date().getFullYear();
+  return entries.find((entry) => {
+    const date = new Date(entry.measuredAt);
+    return !Number.isNaN(date.getTime()) && date.getFullYear() === currentYear;
+  });
 }
 
-function startOfMondayWeek(date: Date) {
-  const start = new Date(date);
-  start.setHours(0, 0, 0, 0);
-  const day = start.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  start.setDate(start.getDate() + diff);
-  return start;
+function getWeightChartDomain(entries: BodyWeightEntry[], targetWeightKg?: number) {
+  const values = [
+    ...entries.map((entry) => entry.weightKg),
+    targetWeightKg,
+  ].filter((value): value is number => value !== undefined && Number.isFinite(value));
+
+  if (!values.length) return ["dataMin - 1", "dataMax + 1"] as const;
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  if (min === max) return [min - 1, max + 1] as [number, number];
+  const padding = Math.max(0.5, (max - min) * 0.2);
+  return [Math.floor((min - padding) * 10) / 10, Math.ceil((max + padding) * 10) / 10] as [
+    number,
+    number,
+  ];
 }
 
 function formatDateShort(date: string | undefined) {

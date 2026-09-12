@@ -1,8 +1,15 @@
+import { useEffect, useState, type FormEvent } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { RotateCcw } from "lucide-react";
 
 import { PageHeader } from "@/components/yuri/PageHeader";
 import { useStore } from "@/lib/store";
+import {
+  fetchBodyWeightGoal,
+  upsertBodyWeightGoal,
+  type BodyWeightGoal,
+} from "@/lib/supabaseBodyProgress";
+import { useAuth } from "@/lib/supabaseAuth";
 import { WEEKDAYS, WEEKDAYS_SHORT } from "@/lib/schedule";
 import { cn } from "@/lib/utils";
 
@@ -36,11 +43,101 @@ export const Route = createFileRoute("/configuracoes")({
 });
 
 function ConfiguracoesPage() {
+  const { session } = useAuth();
   const { simulation, setSimulation, resetState } = useStore();
+  const [weightGoal, setWeightGoal] = useState<BodyWeightGoal | null>(null);
+  const [goalDraft, setGoalDraft] = useState("");
+  const [goalStatus, setGoalStatus] = useState<"idle" | "loading" | "saving" | "error" | "saved">(
+    "loading",
+  );
+
+  useEffect(() => {
+    let active = true;
+    setGoalStatus("loading");
+
+    fetchBodyWeightGoal(session?.accessToken)
+      .then((goal) => {
+        if (!active) return;
+        setWeightGoal(goal);
+        setGoalDraft(goal ? formatWeightDraft(String(Math.round(goal.targetWeightKg * 1000))) : "");
+        setGoalStatus("idle");
+      })
+      .catch(() => {
+        if (!active) return;
+        setGoalStatus("error");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [session?.accessToken]);
+
+  async function handleGoalSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!session?.user.id || goalStatus === "saving") return;
+
+    const targetWeightKg = parseWeightDraftKg(goalDraft);
+    if (!Number.isFinite(targetWeightKg) || targetWeightKg <= 0) {
+      setGoalStatus("error");
+      return;
+    }
+
+    setGoalStatus("saving");
+    try {
+      const nextGoal = await upsertBodyWeightGoal({
+        userId: session.user.id,
+        targetWeightKg,
+        currentGoalId: weightGoal?.id,
+      });
+      setWeightGoal(nextGoal);
+      setGoalDraft(formatWeightDraft(String(Math.round(nextGoal.targetWeightKg * 1000))));
+      setGoalStatus("saved");
+    } catch {
+      setGoalStatus("error");
+    }
+  }
 
   return (
     <div className="space-y-3">
       <PageHeader title="Configurações" subtitle="Protótipo · dados locais" back />
+
+      <section className="rounded-3xl border border-border/60 bg-card p-5">
+        <p className="text-[15px] font-medium">Saúde</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Configurações usadas no acompanhamento físico.
+        </p>
+
+        <form className="mt-4 flex gap-2" onSubmit={handleGoalSubmit}>
+          <label className="relative min-w-0 flex-1">
+            <input
+              value={goalDraft}
+              onChange={(event) => {
+                setGoalDraft(formatWeightDraft(event.target.value));
+                setGoalStatus("idle");
+              }}
+              inputMode="numeric"
+              placeholder="Meta de peso"
+              className="h-11 w-full rounded-2xl border border-border/70 bg-background px-4 pr-10 text-sm outline-none focus:border-primary"
+            />
+            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground">
+              kg
+            </span>
+          </label>
+          <button
+            type="submit"
+            disabled={!session?.user.id || goalStatus === "loading" || goalStatus === "saving"}
+            className="press h-11 rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground disabled:bg-muted disabled:text-muted-foreground"
+          >
+            {goalStatus === "saving" ? "Salvando" : "Salvar"}
+          </button>
+        </form>
+
+        {goalStatus === "error" ? (
+          <p className="mt-2 text-xs text-destructive">Não consegui salvar a meta agora.</p>
+        ) : goalStatus === "saved" ? (
+          <p className="mt-2 text-xs text-muted-foreground">Meta salva.</p>
+        ) : null}
+      </section>
 
       <section className="rounded-3xl border border-border/60 bg-card p-5">
         <div className="flex items-start justify-between gap-4">
@@ -149,4 +246,20 @@ function ConfiguracoesPage() {
       </section>
     </div>
   );
+}
+
+function formatWeightDraft(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 6);
+  if (!digits) return "";
+
+  const padded = digits.padStart(4, "0");
+  const kg = padded.slice(0, -3).replace(/^0+(?=\d)/, "");
+  const grams = padded.slice(-3);
+  return `${kg}.${grams}`;
+}
+
+function parseWeightDraftKg(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return Number.NaN;
+  return Number(digits) / 1000;
 }
