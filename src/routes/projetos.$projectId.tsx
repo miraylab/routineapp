@@ -49,6 +49,7 @@ function ProjetoDetalhe() {
   const [draftQuick, setDraftQuick] = useState(false);
   const [draftVisibleFrom, setDraftVisibleFrom] = useState("");
   const [draftNote, setDraftNote] = useState("");
+  const [titleDraft, setTitleDraft] = useState("");
   const [objectiveDraft, setObjectiveDraft] = useState("");
   const [deadlineDraft, setDeadlineDraft] = useState("");
   const [actionsDismissed, setActionsDismissed] = useState(false);
@@ -136,6 +137,7 @@ function ProjetoDetalhe() {
           <button
             type="button"
             onClick={() => {
+              setTitleDraft(project.title);
               setObjectiveDraft(project.objective);
               setDeadlineDraft(shortDeadlineToInput(project.deadline));
               setEditProjectOpen(true);
@@ -314,23 +316,34 @@ function ProjetoDetalhe() {
           <DialogHeader className="space-y-1 text-left">
             <DialogTitle className="text-base">Editar projeto</DialogTitle>
             <DialogDescription>
-              Ajuste o objetivo e o deadline de {project.title}.
+              Ajuste o nome, objetivo e deadline de {project.title}.
             </DialogDescription>
           </DialogHeader>
           <form
             className="space-y-2.5"
             onSubmit={(event) => {
               event.preventDefault();
+              if (!titleDraft.trim()) return;
               updateProjectDetails(project.id, {
+                title: titleDraft,
                 objective: objectiveDraft,
                 deadline: deadlineDraft,
               });
               setEditProjectOpen(false);
             }}
           >
+            <input
+              type="text"
+              value={titleDraft}
+              onChange={(event) => setTitleDraft(event.target.value)}
+              placeholder="Nome do projeto"
+              className="h-12 w-full rounded-2xl bg-elevated/50 px-3.5 text-[15px] text-foreground outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+              aria-label="Nome do projeto"
+            />
             <textarea
               value={objectiveDraft}
               onChange={(event) => setObjectiveDraft(event.target.value)}
+              placeholder="Descrição ou objetivo do projeto"
               className="app-scrollbar h-36 w-full resize-none rounded-2xl bg-elevated/50 px-4 py-3 text-[15px] leading-snug outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
             />
             <input
@@ -342,7 +355,8 @@ function ProjetoDetalhe() {
             />
             <button
               type="submit"
-              className="press flex h-11 w-full items-center justify-center rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground"
+              disabled={!titleDraft.trim()}
+              className="press flex h-11 w-full items-center justify-center rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
             >
               Salvar projeto
             </button>

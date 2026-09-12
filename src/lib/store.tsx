@@ -952,7 +952,8 @@ function useStoreValue(accessToken?: string, userId?: string) {
   }, []);
 
   const updateProjectDetails = useCallback(
-    (projectId: string, details: { objective?: string; deadline?: string }) => {
+    (projectId: string, details: { title?: string; objective?: string; deadline?: string }) => {
+      const title = details.title?.trim();
       const objective = details.objective?.trim();
       const deadline = details.deadline === undefined ? undefined : formatDateInputToShort(details.deadline);
       setState((s) => ({
@@ -980,6 +981,7 @@ function useStoreValue(accessToken?: string, userId?: string) {
                 project.id === projectId
                   ? {
                       ...project,
+                      title: title ?? project.title,
                       objective: objective ?? project.objective,
                       deadline: deadline ?? project.deadline,
                     }
@@ -989,6 +991,7 @@ function useStoreValue(accessToken?: string, userId?: string) {
           : data,
       );
       void updateSupabaseProject(projectId, {
+        ...(title === undefined ? {} : { title }),
         ...(objective === undefined ? {} : { objective }),
         ...(details.deadline === undefined ? {} : { deadline: details.deadline || null }),
       }).catch((error) =>

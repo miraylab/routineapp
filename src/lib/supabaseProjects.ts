@@ -208,7 +208,7 @@ export async function createSupabaseProject(input: CreateProjectInput): Promise<
 
 export async function updateSupabaseProject(
   projectId: string,
-  values: Partial<Pick<ProjectRow, "objective" | "deadline" | "status" | "active">>,
+  values: Partial<Pick<ProjectRow, "title" | "objective" | "deadline" | "status" | "active">>,
 ) {
   if (!isNumericId(projectId)) return false;
   await supabasePatch("projects", `id=eq.${projectId}`, values);
