@@ -420,10 +420,6 @@ function RunningEvolutionCard({
     : null;
   const yearlyKm = workoutsThisYear.reduce((total, workout) => total + workout.distanceKm, 0);
   const weeklyData = useMemo(() => buildRunningWeeklyData(workouts), [workouts]);
-  const latestWeek = weeklyData.at(-1);
-  const previousWeek = weeklyData.length > 1 ? weeklyData.at(-2) : undefined;
-  const weeklyPaceDelta =
-    latestWeek && previousWeek ? latestWeek.paceSecondsPerKm - previousWeek.paceSecondsPerKm : null;
 
   return (
     <section className="rounded-3xl border border-border/60 bg-card p-5">
@@ -434,13 +430,8 @@ function RunningEvolutionCard({
         <Footprints className="size-4 shrink-0 text-primary" strokeWidth={1.9} />
       </div>
 
-      <div className="mt-5 grid grid-cols-3 gap-2">
+      <div className="mt-5 grid grid-cols-2 gap-2">
         <RunningMetric label="Melhor pace" value={bestPace ? formatPace(bestPace) : "--"} />
-        <RunningMetric
-          label="Semana"
-          value={weeklyPaceDelta === null ? "--" : formatPaceDelta(weeklyPaceDelta)}
-          tone={weeklyPaceDelta === null ? "muted" : weeklyPaceDelta <= 0 ? "good" : "bad"}
-        />
         <RunningMetric label={`${currentYear}`} value={`${formatKm(yearlyKm)} km`} />
       </div>
 
@@ -853,12 +844,6 @@ function formatPace(secondsPerKm: number) {
   const minutes = Math.floor(secondsPerKm / 60);
   const seconds = secondsPerKm % 60;
   return `${minutes}:${String(seconds).padStart(2, "0")}/km`;
-}
-
-function formatPaceDelta(seconds: number) {
-  if (seconds === 0) return "0:00";
-  const sign = seconds > 0 ? "+" : "-";
-  return `${sign}${formatPace(Math.abs(seconds)).replace("/km", "")}`;
 }
 
 function formatKm(value: number) {
