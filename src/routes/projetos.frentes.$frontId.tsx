@@ -529,7 +529,7 @@ function ProjectRow({
       params={{ projectId: project.id }}
       className="press flex items-stretch gap-3 rounded-2xl border border-border/60 bg-elevated/45 px-3.5 py-3"
     >
-      <div className="min-w-0 flex-1 py-0.5">
+      <div className="flex min-w-0 flex-1 flex-col justify-center py-0.5">
         <h4 className="min-w-0 break-words text-base font-semibold leading-snug">{project.title}</h4>
         {deadlineLabel ? (
           <div className="mt-1.5 flex items-center">

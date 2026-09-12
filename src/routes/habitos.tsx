@@ -3,10 +3,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Footprints, Moon } from "lucide-react";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
 
-import { HabitTracker } from "@/components/yuri/HabitTracker";
 import { PageHeader } from "@/components/yuri/PageHeader";
 import { ProgressBar } from "@/components/yuri/ProgressBar";
-import { useStore } from "@/lib/store";
 
 const DAILY_STEPS_GOAL = 6000;
 const DAILY_SLEEP_GOAL_HOURS = 8;
@@ -31,7 +29,6 @@ export const Route = createFileRoute("/habitos")({
 });
 
 function HabitosPage() {
-  const { habits } = useStore();
   const [health, setHealth] = useState<HealthRecentResponse | null>(null);
   const [healthStatus, setHealthStatus] = useState<"loading" | "ready" | "mock" | "error">(
     "loading",
@@ -71,7 +68,6 @@ function HabitosPage() {
     <div className="space-y-3">
       <PageHeader title="Hábitos" subtitle="Semana atual" back />
       <HealthMetricCards health={health} status={healthStatus} />
-      <HabitTracker habits={habits} />
     </div>
   );
 }
