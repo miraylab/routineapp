@@ -227,7 +227,7 @@ function useStoreValue(accessToken?: string, userId?: string) {
 
     let active = true;
 
-    fetchSupabaseProjectData(accessToken)
+    retryAsync(() => fetchSupabaseProjectData(accessToken))
       .then((data) => {
         if (active) setRemoteProjectData(data);
       })
@@ -246,7 +246,7 @@ function useStoreValue(accessToken?: string, userId?: string) {
 
     let active = true;
 
-    fetchSupabaseHabitData(accessToken)
+    retryAsync(() => fetchSupabaseHabitData(accessToken))
       .then((data) => {
         if (active) setRemoteHabitData(data ?? { habits: [], doneDailyHabits: {} });
       })
@@ -265,7 +265,7 @@ function useStoreValue(accessToken?: string, userId?: string) {
 
     let active = true;
 
-    fetchSupabaseWeekFocus(accessToken)
+    retryAsync(() => fetchSupabaseWeekFocus(accessToken))
       .then((data) => {
         if (active) setRemoteWeekMilestones(data);
       })
@@ -284,7 +284,7 @@ function useStoreValue(accessToken?: string, userId?: string) {
 
     let active = true;
 
-    fetchSupabaseFixedPlaces(accessToken)
+    retryAsync(() => fetchSupabaseFixedPlaces(accessToken))
       .then((places) => {
         if (active) setFixedPlaces(places);
       })
@@ -1473,6 +1473,27 @@ function toDateKey(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+async function retryAsync<T>(run: () => Promise<T>, attempts = 3) {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await run();
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts - 1) {
+        await wait(450 * (attempt + 1));
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function habitIsScheduledForDay(habit: DailyHabit, dayOfWeek: number) {

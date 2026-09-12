@@ -14,6 +14,7 @@ import {
 import type { Category, Project, ProjectStatus, ScheduleBlock, Task } from "@/data/mockData";
 import { useStore, type ManagedFront } from "@/lib/store";
 import {
+  findProjectEffectiveDeadlineKey,
   findProjectAgendaDeadlineKey,
   formatAgendaDeadlineDistance,
 } from "@/lib/projectAgendaDeadline";
@@ -646,10 +647,24 @@ function compareProjectsByOperationalPriority(
   scheduleBlocks: ScheduleBlock[],
   todayKey: string,
 ) {
-  const priorityA = getProjectOperationalPriority(a, scheduleBlocks, todayKey);
-  const priorityB = getProjectOperationalPriority(b, scheduleBlocks, todayKey);
-  if (priorityA !== priorityB) return priorityA - priorityB;
+  const sortA = getProjectDeadlineSort(a, scheduleBlocks, todayKey);
+  const sortB = getProjectDeadlineSort(b, scheduleBlocks, todayKey);
+  if (sortA.group !== sortB.group) return sortA.group - sortB.group;
+  if (sortA.deadlineKey && sortB.deadlineKey && sortA.deadlineKey !== sortB.deadlineKey) {
+    return sortA.deadlineKey.localeCompare(sortB.deadlineKey);
+  }
   return compareProjectsByManualOrder(a, b);
+}
+
+function getProjectDeadlineSort(project: Project, scheduleBlocks: ScheduleBlock[], todayKey: string) {
+  const deadlineKey = findProjectEffectiveDeadlineKey(project, scheduleBlocks, todayKey);
+  if (deadlineKey) return { group: 1, deadlineKey };
+  if (projectHasOpenTask(project)) return { group: 0, deadlineKey: null };
+  return { group: 2, deadlineKey: null };
+}
+
+function projectHasOpenTask(project: Project) {
+  return project.actions.some((action) => !action.dueDate);
 }
 
 function getProjectOperationalPriority(project: Project, scheduleBlocks: ScheduleBlock[], todayKey: string) {

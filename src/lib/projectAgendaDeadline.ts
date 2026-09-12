@@ -2,6 +2,15 @@ import type { Project, ScheduleBlock } from "@/data/mockData";
 
 const AGENDA_LOOKAHEAD_DAYS = 7;
 
+export function findProjectEffectiveDeadlineKey(
+  project: Project,
+  scheduleBlocks: ScheduleBlock[],
+  todayKey: string,
+) {
+  return parseShortPortugueseDeadlineKey(project.deadline, todayKey) ??
+    findProjectAgendaDeadlineKey(project, scheduleBlocks, todayKey);
+}
+
 export function findProjectAgendaDeadlineKey(
   project: Project,
   scheduleBlocks: ScheduleBlock[],
@@ -80,3 +89,35 @@ function parseDateKey(value: string) {
 function toDateKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
+
+function parseShortPortugueseDeadlineKey(value: string, todayKey: string) {
+  const match = value
+    .trim()
+    .toLowerCase()
+    .match(/^(\d{1,2})\s+([a-zç.]+)$/);
+  if (!match) return null;
+
+  const day = Number(match[1]);
+  const month = SHORT_MONTHS[match[2].replace(".", "")];
+  if (!day || month === undefined) return null;
+
+  const today = parseDateKey(todayKey) ?? new Date();
+  const parsed = new Date(today.getFullYear(), month, day);
+  parsed.setHours(0, 0, 0, 0);
+  return toDateKey(parsed);
+}
+
+const SHORT_MONTHS: Record<string, number> = {
+  jan: 0,
+  fev: 1,
+  mar: 2,
+  abr: 3,
+  mai: 4,
+  jun: 5,
+  jul: 6,
+  ago: 7,
+  set: 8,
+  out: 9,
+  nov: 10,
+  dez: 11,
+};
