@@ -49,6 +49,7 @@ export const Route = createFileRoute("/projetos/")({
 const PROJECTS_SELECTED_AREA_STORAGE_KEY = "routineapp:projects:selected-area";
 
 function ProjetosPage() {
+  const navigate = useNavigate();
   const {
     projects,
     tasks,
@@ -91,6 +92,8 @@ function ProjetosPage() {
   );
   const hasHiddenCompletedProjects = currentArea ? hasCompletedProjectContent(currentArea) : false;
   const focusedFrontId = getProjectsFocusFromUrl().frontId;
+  const currentFrontForActions =
+    activeArea?.fronts.find((front) => front.id === focusedFrontId) ?? activeArea?.fronts[0];
 
   const moveArea = useCallback(
     (direction: 1 | -1) => {
@@ -152,6 +155,20 @@ function ProjetosPage() {
           area={currentArea}
           coverImageUrl={projectAreaCovers[currentArea.area]}
           uploading={coverUploadingArea === currentArea.area}
+          currentFrontTitle={currentFrontForActions?.title}
+          onAddFront={() => {
+            setFrontError("");
+            setAddFrontOpen(true);
+          }}
+          onEditFront={
+            currentFrontForActions
+              ? () =>
+                  navigate({
+                    to: "/projetos/frentes/$frontId",
+                    params: { frontId: currentFrontForActions.id },
+                  })
+              : undefined
+          }
           onCoverSelected={async (file) => {
             setCoverUploadingArea(currentArea.area);
             try {
@@ -357,11 +374,17 @@ function ProjectOverview({
   area,
   coverImageUrl,
   uploading,
+  currentFrontTitle,
+  onAddFront,
+  onEditFront,
   onCoverSelected,
 }: {
   area: ProjectArea;
   coverImageUrl?: string;
   uploading: boolean;
+  currentFrontTitle?: string;
+  onAddFront: () => void;
+  onEditFront?: () => void;
   onCoverSelected: (file: File) => void;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -395,19 +418,46 @@ function ProjectOverview({
           onCoverSelected(file);
         }}
       />
-      <button
-        type="button"
-        onClick={() => inputRef.current?.click()}
-        disabled={uploading}
-        className="press absolute right-4 top-4 z-10 grid size-8 place-items-center rounded-xl bg-background/15 text-primary-foreground backdrop-blur-sm disabled:cursor-wait disabled:opacity-70"
-        aria-label={`Trocar imagem de ${area.area}`}
-      >
-        {uploading ? (
-          <span className="size-3 rounded-full border-2 border-primary-foreground/40 border-t-primary-foreground animate-spin" />
-        ) : (
-          <Plus className="size-4" />
-        )}
-      </button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            disabled={uploading}
+            className="press absolute right-4 top-4 z-10 grid size-8 place-items-center rounded-xl bg-background/15 text-primary-foreground backdrop-blur-sm disabled:cursor-wait disabled:opacity-70"
+            aria-label={`Abrir ações de ${area.area}`}
+          >
+            {uploading ? (
+              <span className="size-3 rounded-full border-2 border-primary-foreground/40 border-t-primary-foreground animate-spin" />
+            ) : (
+              <Plus className="size-4" />
+            )}
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="end"
+          className="w-56 rounded-2xl border-border/60 bg-card p-1.5 text-foreground"
+        >
+          <DropdownMenuItem
+            onSelect={onAddFront}
+            className="rounded-xl px-3 py-2.5 text-sm"
+          >
+            Adicionar nova frente
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={!onEditFront}
+            onSelect={onEditFront}
+            className="rounded-xl px-3 py-2.5 text-sm"
+          >
+            {currentFrontTitle ? `Editar ${currentFrontTitle}` : "Editar frente atual"}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => inputRef.current?.click()}
+            className="rounded-xl px-3 py-2.5 text-sm"
+          >
+            Trocar capa
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </section>
   );
 }
