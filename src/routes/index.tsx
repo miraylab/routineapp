@@ -103,6 +103,8 @@ function HojePage() {
     toggleActivityChecklistItem,
     toggleTask,
     toggleProjectAction,
+    updateTask,
+    removeTask,
     addActivityChecklistItem,
     addActivityLearningEntry,
     addActivityLearningAudioEntry,
@@ -781,6 +783,8 @@ function HojePage() {
         onToggleChecklistItem={toggleActivityChecklistItem}
         onToggleTask={toggleTask}
         onToggleProjectAction={toggleProjectAction}
+        onUpdateTask={updateTask}
+        onRemoveTask={removeTask}
         onAddChecklistItem={(title, priority) =>
           focusedCurrent &&
           (isFreeTimeBlock(focusedCurrent) && reliefNotesFront

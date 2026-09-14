@@ -4,6 +4,8 @@ import { Check, ChevronDown, Flag, Pencil, Plus, Trash2, X } from "lucide-react"
 
 import { PageHeader } from "@/components/yuri/PageHeader";
 import { StatusBadge } from "@/components/yuri/StatusBadge";
+import { LongPressButton } from "@/components/yuri/LongPressButton";
+import { TaskEditDialog } from "@/components/yuri/TaskEditDialog";
 import {
   Dialog,
   DialogContent,
@@ -11,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { ProjectStatus, Task } from "@/data/mockData";
+import type { ProjectAction, ProjectStatus, Task } from "@/data/mockData";
 import {
   findProjectAgendaOccurrence,
   formatAgendaOccurrenceDistance,
@@ -47,6 +49,8 @@ function ProjetoDetalhe() {
     todayKey,
     nowMinutes,
     toggleProjectAction,
+    updateTask,
+    removeTask,
     addProjectAction,
     setProjectStatus,
     updateProjectDetails,
@@ -66,6 +70,7 @@ function ProjetoDetalhe() {
   const [editProjectOpen, setEditProjectOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
   const [deleteProjectConfirm, setDeleteProjectConfirm] = useState(false);
+  const [editingAction, setEditingAction] = useState<ProjectAction | null>(null);
 
   const project = projects.find((p) => p.id === projectId);
   const visibleActions = orderActionsByDoneLast(project?.actions ?? []);
@@ -201,10 +206,12 @@ function ProjetoDetalhe() {
                 const visibleFromLabel = formatVisibleFromDistance(a.visibleFrom, todayKey);
                 return (
                   <li key={a.id}>
-                    <button
+                    <LongPressButton
                       type="button"
+                      onLongPress={() => setEditingAction(a)}
                       onClick={() => toggleProjectAction(project.id, a.id)}
                       className="press flex w-full items-start gap-3 rounded-2xl bg-card/70 px-3.5 py-3 text-left text-sm text-foreground"
+                      aria-label={`${a.dueDate ? "Desmarcar" : "Marcar"} ${a.title}. Segure para editar.`}
                     >
                       <span
                         className={cn(
@@ -241,7 +248,7 @@ function ProjetoDetalhe() {
                           ) : null}
                         </span>
                       ) : null}
-                    </button>
+                    </LongPressButton>
                   </li>
                 );
               })}
@@ -422,6 +429,16 @@ function ProjetoDetalhe() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <TaskEditDialog
+        open={Boolean(editingAction)}
+        task={editingAction}
+        onOpenChange={(open) => {
+          if (!open) setEditingAction(null);
+        }}
+        onSave={updateTask}
+        onDelete={removeTask}
+      />
     </div>
   );
 }

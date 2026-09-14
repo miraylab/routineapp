@@ -315,6 +315,30 @@ export async function updateSupabaseTaskDone(taskId: string, dueDate: string | n
   return true;
 }
 
+export async function updateSupabaseTask(
+  taskId: string,
+  input: Partial<Pick<Task, "title" | "quick" | "visibleFrom" | "recurrence" | "dueDate">>,
+) {
+  if (!isNumericId(taskId)) return false;
+  const body: Record<string, unknown> = {};
+
+  if (input.title !== undefined) body.title = input.title;
+  if (input.quick !== undefined) body.quick = input.quick;
+  if (input.visibleFrom !== undefined) body.visible_from = input.visibleFrom || currentDateKey();
+  if (input.recurrence !== undefined) body.recurrence = input.recurrence;
+  if (input.dueDate !== undefined) body.due_date = input.dueDate ?? null;
+
+  if (Object.keys(body).length === 0) return true;
+  await supabasePatch("tasks", `id=eq.${taskId}`, body);
+  return true;
+}
+
+export async function deleteSupabaseTask(taskId: string) {
+  if (!isNumericId(taskId)) return false;
+  await supabaseDelete("tasks", `id=eq.${taskId}`);
+  return true;
+}
+
 async function supabaseGet<T>(
   table: string,
   query: string,
@@ -367,6 +391,20 @@ async function supabasePatch(
       Prefer: "return=minimal",
     },
     body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Supabase ${table}: ${response.status} ${response.statusText}`);
+  }
+}
+
+async function supabaseDelete(table: string, filter: string) {
+  const response = await fetch(`${normalizeRestUrl(SUPABASE_REST_URL)}/${table}?${filter}`, {
+    method: "DELETE",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${getSupabaseAccessToken() ?? SUPABASE_ANON_KEY}`,
+    },
   });
 
   if (!response.ok) {

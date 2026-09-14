@@ -39,6 +39,7 @@ import {
   createSupabaseFront,
   createSupabaseProject,
   createSupabaseTask,
+  deleteSupabaseTask,
   fetchSupabaseProjectData,
   formatShortDeadlineToDate,
   isSupabaseProjectsConfigured,
@@ -46,6 +47,7 @@ import {
   updateSupabaseFront,
   updateSupabaseAreaCover,
   updateSupabaseProject,
+  updateSupabaseTask,
   updateSupabaseTaskDone,
   type CreateProjectInput,
   type SupabaseProjectData,
@@ -1189,6 +1191,119 @@ function useStoreValue(accessToken?: string, userId?: string) {
     [fronts, todayKey],
   );
 
+  const updateTaskEntry = useCallback(
+    (
+      taskId: string,
+      input: Partial<Pick<Task, "title" | "quick" | "visibleFrom" | "recurrence" | "dueDate">>,
+    ) => {
+      const cleaned: Partial<Pick<Task, "title" | "quick" | "visibleFrom" | "recurrence" | "dueDate">> = {};
+      if (input.title !== undefined) cleaned.title = input.title.trim();
+      if (input.quick !== undefined) cleaned.quick = input.quick;
+      if (input.visibleFrom !== undefined) cleaned.visibleFrom = input.visibleFrom;
+      if (input.recurrence !== undefined) cleaned.recurrence = input.recurrence;
+      if (input.dueDate !== undefined) cleaned.dueDate = input.dueDate;
+      if (cleaned.title !== undefined && !cleaned.title) return;
+
+      setRemoteProjectData((data) =>
+        data
+          ? {
+              ...data,
+              tasks: data.tasks.map((task) =>
+                task.id === taskId
+                  ? {
+                      ...task,
+                      ...cleaned,
+                      visibleFrom: cleaned.visibleFrom ?? task.visibleFrom,
+                    }
+                  : task,
+              ),
+              projects: data.projects.map((project) => ({
+                ...project,
+                actions: project.actions.map((action) =>
+                  action.id === taskId
+                    ? {
+                        ...action,
+                        ...cleaned,
+                        visibleFrom: cleaned.visibleFrom ?? action.visibleFrom,
+                      }
+                    : action,
+                ),
+              })),
+            }
+          : data,
+      );
+
+      setState((s) => ({
+        ...s,
+        extraTasks: (s.extraTasks ?? []).map((task) =>
+          task.id === taskId
+            ? {
+                ...task,
+                ...cleaned,
+                visibleFrom: cleaned.visibleFrom ?? task.visibleFrom,
+              }
+            : task,
+        ),
+        extraActions: Object.fromEntries(
+          Object.entries(s.extraActions ?? {}).map(([projectId, actions]) => [
+            projectId,
+            actions.map((action) =>
+              action.id === taskId
+                ? {
+                    ...action,
+                    ...cleaned,
+                    visibleFrom: cleaned.visibleFrom ?? action.visibleFrom,
+                  }
+                : action,
+            ),
+          ]),
+        ),
+      }));
+
+      void updateSupabaseTask(taskId, cleaned).catch((error) =>
+        console.warn("Supabase task update failed", error),
+      );
+    },
+    [],
+  );
+
+  const removeTaskEntry = useCallback((taskId: string) => {
+    setRemoteProjectData((data) =>
+      data
+        ? {
+            ...data,
+            tasks: data.tasks.filter((task) => task.id !== taskId),
+            projects: data.projects.map((project) => ({
+              ...project,
+              actions: project.actions.filter((action) => action.id !== taskId),
+            })),
+          }
+        : data,
+    );
+
+    setState((s) => ({
+      ...s,
+      doneTasks: (s.doneTasks ?? []).filter((id) => id !== taskId),
+      extraTasks: (s.extraTasks ?? []).filter((task) => task.id !== taskId),
+      projectActions: Object.fromEntries(
+        Object.entries(s.projectActions ?? {}).map(([projectId, ids]) => [
+          projectId,
+          ids.filter((id) => id !== taskId),
+        ]),
+      ),
+      extraActions: Object.fromEntries(
+        Object.entries(s.extraActions ?? {}).map(([projectId, actions]) => [
+          projectId,
+          actions.filter((action) => action.id !== taskId),
+        ]),
+      ),
+    }));
+
+    void deleteSupabaseTask(taskId).catch((error) =>
+      console.warn("Supabase task delete failed", error),
+    );
+  }, []);
+
   const addReliefNoteAudioEntry = useCallback(
     (audioBlob: Blob, mimeType: string, entryDate = todayKey) => {
       if (!audioBlob.size || !userId || !isSupabaseAudioConfigured()) return;
@@ -1488,6 +1603,8 @@ function useStoreValue(accessToken?: string, userId?: string) {
     addProject,
     addProjectAction,
     addTask,
+    updateTask: updateTaskEntry,
+    removeTask: removeTaskEntry,
     addReliefNoteAudioEntry,
     materializeScheduleScope,
     addDailyJournalEntry,

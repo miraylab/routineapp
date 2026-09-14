@@ -7,13 +7,16 @@ import {
   type CSSProperties,
   type RefObject,
   type PointerEvent,
+  type ReactNode,
 } from "react";
 import { Check, Flag, Mic, Plus, Send, X } from "lucide-react";
 
 import { ProgressBar } from "./ProgressBar";
 import { StatusBadge } from "./StatusBadge";
+import { TaskEditDialog } from "./TaskEditDialog";
 import type { CurrentActivity } from "@/lib/schedule";
 import { formatDuration } from "@/lib/schedule";
+import { useLongPress } from "@/lib/useLongPress";
 import type { Project, ProjectAction, ScheduleBlock, Task } from "@/data/mockData";
 import type { ManagedFront } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -42,6 +45,11 @@ interface Props {
   onToggleChecklistItem: (id: string) => void;
   onToggleTask?: (id: string) => void;
   onToggleProjectAction?: (projectId: string, actionId: string) => void;
+  onUpdateTask?: (
+    id: string,
+    input: Partial<Pick<Task, "title" | "quick" | "visibleFrom" | "recurrence" | "dueDate">>,
+  ) => void;
+  onRemoveTask?: (id: string) => void;
   onAddChecklistItem: (title: string, priority: boolean) => void;
   onMaterializeScheduleScope?: (block: ScheduleBlock) => Promise<void> | void;
   onAddLearningNote?: (text: string) => void;
@@ -80,6 +88,8 @@ export function CurrentActivityCard({
   onToggleChecklistItem,
   onToggleTask,
   onToggleProjectAction,
+  onUpdateTask,
+  onRemoveTask,
   onAddChecklistItem,
   onMaterializeScheduleScope,
   onAddLearningNote,
@@ -426,6 +436,8 @@ export function CurrentActivityCard({
             onToggleChecklistItem={onToggleChecklistItem}
             onToggleTask={onToggleTask}
             onToggleProjectAction={onToggleProjectAction}
+            onUpdateTask={onUpdateTask}
+            onRemoveTask={onRemoveTask}
             onAddChecklistItem={onAddChecklistItem}
             onMaterializeScheduleScope={onMaterializeScheduleScope}
             onAddLearningNote={onAddLearningNote}
@@ -457,6 +469,8 @@ export function CurrentActivityCard({
           onToggleChecklistItem={onToggleChecklistItem}
           onToggleTask={onToggleTask}
           onToggleProjectAction={onToggleProjectAction}
+          onUpdateTask={onUpdateTask}
+          onRemoveTask={onRemoveTask}
           onAddChecklistItem={onAddChecklistItem}
           onMaterializeScheduleScope={onMaterializeScheduleScope}
           onAddLearningNote={onAddLearningNote}
@@ -494,6 +508,8 @@ export function CurrentActivityCard({
             onToggleChecklistItem={onToggleChecklistItem}
             onToggleTask={onToggleTask}
             onToggleProjectAction={onToggleProjectAction}
+            onUpdateTask={onUpdateTask}
+            onRemoveTask={onRemoveTask}
             onAddChecklistItem={onAddChecklistItem}
             onMaterializeScheduleScope={onMaterializeScheduleScope}
             onAddLearningNote={onAddLearningNote}
@@ -529,6 +545,8 @@ function ActivityCardPanel({
   onToggleChecklistItem,
   onToggleTask,
   onToggleProjectAction,
+  onUpdateTask,
+  onRemoveTask,
   onAddChecklistItem,
   onMaterializeScheduleScope,
   onAddLearningNote,
@@ -569,6 +587,11 @@ function ActivityCardPanel({
   onToggleChecklistItem: (id: string) => void;
   onToggleTask?: (id: string) => void;
   onToggleProjectAction?: (projectId: string, actionId: string) => void;
+  onUpdateTask?: (
+    id: string,
+    input: Partial<Pick<Task, "title" | "quick" | "visibleFrom" | "recurrence" | "dueDate">>,
+  ) => void;
+  onRemoveTask?: (id: string) => void;
   onAddChecklistItem: (title: string, priority: boolean) => void;
   onMaterializeScheduleScope?: (block: ScheduleBlock) => Promise<void> | void;
   onAddLearningNote?: (text: string) => void;
@@ -594,6 +617,7 @@ function ActivityCardPanel({
   const [scopeCreationState, setScopeCreationState] = useState<
     Record<string, "creating" | "created" | "error">
   >({});
+  const [editingTask, setEditingTask] = useState<ActivityChecklistItem | null>(null);
   const pendingScopeCreationsRef = useRef<Set<string>>(new Set());
 
   if (!current) return <div className={className} />;
@@ -797,10 +821,16 @@ function ActivityCardPanel({
                 }
 
                 return (
-                  <button
+                  <EditableChecklistButton
                     key={item.id}
-                    ref={item.id === firstPendingId ? firstPendingRef : undefined}
-                    type="button"
+                    item={item}
+                    itemDone={itemDone}
+                    buttonRef={item.id === firstPendingId ? firstPendingRef : undefined}
+                    onLongPress={
+                      (item.source === "task" || item.source === "project-action") && onUpdateTask && onRemoveTask
+                        ? () => setEditingTask(item)
+                        : undefined
+                    }
                     onClick={() => {
                       if (item.source === "task" && item.taskId) {
                         onToggleTask?.(item.taskId);
@@ -812,7 +842,6 @@ function ActivityCardPanel({
                       }
                       onToggleChecklistItem(item.id);
                     }}
-                    className="press relative flex w-full items-start gap-3 rounded-2xl bg-card/70 px-3.5 py-3 pr-7 text-left"
                   >
                     {item.priority && !itemDone ? (
                       <span className="absolute right-3 top-1/2 size-2 -translate-y-1/2 rounded-full bg-primary" />
@@ -840,7 +869,7 @@ function ActivityCardPanel({
                         </span>
                       ) : null}
                     </span>
-                  </button>
+                  </EditableChecklistButton>
                 );
               })
             ) : (
@@ -1058,7 +1087,64 @@ function ActivityCardPanel({
       {activityIndicators.length > 0 ? (
         <ActivityPositionDots indicators={activityIndicators} />
       ) : null}
+      <TaskEditDialog
+        open={Boolean(editingTask)}
+        task={
+          editingTask?.taskId
+            ? {
+                id: editingTask.taskId,
+                title: editingTask.title,
+                quick: editingTask.priority,
+                visibleFrom: editingTask.visibleFrom,
+                recurrence: editingTask.recurrence,
+                dueDate: editingTask.done ? todayKey : undefined,
+              }
+            : null
+        }
+        onOpenChange={(open) => {
+          if (!open) setEditingTask(null);
+        }}
+        onSave={(id, input) => onUpdateTask?.(id, input)}
+        onDelete={(id) => onRemoveTask?.(id)}
+      />
     </div>
+  );
+}
+
+function EditableChecklistButton({
+  item,
+  itemDone,
+  buttonRef,
+  onLongPress,
+  onClick,
+  children,
+}: {
+  item: ActivityChecklistItem;
+  itemDone: boolean;
+  buttonRef?: RefObject<HTMLButtonElement | null>;
+  onLongPress?: () => void;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  const { longPressProps, shouldSuppressClick } = useLongPress(() => onLongPress?.());
+
+  return (
+    <button
+      ref={buttonRef}
+      type="button"
+      {...(onLongPress ? longPressProps : {})}
+      onClick={(event) => {
+        if (shouldSuppressClick()) {
+          event.preventDefault();
+          return;
+        }
+        onClick();
+      }}
+      className="press relative flex w-full items-start gap-3 rounded-2xl bg-card/70 px-3.5 py-3 pr-7 text-left"
+      aria-label={onLongPress ? `${itemDone ? "Desmarcar" : "Marcar"} ${item.title}. Segure para editar.` : undefined}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -1315,6 +1401,8 @@ export interface ActivityChecklistItem {
   projectId?: string;
   configureBlock?: ScheduleBlock;
   done?: boolean;
+  visibleFrom?: string;
+  recurrence?: Task["recurrence"];
 }
 
 interface ActivityIndicator {
@@ -1424,6 +1512,8 @@ function buildScopedTaskChecklist(
       context: formatTaskPath(task.fatherId, fronts, projects),
       source: "task" as const,
       done: Boolean(task.dueDate),
+      visibleFrom: task.visibleFrom,
+      recurrence: task.recurrence,
     }));
 
   const projectActions = projects
@@ -1440,6 +1530,8 @@ function buildScopedTaskChecklist(
           context: `${project.category} · ${project.frontTitle} · ${project.title}`,
           source: "project-action" as const,
           done: Boolean(action.dueDate),
+          visibleFrom: action.visibleFrom,
+          recurrence: action.recurrence,
         })),
     );
 

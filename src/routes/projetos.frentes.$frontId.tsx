@@ -4,6 +4,8 @@ import { Check, ChevronDown, Flag, Pencil, Plus, Trash2, X } from "lucide-react"
 
 import { PageHeader } from "@/components/yuri/PageHeader";
 import { StatusBadge } from "@/components/yuri/StatusBadge";
+import { LongPressButton } from "@/components/yuri/LongPressButton";
+import { TaskEditDialog } from "@/components/yuri/TaskEditDialog";
 import {
   Dialog,
   DialogContent,
@@ -47,6 +49,8 @@ function FrenteDetalhe() {
     nowMinutes,
     frontStatuses,
     toggleTask,
+    updateTask,
+    removeTask,
     addTask,
     addProject,
     setFrontStatus,
@@ -71,6 +75,7 @@ function FrenteDetalhe() {
   const [addProjectOpen, setAddProjectOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
   const [deleteFrontConfirm, setDeleteFrontConfirm] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [recurrence, setRecurrence] =
     useState<NonNullable<Task["recurrence"]>>("none");
 
@@ -196,10 +201,12 @@ function FrenteDetalhe() {
                 const visibleFromLabel = formatVisibleFromDistance(task.visibleFrom, todayKey);
                 return (
                   <li key={task.id}>
-                    <button
+                    <LongPressButton
                       type="button"
+                      onLongPress={() => setEditingTask(task)}
                       onClick={() => toggleTask(task.id)}
                       className="press flex w-full items-start gap-3 rounded-2xl bg-card/70 px-3.5 py-3 text-left text-sm text-foreground"
+                      aria-label={`${done ? "Desmarcar" : "Marcar"} ${task.title}. Segure para editar.`}
                     >
                       <span
                         className={cn(
@@ -231,7 +238,7 @@ function FrenteDetalhe() {
                           ) : null}
                         </span>
                       ) : null}
-                    </button>
+                    </LongPressButton>
                   </li>
                 );
               })}
@@ -330,6 +337,16 @@ function FrenteDetalhe() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <TaskEditDialog
+        open={Boolean(editingTask)}
+        task={editingTask}
+        onOpenChange={(open) => {
+          if (!open) setEditingTask(null);
+        }}
+        onSave={updateTask}
+        onDelete={removeTask}
+      />
 
       <section className="rounded-3xl border border-border/60 bg-card p-5">
         <p className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground">

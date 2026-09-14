@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronRight, Flag, Plus, User, X } from "lucide-react";
 
 import { StatusBadge } from "@/components/yuri/StatusBadge";
+import { LongPressButton } from "@/components/yuri/LongPressButton";
+import { TaskEditDialog } from "@/components/yuri/TaskEditDialog";
 import type { Category, Project, ProjectStatus, ScheduleBlock, Task } from "@/data/mockData";
 import {
   Dialog,
@@ -58,6 +60,8 @@ function ProjetosPage() {
     projectsLoading,
     nowMinutes,
     toggleTask,
+    updateTask,
+    removeTask,
     todayKey,
     addFront,
     addProject,
@@ -236,6 +240,8 @@ function ProjetosPage() {
                 nowMinutes={nowMinutes}
                 scheduleBlocks={scheduleBlocks}
                 onToggleTask={toggleTask}
+                onUpdateTask={updateTask}
+                onRemoveTask={removeTask}
                 onAddTask={addTask}
                 onAddProject={addProject}
               />
@@ -266,6 +272,8 @@ function ProjetosPage() {
                   nowMinutes={nowMinutes}
                   scheduleBlocks={scheduleBlocks}
                   onToggleTask={toggleTask}
+                  onUpdateTask={updateTask}
+                  onRemoveTask={removeTask}
                   onAddTask={addTask}
                   onAddProject={addProject}
                   showStatus
@@ -468,6 +476,8 @@ function FrontSection({
   nowMinutes,
   scheduleBlocks,
   onToggleTask,
+  onUpdateTask,
+  onRemoveTask,
   onAddTask,
   onAddProject,
   showStatus = false,
@@ -477,6 +487,11 @@ function FrontSection({
   nowMinutes: number;
   scheduleBlocks: ScheduleBlock[];
   onToggleTask: (id: string) => void;
+  onUpdateTask: (
+    id: string,
+    input: Partial<Pick<Task, "title" | "quick" | "visibleFrom" | "recurrence" | "dueDate">>,
+  ) => void;
+  onRemoveTask: (id: string) => void;
   onAddTask: (
     title: string,
     fatherId?: string,
@@ -505,6 +520,7 @@ function FrontSection({
   const [taskVisibleFrom, setTaskVisibleFrom] = useState("");
   const [taskRecurrence, setTaskRecurrence] =
     useState<NonNullable<Task["recurrence"]>>("none");
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [projectTitle, setProjectTitle] = useState("");
   const [projectObjective, setProjectObjective] = useState("");
   const [projectDeadline, setProjectDeadline] = useState("");
@@ -658,10 +674,12 @@ function FrontSection({
               const visibleFromLabel = formatVisibleFromDistance(task.visibleFrom, todayKey);
               return (
                 <li key={task.id}>
-                  <button
+                  <LongPressButton
                     type="button"
+                    onLongPress={() => setEditingTask(task)}
                     onClick={() => onToggleTask(task.id)}
                     className="press flex w-full items-start gap-3 rounded-2xl bg-card/70 px-3.5 py-3 text-left text-sm text-foreground"
+                    aria-label={`${taskDone ? "Desmarcar" : "Marcar"} ${task.title}. Segure para editar.`}
                   >
                     <span
                       className={cn(
@@ -693,7 +711,7 @@ function FrontSection({
                         ) : null}
                       </span>
                     ) : null}
-                  </button>
+                  </LongPressButton>
                 </li>
               );
             })}
@@ -804,6 +822,16 @@ function FrontSection({
           </form>
         </DialogContent>
       </Dialog>
+
+      <TaskEditDialog
+        open={Boolean(editingTask)}
+        task={editingTask}
+        onOpenChange={(open) => {
+          if (!open) setEditingTask(null);
+        }}
+        onSave={onUpdateTask}
+        onDelete={onRemoveTask}
+      />
 
       <Dialog open={addProjectOpen} onOpenChange={setAddProjectOpen}>
         <DialogContent
