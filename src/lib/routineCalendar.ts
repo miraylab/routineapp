@@ -142,18 +142,6 @@ function parseRoutineTitle(rawTitle: string): {
   const third = parts[2];
   const category = normalizeCategory(first);
 
-  if (category === "Rotina" && looksLikeHealthRoutine(first)) {
-    return {
-      category: "Saúde",
-      title: first,
-      scope: {
-        area: "Pessoal",
-        front: "Saúde",
-        project: first,
-      },
-    };
-  }
-
   if (category === "Estudos" && second && normalizeSegment(second) === "video") {
     return {
       category,
@@ -168,7 +156,7 @@ function parseRoutineTitle(rawTitle: string): {
       category,
       title: second ?? first,
       subtitle: third,
-      scope: buildHealthScope(first, second, third),
+      scope: buildHealthScope(second, third),
     };
   }
 
@@ -208,7 +196,7 @@ function buildRoutineScope(category: Category, front?: string, project?: string)
   };
 }
 
-function buildHealthScope(first: string, second?: string, third?: string): ScheduleBlock["scope"] {
+function buildHealthScope(second?: string, third?: string): ScheduleBlock["scope"] {
   const project = third ?? (isGenericHealthLabel(second) ? undefined : second);
   return {
     area: "Pessoal",
@@ -228,16 +216,6 @@ function buildPersonalFrontScope(front: string, second?: string, third?: string)
 function isGenericHealthLabel(value: string | undefined) {
   const normalized = normalizeSegment(value ?? "");
   return normalized === "saude" || normalized === "academia" || normalized === "musculacao" || normalized === "treino";
-}
-
-function looksLikeHealthRoutine(value: string) {
-  const normalized = normalizeSegment(value);
-  return (
-    normalized.includes("treino") ||
-    normalized.includes("corrida") ||
-    normalized.includes("academia") ||
-    normalized.includes("musculacao")
-  );
 }
 
 function normalizeCategory(value: string): Category {

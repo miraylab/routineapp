@@ -374,8 +374,9 @@ export function CurrentActivityCard({
     ? buildSlideContext(context, previousSlide, nowMinutes)
     : null;
   const nextContext = nextSlide ? buildSlideContext(context, nextSlide, nowMinutes) : null;
-  const previousProject = findProjectForSlide(projects, previousSlide);
-  const nextProject = findProjectForSlide(projects, nextSlide);
+  const previousProject = resolveProjectForSlide(projects, fronts, previousSlide);
+  const currentProject = project ?? findProjectByBlockLabels(current, projects, fronts);
+  const nextProject = resolveProjectForSlide(projects, fronts, nextSlide);
   const previousIndicators = previousSlide
     ? selectActivityIndicators(activityIndicators, previousSlide.id)
     : [];
@@ -437,7 +438,7 @@ export function CurrentActivityCard({
 
         <ActivityCardPanel
           context={context}
-          project={project}
+          project={currentProject}
           done={done}
           viewMode={viewMode}
           draft={draft}
@@ -451,7 +452,7 @@ export function CurrentActivityCard({
           checklistItemCompletedAt={checklistItemCompletedAt}
           todayKey={todayKey}
           extraChecklistItems={extraChecklistItems}
-          scopedTaskItems={buildScopedTaskChecklist(current, project, tasks, projects, fronts, todayKey)}
+          scopedTaskItems={buildScopedTaskChecklist(current, currentProject, tasks, projects, fronts, todayKey)}
           routineRatings={routineRatings}
           onToggleChecklistItem={onToggleChecklistItem}
           onToggleTask={onToggleTask}
@@ -597,11 +598,12 @@ function ActivityCardPanel({
 
   if (!current) return <div className={className} />;
 
-  const activityHeading = getActivityHeading(current);
-  const isRoutine = current.cardType === "routine";
+  const activityHeading = getActivityHeading(current, project);
+  const isRoutine = current.cardType === "routine" && !project;
   const isStudy = current.category === "Estudos";
-  const isRun = isRunningBlock(current);
-  const checklistTitle = getOperationalBoxTitle(current);
+  const isRun = isRunningBlock(current, project);
+  const usesRoutineRating = isRatingActivity(current, project);
+  const checklistTitle = getOperationalBoxTitle(current, project);
   const routineRating = routineRatings[current.id];
   const titleFontSize = useFitText(titleRef, activityHeading.title, 28, 18);
   const checklist = getVisibleChecklistItems(
@@ -916,6 +918,57 @@ function ActivityCardPanel({
                 </div>
               ) : null}
             </div>
+          ) : usesRoutineRating ? (
+            <div className="mt-2 space-y-2">
+              {isRun ? (
+                <form
+                  className="grid grid-cols-[1fr_1fr_44px] gap-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    onAddRunWorkout?.(current);
+                  }}
+                >
+                  <input
+                    value={runDurationDraft}
+                    onChange={(event) => {
+                      setRunDurationDraft?.(event.target.value.replace(/[^\d,.]/g, ""));
+                    }}
+                    inputMode="decimal"
+                    placeholder="Tempo min"
+                    className="h-11 min-w-0 rounded-2xl bg-card/70 px-3.5 text-[13px] outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+                  />
+                  <input
+                    value={runDistanceDraft}
+                    onChange={(event) => {
+                      setRunDistanceDraft?.(event.target.value.replace(/[^\d,.]/g, ""));
+                    }}
+                    inputMode="decimal"
+                    placeholder="Km"
+                    className="h-11 min-w-0 rounded-2xl bg-card/70 px-3.5 text-[13px] outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+                  />
+                  <button
+                    type="submit"
+                    disabled={runSaveState === "saving"}
+                    className={cn(
+                      "press grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground disabled:bg-muted disabled:text-muted-foreground",
+                      runSaveState === "saved" && "bg-primary/80",
+                    )}
+                    aria-label="Registrar corrida"
+                  >
+                    {runSaveState === "saved" ? <Check className="size-4" /> : <Send className="size-4" />}
+                  </button>
+                </form>
+              ) : null}
+              <RoutineRatingControl
+                rating={routineRating}
+                onSetRating={(rating) => onSetRoutineRating?.(current.id, rating)}
+              />
+              {isRun && runSaveState === "error" ? (
+                <p className="px-1 text-[11px] text-destructive">
+                  Informe tempo e km para registrar a corrida.
+                </p>
+              ) : null}
+            </div>
           ) : (
             <div className="mt-2 space-y-2">
               {isRun ? (
@@ -1025,7 +1078,6 @@ function RoutineReviewBox({
   onSetRating: (rating: number) => void;
 }) {
   const items = current.routineItems ?? [];
-  const ratingOptions = [0, 1, 2, 3, 4, 5];
 
   return (
     <div className="mt-5 flex min-h-0 flex-1 flex-col rounded-2xl bg-elevated/60 p-4">
@@ -1060,39 +1112,53 @@ function RoutineReviewBox({
         )}
       </div>
 
-      <div className="mt-2">
-        <div className="grid grid-cols-6 gap-1">
-          {ratingOptions.map((value) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => onSetRating(value)}
-              className={cn(
-                "press h-9 rounded-2xl text-sm font-semibold transition-colors duration-200",
-                rating === value
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-card/70 text-muted-foreground",
-              )}
-              aria-label={
-                value === 0
-                  ? "Marcar rotina como sem execução"
-                  : `Avaliar rotina com nota ${value} de 5`
-              }
-            >
-              {value === 0 ? "X" : value}
-            </button>
-          ))}
-        </div>
-        <p className="mt-1.5 text-center text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-          AVALIAÇÃO
-        </p>
-      </div>
+      <RoutineRatingControl rating={rating} onSetRating={onSetRating} />
     </div>
   );
 }
 
-function getOperationalBoxTitle(block: ScheduleBlock) {
-  if (block.category === "Saúde") return "TREINO";
+function RoutineRatingControl({
+  rating,
+  onSetRating,
+}: {
+  rating: number | undefined;
+  onSetRating: (rating: number) => void;
+}) {
+  const ratingOptions = [0, 1, 2, 3, 4, 5];
+
+  return (
+    <div className="mt-2">
+      <div className="grid grid-cols-6 gap-1">
+        {ratingOptions.map((value) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => onSetRating(value)}
+            className={cn(
+              "press h-9 rounded-2xl text-sm font-semibold transition-colors duration-200",
+              rating === value
+                ? "bg-primary text-primary-foreground"
+                : "bg-card/70 text-muted-foreground",
+            )}
+            aria-label={
+              value === 0
+                ? "Marcar rotina como sem execução"
+                : `Avaliar rotina com nota ${value} de 5`
+            }
+          >
+            {value === 0 ? "X" : value}
+          </button>
+        ))}
+      </div>
+      <p className="mt-1.5 text-center text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+        AVALIAÇÃO
+      </p>
+    </div>
+  );
+}
+
+function getOperationalBoxTitle(block: ScheduleBlock, inferredProject?: Project) {
+  if (block.category === "Saúde" || normalizeLabel(inferredProject?.frontTitle) === "saude") return "TREINO";
   if (block.cardType === "routine") {
     if (block.category === "Alimentação") return "REFEIÇÃO";
     return "ROTINA";
@@ -1100,11 +1166,22 @@ function getOperationalBoxTitle(block: ScheduleBlock) {
   return block.category === "Tempo livre" ? "NOTAS DE ALÍVIO" : "CHECKLIST";
 }
 
-function isRunningBlock(block: ScheduleBlock) {
-  if (block.category !== "Saúde") return false;
-  return normalizeSearchText([block.title, block.subtitle, block.description].filter(Boolean).join(" ")).includes(
-    "corrida",
+function isRatingActivity(block: ScheduleBlock, inferredProject?: Project) {
+  const front = normalizeLabel(inferredProject?.frontTitle ?? block.scope?.front);
+  return (
+    block.cardType === "routine" ||
+    block.category === "Saúde" ||
+    block.category === "Alimentação" ||
+    front === "saude" ||
+    front === "alimentacao"
   );
+}
+
+function isRunningBlock(block: ScheduleBlock, inferredProject?: Project) {
+  if (block.category !== "Saúde" && normalizeLabel(inferredProject?.frontTitle) !== "saude") return false;
+  return normalizeSearchText(
+    [block.title, block.subtitle, block.description, inferredProject?.title].filter(Boolean).join(" "),
+  ).includes("corrida");
 }
 
 function normalizeSearchText(value: string) {
@@ -1114,7 +1191,7 @@ function normalizeSearchText(value: string) {
     .toLowerCase();
 }
 
-function getActivityHeading(block: ScheduleBlock) {
+function getActivityHeading(block: ScheduleBlock, inferredProject?: Project) {
   const area = block.scope?.area;
   const front = block.scope?.front;
   const project = block.scope?.project;
@@ -1130,6 +1207,13 @@ function getActivityHeading(block: ScheduleBlock) {
     return {
       overline: area,
       title: front,
+    };
+  }
+
+  if (inferredProject) {
+    return {
+      overline: `${inferredProject.category} | ${inferredProject.frontTitle}`,
+      title: inferredProject.title,
     };
   }
 
@@ -1168,8 +1252,11 @@ function getViewModeForSlide(
   return toMinutesFromClock(slide.endTime) <= nowMinutes ? "past" : "future";
 }
 
-function findProjectForSlide(projects: Project[], slide: ScheduleBlock | null) {
-  return slide?.projectId ? projects.find((project) => project.id === slide.projectId) : undefined;
+function resolveProjectForSlide(projects: Project[], fronts: ManagedFront[], slide: ScheduleBlock | null) {
+  if (!slide) return undefined;
+  return slide.projectId
+    ? projects.find((project) => project.id === slide.projectId)
+    : findProjectByBlockLabels(slide, projects, fronts);
 }
 
 function selectActivityIndicators(indicators: ActivityIndicator[], selectedId: string) {
@@ -1321,7 +1408,7 @@ function buildScopedTaskChecklist(
   fronts: ManagedFront[],
   todayKey: string,
 ): ActivityChecklistItem[] {
-  if (block.cardType === "routine" || block.category === "Tempo livre") return [];
+  if (block.category === "Tempo livre") return [];
 
   const scope = resolveBlockTaskScope(block, focusedProject, projects, fronts);
   if (!scope) return [buildMissingScopeChecklistItem(block)];
@@ -1385,17 +1472,18 @@ function resolveBlockTaskScope(
 
   if (requestedProject) {
     const requestedFrontLabel = requestedFront ? normalizeLabel(requestedFront) : null;
-    const matchingProject = pickBestMatchingProject(
-      projects.filter((project) => {
-      if (toFatherSegment(project.category) !== area) return false;
-        if (!labelsMatch(project.title, requestedProject)) return false;
+    const scopedCandidates = projects.filter((project) => {
+      if (!labelsMatch(project.title, requestedProject)) return false;
       if (!requestedFrontLabel) return true;
 
       const front = fronts.find((item) => item.id === project.frontId);
       return normalizeLabel(front?.title ?? project.frontTitle) === requestedFrontLabel;
-      }),
+    });
+    const matchingProject = pickBestMatchingProject(
+      scopedCandidates,
       [requestedProject],
       fronts,
+      block,
     );
 
     if (!matchingProject) return null;
@@ -1422,20 +1510,9 @@ function resolveBlockTaskScope(
     };
   }
 
-  const labelCandidates = [block.scope?.project, block.subtitle, block.title, block.description].filter(Boolean);
+  const labelCandidates = getBlockLabelCandidates(block);
   const normalizedLabelCandidates = labelCandidates.map((label) => normalizeLabel(label));
-  const matchingProject = pickBestMatchingProject(
-    projects.filter((project) => {
-      const sameAreaMatch =
-        toFatherSegment(project.category) === area &&
-        labelCandidates.some((label) => labelsMatch(project.title, label));
-      const globalMatch = labelCandidates.some((label) => labelsMatch(project.title, label));
-
-      return sameAreaMatch || globalMatch;
-    }),
-    labelCandidates,
-    fronts,
-  );
+  const matchingProject = findProjectByBlockLabels(block, projects, fronts);
   if (matchingProject) {
     return {
       area: toFatherSegment(matchingProject.category),
@@ -1450,10 +1527,34 @@ function resolveBlockTaskScope(
       normalizedLabelCandidates.some((label) => label === normalizeLabel(front.title)),
   );
 
+  if (!matchingFront && area === "rotina") return null;
+
   return {
     area,
     frontId: matchingFront?.id,
   };
+}
+
+function findProjectByBlockLabels(
+  block: ScheduleBlock,
+  projects: Project[],
+  fronts: ManagedFront[],
+) {
+  const labelCandidates = getBlockLabelCandidates(block);
+  if (!labelCandidates.length) return undefined;
+
+  return pickBestMatchingProject(
+    projects.filter((project) => labelCandidates.some((label) => labelsMatch(project.title, label))),
+    labelCandidates,
+    fronts,
+    block,
+  );
+}
+
+function getBlockLabelCandidates(block: ScheduleBlock) {
+  return [block.scope?.project, block.subtitle, block.title, block.description].filter(
+    (label): label is string => Boolean(label),
+  );
 }
 
 function buildMissingScopeChecklistItem(block: ScheduleBlock): ActivityChecklistItem {
@@ -1461,7 +1562,7 @@ function buildMissingScopeChecklistItem(block: ScheduleBlock): ActivityChecklist
     ? `projeto "${block.scope.project}"`
     : block.scope?.front
       ? `frente "${block.scope.front}"`
-      : "escopo";
+      : `projeto "${block.title}"`;
   const path = [block.scope?.area ?? block.category, block.scope?.front, block.scope?.project]
     .filter(Boolean)
     .join(" · ");
@@ -1494,21 +1595,33 @@ function pickBestMatchingProject(
   candidates: Project[],
   labels: string[],
   fronts: ManagedFront[],
+  block?: ScheduleBlock,
 ) {
   if (candidates.length <= 1) return candidates[0];
 
-  const healthHint = labels.some((label) => looksLikeHealthLabel(label));
-  if (healthHint) {
-    const healthProject = candidates.find((project) => {
+  const requestedArea = block?.scope?.area ? toFatherSegment(block.scope.area) : null;
+  const requestedFront = block?.scope?.front ? normalizeLabel(block.scope.front) : null;
+  const blockArea = block?.category && block.category !== "Rotina" ? toFatherSegment(block.category) : null;
+  const exactTitle = candidates.find((project) =>
+    labels.some((label) => normalizeLooseLabel(project.title) === normalizeLooseLabel(label)),
+  );
+
+  if (requestedArea || requestedFront) {
+    const scopedProject = candidates.find((project) => {
       const front = fronts.find((item) => item.id === project.frontId);
-      return (
-        toFatherSegment(project.category) === "pessoal" &&
-        normalizeLabel(front?.title ?? project.frontTitle) === "saude"
-      );
+      const matchesArea = !requestedArea || toFatherSegment(project.category) === requestedArea;
+      const matchesFront = !requestedFront || normalizeLabel(front?.title ?? project.frontTitle) === requestedFront;
+      return matchesArea && matchesFront;
     });
-    if (healthProject) return healthProject;
+    if (scopedProject) return scopedProject;
   }
 
+  if (blockArea) {
+    const sameAreaProject = candidates.find((project) => toFatherSegment(project.category) === blockArea);
+    if (sameAreaProject) return sameAreaProject;
+  }
+
+  if (exactTitle) return exactTitle;
   return candidates[0];
 }
 
@@ -1527,16 +1640,6 @@ function normalizeLooseLabel(value?: string) {
     .split(/[^a-z0-9]+/g)
     .filter((word) => word && !LOOSE_LABEL_STOP_WORDS.has(word))
     .join("-");
-}
-
-function looksLikeHealthLabel(value?: string) {
-  const normalized = normalizeLooseLabel(value);
-  return (
-    normalized.includes("treino") ||
-    normalized.includes("corrida") ||
-    normalized.includes("academia") ||
-    normalized.includes("musculacao")
-  );
 }
 
 const LOOSE_LABEL_STOP_WORDS = new Set(["de", "da", "do", "das", "dos"]);
