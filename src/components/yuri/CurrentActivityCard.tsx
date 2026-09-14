@@ -1092,8 +1092,8 @@ function RoutineReviewBox({
 }
 
 function getOperationalBoxTitle(block: ScheduleBlock) {
+  if (block.category === "Saúde") return "TREINO";
   if (block.cardType === "routine") {
-    if (block.category === "Saúde") return "TREINO";
     if (block.category === "Alimentação") return "REFEIÇÃO";
     return "ROTINA";
   }

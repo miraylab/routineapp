@@ -151,7 +151,16 @@ function parseRoutineTitle(rawTitle: string): {
     };
   }
 
-  if (category === "Saúde" || category === "Alimentação") {
+  if (category === "Saúde") {
+    return {
+      category,
+      title: second ?? first,
+      subtitle: third,
+      scope: buildRoutineScope(category, second, third),
+    };
+  }
+
+  if (category === "Alimentação") {
     return {
       category,
       title: second ?? first,
