@@ -1385,14 +1385,18 @@ function resolveBlockTaskScope(
 
   if (requestedProject) {
     const requestedFrontLabel = requestedFront ? normalizeLabel(requestedFront) : null;
-    const matchingProject = projects.find((project) => {
+    const matchingProject = pickBestMatchingProject(
+      projects.filter((project) => {
       if (toFatherSegment(project.category) !== area) return false;
-      if (normalizeLabel(project.title) !== normalizeLabel(requestedProject)) return false;
+        if (!labelsMatch(project.title, requestedProject)) return false;
       if (!requestedFrontLabel) return true;
 
       const front = fronts.find((item) => item.id === project.frontId);
       return normalizeLabel(front?.title ?? project.frontTitle) === requestedFrontLabel;
-    });
+      }),
+      [requestedProject],
+      fronts,
+    );
 
     if (!matchingProject) return null;
 
@@ -1418,11 +1422,19 @@ function resolveBlockTaskScope(
     };
   }
 
-  const labelCandidates = [block.subtitle, block.title].filter(Boolean).map((label) => normalizeLabel(label));
-  const matchingProject = projects.find(
-    (project) =>
-      toFatherSegment(project.category) === area &&
-      labelCandidates.some((label) => label === normalizeLabel(project.title)),
+  const labelCandidates = [block.scope?.project, block.subtitle, block.title, block.description].filter(Boolean);
+  const normalizedLabelCandidates = labelCandidates.map((label) => normalizeLabel(label));
+  const matchingProject = pickBestMatchingProject(
+    projects.filter((project) => {
+      const sameAreaMatch =
+        toFatherSegment(project.category) === area &&
+        labelCandidates.some((label) => labelsMatch(project.title, label));
+      const globalMatch = labelCandidates.some((label) => labelsMatch(project.title, label));
+
+      return sameAreaMatch || globalMatch;
+    }),
+    labelCandidates,
+    fronts,
   );
   if (matchingProject) {
     return {
@@ -1435,7 +1447,7 @@ function resolveBlockTaskScope(
   const matchingFront = fronts.find(
     (front) =>
       toFatherSegment(front.area) === area &&
-      labelCandidates.some((label) => label === normalizeLabel(front.title)),
+      normalizedLabelCandidates.some((label) => label === normalizeLabel(front.title)),
   );
 
   return {
@@ -1477,6 +1489,57 @@ function projectMatchesScope(project: Project, scope: TaskScope) {
   if (scope.frontId) return project.frontId === scope.frontId;
   return true;
 }
+
+function pickBestMatchingProject(
+  candidates: Project[],
+  labels: string[],
+  fronts: ManagedFront[],
+) {
+  if (candidates.length <= 1) return candidates[0];
+
+  const healthHint = labels.some((label) => looksLikeHealthLabel(label));
+  if (healthHint) {
+    const healthProject = candidates.find((project) => {
+      const front = fronts.find((item) => item.id === project.frontId);
+      return (
+        toFatherSegment(project.category) === "pessoal" &&
+        normalizeLabel(front?.title ?? project.frontTitle) === "saude"
+      );
+    });
+    if (healthProject) return healthProject;
+  }
+
+  return candidates[0];
+}
+
+function labelsMatch(left: string | undefined, right: string | undefined) {
+  const normalizedLeft = normalizeLooseLabel(left);
+  const normalizedRight = normalizeLooseLabel(right);
+  if (!normalizedLeft || !normalizedRight) return false;
+  return normalizedLeft === normalizedRight;
+}
+
+function normalizeLooseLabel(value?: string) {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/g)
+    .filter((word) => word && !LOOSE_LABEL_STOP_WORDS.has(word))
+    .join("-");
+}
+
+function looksLikeHealthLabel(value?: string) {
+  const normalized = normalizeLooseLabel(value);
+  return (
+    normalized.includes("treino") ||
+    normalized.includes("corrida") ||
+    normalized.includes("academia") ||
+    normalized.includes("musculacao")
+  );
+}
+
+const LOOSE_LABEL_STOP_WORDS = new Set(["de", "da", "do", "das", "dos"]);
 
 function taskIsVisibleInOperationalCard(
   task: Pick<Task | ProjectAction, "visibleFrom" | "dueDate">,
