@@ -156,7 +156,7 @@ function parseRoutineTitle(rawTitle: string): {
       category,
       title: second ?? first,
       subtitle: third,
-      scope: buildRoutineScope(category, second, third),
+      scope: buildHealthScope(first, second, third),
     };
   }
 
@@ -165,7 +165,7 @@ function parseRoutineTitle(rawTitle: string): {
       category,
       title: second ?? first,
       subtitle: third,
-      scope: buildRoutineScope(category, second, third),
+      scope: buildPersonalFrontScope("Alimentação", second, third),
       cardType: "routine",
     };
   }
@@ -194,6 +194,28 @@ function buildRoutineScope(category: Category, front?: string, project?: string)
     ...(front ? { front } : {}),
     ...(project ? { project } : {}),
   };
+}
+
+function buildHealthScope(first: string, second?: string, third?: string): ScheduleBlock["scope"] {
+  const project = third ?? (isGenericHealthLabel(second) ? undefined : second);
+  return {
+    area: "Pessoal",
+    front: "Saúde",
+    ...(project ? { project } : {}),
+  };
+}
+
+function buildPersonalFrontScope(front: string, second?: string, third?: string): ScheduleBlock["scope"] {
+  return {
+    area: "Pessoal",
+    front,
+    ...(third ?? second ? { project: third ?? second } : {}),
+  };
+}
+
+function isGenericHealthLabel(value: string | undefined) {
+  const normalized = normalizeSegment(value ?? "");
+  return normalized === "saude" || normalized === "academia" || normalized === "musculacao" || normalized === "treino";
 }
 
 function normalizeCategory(value: string): Category {
