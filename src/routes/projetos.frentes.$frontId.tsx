@@ -90,7 +90,9 @@ function FrenteDetalhe() {
     );
   }
 
-  const visibleTasks = orderTasksByDoneLast(front.tasks);
+  const visibleTasks = orderTasksByDoneLast(
+    front.tasks.filter((task) => taskIsVisibleInProjectManagement(task, todayKey)),
+  );
   const openTasks = visibleTasks.filter((task) => !task.dueDate);
   const showTasks = visibleTasks.length > 0 && !(tasksDismissed && openTasks.length === 0);
   const orderedProjects = useMemo(
@@ -739,6 +741,10 @@ function compareProjectsByManualOrder(a: Project, b: Project) {
   const titleComparison = a.title.localeCompare(b.title);
   if (titleComparison !== 0) return titleComparison;
   return a.id.localeCompare(b.id);
+}
+
+function taskIsVisibleInProjectManagement(task: { dueDate?: string }, todayKey: string) {
+  return !task.dueDate || task.dueDate === todayKey;
 }
 
 function formatVisibleFromDistance(visibleFrom: string | undefined, todayKey: string) {

@@ -73,7 +73,9 @@ function ProjetoDetalhe() {
   const [editingAction, setEditingAction] = useState<ProjectAction | null>(null);
 
   const project = projects.find((p) => p.id === projectId);
-  const visibleActions = orderActionsByDoneLast(project?.actions ?? []);
+  const visibleActions = orderActionsByDoneLast(
+    (project?.actions ?? []).filter((action) => taskIsVisibleInProjectManagement(action, todayKey)),
+  );
   const openActions = visibleActions.filter((action) => !action.dueDate).length;
   const showActions = visibleActions.length > 0 && !(actionsDismissed && openActions === 0);
   const agendaOccurrence = project
@@ -445,6 +447,10 @@ function ProjetoDetalhe() {
 
 function orderActionsByDoneLast<T extends { dueDate?: string }>(actions: T[]) {
   return [...actions].sort((a, b) => Number(Boolean(a.dueDate)) - Number(Boolean(b.dueDate)));
+}
+
+function taskIsVisibleInProjectManagement(task: { dueDate?: string }, todayKey: string) {
+  return !task.dueDate || task.dueDate === todayKey;
 }
 
 function formatVisibleFromDistance(visibleFrom: string | undefined, todayKey: string) {
